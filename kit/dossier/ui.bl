@@ -296,23 +296,30 @@
       "machine" (let [[tone who role detail right] c]
                   [:div {:class (str "s-machine " tone)}
                    [:span.glyph (mdi (first (String/split who " ")))]
-                   [:div [:b (mdi (join " " (rest (String/split who " "))))] [:span (mdi role)]
-                    (when detail [:small (mdi detail)])]
-                   (when right [:em (mdi right)])])
+                   ;; side facts flow in the text, never a column of their own
+                   [:div [:b (mdi (join " " (rest (String/split who " "))))
+                          (when right [:em (mdi right)])]
+                    [:span (mdi role)]
+                    (when detail [:small (mdi detail)])]])
       "search" [:div.s-search (ico "search") [:span (mdi rest-text)] (ico "mic")]
       "pick" (let [[what detail right] c
                    on? (ends-with? what "*")
                    what (if on? (subs what 0 (dec (count what))) what)]
                [:div {:class (str "s-pick" (if on? " on" ""))}
                 [:span.glyph (mdi (first (String/split what " ")))]
-                [:div [:b (mdi (join " " (rest (String/split what " "))))] (when detail [:span (mdi detail)])]
-                (when right [:em (mdi right)])])
+                [:div [:b (mdi (join " " (rest (String/split what " "))))]
+                 (when (or detail right) [:span (mdi (join " · " (filter (fn [x] (not (blank? x))) [detail right])))])]])
       "listen" [:div.s-listen [:div.s-orb (ico "mic")] [:div.s-bars (for [h [6 14 22 12 26 18 9 20 13 7 17 24 11]] [:i {:style (str "height:" h "px")}])]
                 [:span (mdi rest-text)]]
       "heard" [:div.s-heard [:em "heard"] [:span (mdi rest-text)]]
       "intent" (let [[verb target text] c]
                  [:div.s-intent [:div.s-intent-top [:b (mdi verb)] [:span (mdi target)]] [:div (mdi text)]])
       "ask" [:div.s-ask (mdi rest-text)]
+      "choices" [:div.s-choices
+                 (map-indexed (fn [i x] (let [on? (ends-with? x "*") x (if on? (subs x 0 (dec (count x))) x)]
+                                          [:span {:class (if on? "on" "")} [:i (str (inc i))] (mdi x)]))
+                              c)]
+      "reply" [:div.s-reply [:span (mdi (first c))] (ico "mic") [:span.s-send (ico "send")]]
       "actions" [:div.s-actions
                  (for [x c]
                    (btn-h x))]

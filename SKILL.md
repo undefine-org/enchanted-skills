@@ -88,7 +88,9 @@ Screen language, one verb per line: `bar Title | right` (`< Title` adds back), `
 (say what is needed in the card, keep the actions as icons; Othman finds button rows hard to parse),
 `machine tone | @server name | role | detail | right` (tones `up busy asleep you`),
 `search placeholder` + `pick @folder name* | detail | right` (a project picker, `*` = chosen),
-`listen hint` (mic + waveform), `heard transcript`, `intent @send Verb | target | text` (voice).
+`listen hint` (mic + waveform), `heard transcript`, `intent @send Verb | target | text` (voice),
+`choices A | B* | C` (a multiple-choice ask, `*` = picked), `reply placeholder` (a free-text answer with mic and send).
+Side facts on `pick` and `machine` flow into the text; card actions sit under the words.
 
 Desk language — every screen verb, plus desktop regions and a document:
 `nav @home Accueil* | @matter Affaires` (sidebar, `*` = here), `crumb a › b`,

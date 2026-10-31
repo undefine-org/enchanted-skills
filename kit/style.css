@@ -385,3 +385,25 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .s-card.has-acts .ib{width:30px;height:30px}
 .s-card-main{min-width:0}
 .s-card.has-acts .s-card-top span{white-space:normal;overflow-wrap:anywhere}
+
+/* actions sit under the words, so the words keep the card's full width */
+.s-card.has-acts{grid-template-columns:10px 1fr}
+.s-card.has-acts .s-acts{grid-column:2;justify-content:flex-start;margin-top:6px;gap:6px}
+.s-card.has-acts .s-card-top{flex-direction:row;gap:8px}
+.s-card.has-acts .s-card-top span{white-space:nowrap}
+.s-card.has-acts .ib{width:30px;height:30px}
+
+/* side facts flow in the text */
+.s-machine,.s-pick{grid-template-columns:40px 1fr}
+.s-pick{grid-template-columns:34px 1fr}
+.s-machine b em{font:600 10.5px var(--mono);margin-left:6px;color:var(--muted)}
+.s-machine.up b em{color:var(--sage)}.s-machine.busy b em{color:var(--slate)}
+
+/* multiple-choice and free-text asks, answered in place */
+.s-choices{display:flex;flex-direction:column;gap:5px;margin:6px 0}
+.s-choices span{display:flex;gap:8px;align-items:center;border:1px solid var(--latte);border-radius:10px;padding:7px 10px;font-size:13px;background:var(--bg)}
+.s-choices span i{font:600 10.5px var(--mono);font-style:normal;color:var(--muted);width:14px}
+.s-choices span.on{border-color:var(--ink);background:var(--ink);color:var(--bg)}.s-choices span.on i{color:var(--latte)}
+.s-reply{display:flex;align-items:center;gap:8px;border:1px solid var(--latte);border-radius:12px;padding:6px 6px 6px 11px;margin:6px 0;background:var(--bg);font-size:13px;color:var(--muted)}
+.s-reply span:first-child{flex:1}.s-reply>.ic{width:17px;height:17px;color:var(--clay)}
+.s-reply .s-send{width:28px;height:28px}.s-reply .s-send .ic{width:15px;height:15px}
