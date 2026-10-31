@@ -1,0 +1,21 @@
+; answers.bl — what the reader said, for the agent that wrote the dossier.
+;
+;   bl run answers.bl -- FILE.bl.org        one line per answerable block
+;
+; Answered blocks first, with their notes; then what still waits.
+
+(ns answers
+  (:require [dossier.org :as o] [dossier.page :as pg]))
+
+(def path (Path/expand (first (BeamLisp/argv))))
+(def items (pg/feedback-items (o/read-doc (File/read! path))))
+(def done (filter :answer items))
+(def open (filter (fn [i] (nil? (:answer i))) items))
+
+(println (str path " — " (count done) "/" (count items) " answered"))
+(doseq [i done]
+  (println (str "  ✓ " (:id i) " [" (:lang i) "] " (:title i) " → " (:answer i)
+                (if (:at i) (str "  (" (:at i) ")") "")))
+  (when (:note i) (println (str "      note: " (:note i)))))
+(when (seq open)
+  (println (str "  waiting: " (join ", " (map :id open)))))
