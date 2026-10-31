@@ -129,3 +129,8 @@ Check: phone width first, every diagram readable, both themes, no `✗ failed` c
 Tests: `bl test -p ~/.claude/skills/bl-org-dossier/kit kit/test/kit_test.bl`.
 A new component = one `-h` fn in `ui.bl`, a case in `block->h`, CSS, a needle in the test.
 Answers are written by `patch-line`: only `:answer :note :at :by` change; every other byte of the file stays.
+
+The kit is a git repo shared by every session that uses this skill. Commit as you go, one idea per
+commit, and stage only your own files (`git status` first: another session may be mid-edit). A
+`work restart` of a dossier service loads whatever is on disk, uncommitted edits included.
+Keep a reader's answers in their own commit in the dossier's repo, so `git diff` shows what they said.
