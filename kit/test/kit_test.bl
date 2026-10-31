@@ -1,0 +1,45 @@
+; test/kit_test.bl — the dossier kit's promises, witnessed.
+;
+;   bl test -p ~/.claude/skills/bl-org-dossier/kit test/kit_test.bl
+;
+; An answer touches one header line and nothing else; attributes survive a
+; round trip; every component of a real dossier renders.
+
+(ns dossier.kit.test
+  (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
+            [dossier.page :as pg] [dossier.answer :as ans]))
+
+(def sample
+  ["* Q" "#+begin_ask :id q1 :title \"Who drives?\" :options \"A|B\"" "Context." "#+end_ask"
+   "#+begin_decision :id d1 :title T" "- [x] yes" "#+end_decision" "#+begin_note" "n" "#+end_note"])
+
+(deftest attrs-round-trip
+  (let [line "#+begin_ask :id q1 :title \"Say \\\"hi\\\": now\" :flag :options A|B"
+        pairs (at/read-attrs line)]
+    (is (= {:id "q1" :title "Say \"hi\": now" :flag "true" :options "A|B"} (at/attr-map pairs)))
+    (is (= pairs (at/read-attrs (at/header-line line "ask" pairs))))))
+
+(deftest answer-touches-one-line
+  (let [r (ans/answer-lines sample "q1" "B" "because" "2026-10-31 17:00" "")
+        changed (filter (fn [i] (not= (nth sample i) (nth (:lines r) i))) (range (count sample)))]
+    (is (= [1] changed))
+    (is (= "B" (:answer (at/attr-map (at/read-attrs (nth (:lines r) 1))))))
+    (is (= "because" (:note (at/attr-map (at/read-attrs (nth (:lines r) 1))))))))
+
+(deftest clearing-restores-the-line
+  (let [once (:lines (ans/answer-lines sample "q1" "B" "x" "t" "me"))
+        cleared (:lines (ans/answer-lines once "q1" "" "" "t" "me"))]
+    (is (= sample cleared))))
+
+(deftest only-answerable-blocks
+  (is (:error (ans/answer-lines sample "nope" "A" "" "t" "")))
+  (is (= ["q1" "d1"] (map :id (pg/feedback-items (o/read-doc (join "\n" sample)))))))
+
+(deftest the-baton-dossier-renders
+  (let [path (Path/expand "~/projects/tiny-tools/mobile-app/dossier/baton.bl.org")
+        html (h/hiccup->html (pg/page-h (o/read-doc (File/read! path)) "" ""))]
+    (is (> (count html) 50000))
+    (doseq [needle ["class=\"phone" "class=\"sequence\"" "class=\"graph\"" "class=\"rosetta\""
+                    "class=\"matrix\"" "class=\"decision\"" "class=\"seq-steps\"" "✓ ran"]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (not (includes? html "✗ failed")))))
