@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght,SOFT@9..144,400..600,100&family=Literata:opsz,wght@7..72,400..600&display=swap");
 :root{--bg:#f7f3ee;--paper:#f1ebe3;--card:#fbf8f4;--line:#e8dfd3;--latte:#d9c8b4;--mocha:#a68a73;--muted:#6a5547;--ink:#3b2c24;
 --sage:#6f8a6a;--clay:#b0654a;--slate:#5f7684;--ochre:#b08a3e;--plum:#7d5a78;--shadow:0 10px 30px rgb(59 44 36 / .12);
 --serif:"Newsreader","Iowan Old Style","Palatino Linotype",Palatino,"Noto Serif","DejaVu Serif",Georgia,serif;--sans:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
@@ -269,7 +270,7 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .desk{--k-bg:#f6ece2;--k-paper:#fdf7f1;--k-paper2:#fffbf6;--k-clay:#f1e2d4;--k-clay2:#e8d5c3;--k-hair:#ecdccd;--k-hair2:#d8c0aa;
   --k-ink:#3b2e27;--k-ink2:#6d5a51;--k-ink3:#725f56;--k-signal:#a8452b;--k-signal2:#bb5236;--k-on:#fdf7f1;--k-honey:#e0a458;--k-honeyink:#875a19;
   --k-hl:#fbe2c2;--k-ok:#4d6a3d;--k-okbg:#e3e9da;--k-danger:#9b3b22;
-  --k-voice:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;--k-doc:"Literata","Iowan Old Style",Georgia,serif;--k-display:"Fraunces","Newsreader",Georgia,serif;--k-data:"Spline Sans Mono",ui-monospace,monospace;
+  --k-voice:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;--k-doc:"Literata","Iowan Old Style",Georgia,"DejaVu Serif",serif;--k-display:"Fraunces","Newsreader",Georgia,"DejaVu Serif",serif;--k-data:"Spline Sans Mono",ui-monospace,monospace;
   margin:22px 0 30px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .desk{--k-bg:#1d1814;--k-paper:#26201b;--k-paper2:#2c251f;--k-clay:#332a23;--k-clay2:#3e332b;--k-hair:#382e27;--k-hair2:#5a4a3e;
   --k-ink:#f2e6d9;--k-ink2:#cbb8a6;--k-ink3:#ad9785;--k-signal:#ec9070;--k-signal2:#e07a58;--k-on:#1d1814;--k-honey:#e9b064;--k-honeyink:#e6b56f;--k-hl:#4b3a22;--k-ok:#a9c290;--k-okbg:#2f3a29;--k-danger:#f0896a}}
