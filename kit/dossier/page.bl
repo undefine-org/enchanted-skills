@@ -1,0 +1,131 @@
+; dossier/page.bl — a whole document as one page.
+;
+; Level-1 headings become sections and nav chips; runs of screen blocks
+; become one sideways strip; a `Roster` section gets its progress tiles;
+; every cell shows its last recorded result as proof. Pure.
+
+(ns dossier.page
+  (:require [dossier.org :as o] [dossier.ui :as ui]))
+
+(def answerable #{"ask" "decision" "screen" "job"})
+
+(defn- group-screens
+  "Consecutive screen blocks (blank prose between them aside) as one node."
+  [nodes]
+  (reduce (fn [out nd]
+            (let [prev (last out)]
+              (if (and (= :block (:t nd)) (= "screen" (:lang nd)))
+                (if (= :screens (:t prev))
+                  (conj (pop out) (update prev :blocks conj nd))
+                  (conj out {:t :screens :blocks [nd]}))
+                (conj out nd))))
+          [] nodes))
+
+(defn- todo-chip [k] (when k [:span {:class (str "kw " k)} k]))
+
+(defn- node->h [nd]
+  (case (:t nd)
+    :heading (let [tag (keyword (str "h" (min 6 (inc (:level nd)))))]
+               [tag {:id (ui/slug (:title nd))}
+                (todo-chip (:todo nd)) (ui/md (:title nd))
+                (for [t (:tags nd)] [:span.tag t])])
+    :para [:p (ui/md (:text nd))]
+    :list [(if (:ordered? nd) :ol :ul)
+           (for [it (:items nd)]
+             (cond (starts-with? it "[X] ") [:li.check.done (ui/md (subs it 4))]
+                   (starts-with? it "[ ] ") [:li.check (ui/md (subs it 4))]
+                   :else [:li (ui/md it)]))]
+    :table [:div.scrollx
+            [:table
+             (when (seq (:head nd)) [:thead (for [r (:head nd)] [:tr (for [c r] [:th (ui/md c)])])])
+             [:tbody (for [r (:rows nd)] [:tr (for [c r] [:td (ui/md c)])])]]]
+    :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
+    :block (ui/block->h nd)
+    :screens (ui/screens-h (:blocks nd))
+    :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
+           [:div.cell-head
+            [:span.badge (cond (:error? nd) "✗ failed" (:result nd) "✓ ran" :else "not run")]
+            [:code (:id nd)] [:span.lang "beam-lisp"]]
+           (when (:result nd) [:pre.result (:result nd)])
+           [:details [:summary (str "model source · " (count (String/split (:code nd) "\n")) " lines")]
+            [:pre.src (:code nd)]]]
+    :code [:pre {:class (str "code " (:lang nd))} (:body nd)]
+    nil))
+
+(defn- sections
+  "Nodes split at level-1 headings: [{:head h :nodes […]} …]."
+  [nodes]
+  (reduce (fn [out nd]
+            (if (and (= :heading (:t nd)) (= 1 (:level nd)))
+              (conj out {:head nd :nodes []})
+              (if (empty? out)
+                [{:head nil :nodes [nd]}]
+                (conj (pop out) (update (last out) :nodes conj nd)))))
+          [] nodes))
+
+(defn- roster-h [nodes]
+  (let [kws (keep :todo (filter (fn [nd] (= :heading (:t nd))) nodes))
+        counts (frequencies kws)
+        total (max 1 (count kws))
+        order ["DONE" "DOING" "NEXT" "TODO" "BLOCKED" "DROP"]]
+    (when (seq kws)
+      (list
+        [:div.tiles (for [k order :when (get counts k)] [:div.tile [:b (get counts k)] [:span (lower-case k)]])]
+        [:div.bar (for [k order :when (get counts k)]
+                    [:i {:class (str "seg " k) :style (str "width:" (/ (* 100.0 (get counts k)) total) "%")}])]))))
+
+(defn feedback-items
+  "Every answerable block: [{:id :lang :title :answer :note :at} …]."
+  [doc]
+  (for [nd (:nodes doc) :when (and (= :block (:t nd)) (contains? answerable (:lang nd)) (:id (:attrs nd)))]
+    (let [a (:attrs nd)]
+      {:id (:id a) :lang (:lang nd) :title (or (:title a) "") :answer (:answer a) :note (:note a) :at (:at a)})))
+
+(defn- tally-h [doc]
+  (let [items (feedback-items doc)
+        open (filter (fn [i] (nil? (:answer i))) items)
+        asks (filter (fn [i] (contains? #{"ask" "decision"} (:lang i))) open)]
+    [:div.tally
+     [:span.tally-n (str (- (count items) (count open)) "/" (count items))]
+     [:span "answered"]
+     (when (seq asks)
+       [:a.next {:href (str "#" (:lang (first asks)) "-" (:id (first asks)))}
+        (str (count asks) " questions wait for you →")])]))
+
+(defn doc-h
+  "The document body (header, nav and sections) as hiccup."
+  [doc]
+  (let [meta (:meta doc) secs (sections (group-screens (:nodes doc)))]
+    (list
+      [:header.doc
+       (when (:kicker meta) [:div.kicker (ui/md (:kicker meta))])
+       [:h1 (ui/md (or (:title meta) "Untitled"))]
+       (when (:subtitle meta) [:div.sub (ui/md (:subtitle meta))])
+       [:div.meta
+        (when (:date meta) [:span (:date meta)])
+        (when (:status meta) [:span (ui/md (:status meta))])
+        (when (:author meta) [:span (:author meta)])]
+       (tally-h doc)]
+      [:nav.chips (for [s secs :when (:head s)]
+                    [:a {:href (str "#" (ui/slug (:title (:head s))))} (:title (:head s))])]
+      (for [s secs]
+        [:section.part
+         (when (:head s) (node->h (:head s)))
+         (when (and (:head s) (= "roster" (lower-case (:title (:head s))))) (roster-h (:nodes s)))
+         (keep node->h (:nodes s))]))))
+
+(defn page-h
+  "The full HTML document."
+  [doc css js]
+  [:html {:lang "en"}
+   [:head
+    [:meta {:charset "utf-8"}]
+    [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
+    [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"}]
+    [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
+    [:style css]]
+   [:body
+    [:div.live [:i] [:span#stamp "live"] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} "theme"]]
+    [:main#doc (doc-h doc)]
+    [:div#toast]
+    [:script js]]])
