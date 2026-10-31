@@ -1,0 +1,418 @@
+; dossier/ui.bl — semantic blocks drawn as hiccup.
+;
+; One function per block kind; `block->h` dispatches on the `#+begin_X`
+; name. Every body is a small line language a human writes comfortably in
+; Emacs: `a | b | c` rows, `A -> B : label` arrows, `card tone | title`.
+; Pure: text in, hiccup out. Inline org markup is parsed into hiccup nodes,
+; never spliced as HTML, so everything a document says is escaped.
+
+(ns dossier.ui
+  (:require [dossier.org :as o]))
+
+; ─── inline markup ──────────────────────────────────────────────────────────
+
+(def ^:private inline-re
+  (Regex/compile!
+    (str "(\\[\\[[^\\]]+\\](?:\\[[^\\]]+\\])?\\]"
+         "|(?<![\\w=])=[^\\s=](?:[^=\\n]*?[^\\s=])?=(?!\\w)"
+         "|(?<![\\w~])~[^\\s~](?:[^~\\n]*?[^\\s~])?~(?!\\w)"
+         "|(?<![\\w*])\\*[^\\s*](?:[^*\\n]*?[^\\s*])?\\*(?![\\w*])"
+         "|(?<![\\w/:.~<])/[^\\s/](?:[^/\\n]*?[^\\s/])?/(?![\\w/]))")))
+
+(defn- link-h [piece]
+  (let [m (Regex/run (Regex/compile! "^\\[\\[([^\\]]+)\\](?:\\[([^\\]]+)\\])?\\]$") piece)
+        target (String/replace (nth m 1) (Regex/compile! "^file:") "")
+        label (if (> (count m) 2) (nth m 2) target)
+        outside? (starts-with? target "http")]
+    [:a (if outside? {:href target :target "_blank" :rel "noopener"} {:href target}) label]))
+
+(defn md
+  "Hiccup children for one line of org inline markup."
+  [s]
+  (if (or (nil? s) (= "" s))
+    (list)
+    (for [piece (Regex/split inline-re s (list (tuple :include_captures true)))
+          :when (not= "" piece)]
+      (let [inner (when (> (count piece) 2) (subs piece 1 (dec (count piece))))]
+        (cond
+          (starts-with? piece "[[") (link-h piece)
+          (and inner (or (starts-with? piece "=") (starts-with? piece "~"))) [:code inner]
+          (and inner (starts-with? piece "*")) [:strong (md inner)]
+          (and inner (starts-with? piece "/")) [:em (md inner)]
+          :else piece)))))
+
+(defn slug [s]
+  (-> (lower-case (str s))
+      (String/replace (Regex/compile! "[^a-z0-9]+") "-")
+      (String/replace (Regex/compile! "^-|-$") "")))
+
+(defn- paras
+  "Body lines → paragraphs (blank lines split them)."
+  [lines]
+  (for [chunk (partition-by blank? lines) :when (not (blank? (first chunk)))]
+    [:p (md (join " " (map trim chunk)))]))
+
+(defn- n [x] (str (erlang/round x)))
+
+(defn- wrap-words
+  "Greedy word wrap of `s` to lines of at most `width` characters."
+  [s width]
+  (reduce (fn [acc w]
+            (let [cur (last acc)]
+              (if (and (some? cur) (<= (+ (count cur) 1 (count w)) width))
+                (conj (pop acc) (str cur " " w))
+                (conj acc w))))
+          [] (String/split (trim s) " ")))
+
+; ─── feedback: the reader answers, the file remembers ──────────────────────
+
+(defn feedback-h
+  "Answer controls for block `a` (its attrs map). `opts` is [[value label] …].
+   Posting writes :answer/:note/:at back into the block header."
+  [a opts prompt]
+  (let [ans (:answer a)]
+    [:form {:class (str "fb" (if ans " answered picked" "")) :data-id (:id a)}
+     [:div.fb-prompt prompt]
+     [:div.fb-opts
+      (for [[v label] opts]
+        [:button {:type "button" :class (if (= v ans) "opt on" "opt") :data-v v} label])]
+     [:textarea {:name "note" :rows "2" :placeholder "Anything Claude should know (optional)"} (or (:note a) "")]
+     [:div.fb-row
+      [:button.send {:type "submit"} (if ans "Update" "Send to Claude")]
+      [:span.fb-state (if ans (str "✓ answered " (or (:at a) "")) "awaiting you")]]]))
+
+; ─── prose components ──────────────────────────────────────────────────────
+
+(defn lede-h [b] [:div.lede (paras (:body b))])
+
+(defn stats-h [b]
+  [:div.stats
+   (for [[v label note] (o/rows-of (:body b))]
+     [:div.stat [:b v] [:span (md label)] (when note [:small (md note)])])])
+
+(defn terms-h [b]
+  [:dl.terms
+   (for [[t d] (o/rows-of (:body b))]
+     (list [:dt (md t)] [:dd (md d)]))])
+
+(defn principles-h [b]
+  [:ol.principles
+   (for [[t d] (o/rows-of (:body b))]
+     [:li [:b (md t)] [:span (md d)]])])
+
+(defn callout-h [b]
+  [:aside {:class (str "callout " (:lang b))}
+   (when (:title (:attrs b)) [:b (md (:title (:attrs b)))])
+   (paras (:body b))])
+
+; ─── rosetta and matrix: one idea across many systems ──────────────────────
+
+(defn rosetta-h [b]
+  (let [rows (o/rows-of (:body b)) head (first rows)]
+    [:div.rosetta {:style (str "--cols:" (count head))}
+     [:div.r-row.r-head (for [h head] [:div h])]
+     (for [r (rest rows)]
+       [:div.r-row
+        (map-indexed (fn [i c] [:div {:data-h (nth head i "")} (md c)]) r)])]))
+
+(defn- mark [c]
+  (let [[tok & more] (String/split c " ")
+        rest-text (join " " more)
+        dot (fn [k] (list [:i {:class (str "dot " k)}] (when (not (blank? rest-text)) [:span (md rest-text)])))]
+    (cond
+      (contains? #{"y" "✓" "yes"} tok) (dot "full")
+      (contains? #{"~" "partial"} tok) (dot "half")
+      (contains? #{"n" "–" "-" "no"} tok) (dot "none")
+      :else (md c))))
+
+(defn matrix-h [b]
+  (let [rows (o/rows-of (:body b)) head (first rows)]
+    [:div.scrollx
+     [:table.matrix
+      [:thead [:tr (for [h head] [:th (md h)])]]
+      [:tbody
+       (for [r (rest rows)]
+         [:tr [:th (md (first r))] (for [c (rest r)] [:td (mark c)])])]]
+     [:div.legend [:i.dot.full] "does it" [:i.dot.half] "partly" [:i.dot.none] "no"]]))
+
+; ─── jobs, decisions, asks ─────────────────────────────────────────────────
+
+(defn job-h [b]
+  (let [a (:attrs b)]
+    [:article.job {:id (str "job-" (:id a))}
+     [:header [:span.chip (:id a)] [:h4 (md (:title a))]]
+     [:blockquote.jtbd (paras (:body b))]
+     [:dl.job-facts
+      ;; reference products are named by the dossier (:codex-label …); Baton's labels stay the default
+      (when (:codex a) (list [:dt (or (:codex-label a) "Codex does")] [:dd (md (:codex a))]))
+      (when (:claude a) (list [:dt (or (:claude-label a) "Claude Code path")] [:dd (md (:claude a))]))
+      (when (:decision a) (list [:dt.decide (or (:decision-label a) "Baton decides")] [:dd.decide (md (:decision a))]))]
+     (when (:screen a) [:a.to-screen {:href (str "#screen-" (:screen a))} (str "See the screen → " (:screen a))])
+     (feedback-h a [["spot-on" "Spot on"] ["close" "Close"] ["wrong" "Wrong job"]] "Is this the job?")]))
+
+(defn decision-h [b]
+  (let [a (:attrs b)]
+    [:article.decision {:id (str "decision-" (:id a))}
+     [:header [:span.chip (:id a)] [:span {:class (str "status " (or (:status a) "proposed"))} (or (:status a) "proposed")]]
+     [:h4 (md (:title a))]
+     (for [run (partition-by (fn [l] (starts-with? (trim l) "- [")) (filter (fn [l] (not (blank? l))) (:body b)))]
+       (if (starts-with? (trim (first run)) "- [")
+         (for [l run :let [t (trim l)]]
+           (if (starts-with? t "- [x]")
+             [:div.opt-row.chosen [:i "✓"] [:span (md (trim (subs t 5)))]]
+             [:div.opt-row.alt [:i "·"] [:span (md (trim (subs t 5)))]]))
+         [:p (md (join " " (map trim run)))]))
+     (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Your call")]))
+
+(defn ask-h [b]
+  (let [a (:attrs b)
+        opts (for [o (String/split (or (:options a) "Yes|No") "|")] [(trim o) (trim o)])]
+    [:article.ask {:id (str "ask-" (:id a))}
+     [:header [:span.chip.q (:id a)] [:h4 (md (:title a))]]
+     (paras (:body b))
+     (feedback-h a opts "Pick one, or say more")]))
+
+; ─── screens: a phone drawn from a line language ───────────────────────────
+
+(defn- cols [rest-text] (vec (map trim (String/split rest-text "|"))))
+
+(defn- screen-line
+  "One `verb rest` line of a screen body as hiccup."
+  [line]
+  (let [t (trim line)
+        sp (index-of t " ")
+        verb (if sp (subs t 0 sp) t)
+        rest-text (if sp (trim (subs t (inc sp))) "")
+        c (cols rest-text)]
+    (case verb
+      "bar" [:div.s-bar
+             (if (starts-with? (first c) "< ") (list [:span.s-back "‹"] [:b (md (subs (first c) 2))]) [:b (md (first c))])
+             (when (> (count c) 1) [:span.s-right (md (nth c 1))])]
+      "sub" [:div.s-sub (md rest-text)]
+      "chips" [:div.s-chips (for [x c] (if (ends-with? x "*") [:span.chip.on (subs x 0 (dec (count x)))] [:span.chip x]))]
+      "section" [:div.s-sec [:span (md (first c))] (when (> (count c) 1) [:em (nth c 1)])]
+      "card" (let [[tone title meta body] c]
+               [:div {:class (str "s-card " tone)}
+                [:i.s-dot]
+                [:div.s-card-main
+                 [:div.s-card-top [:b (md title)] (when meta [:span (md meta)])]
+                 (when body [:div.s-card-body (md body)])]])
+      "ask" [:div.s-ask (md rest-text)]
+      "actions" [:div.s-actions
+                 (for [x c]
+                   (cond (ends-with? x "!") [:span.btn.primary (subs x 0 (dec (count x)))]
+                         (ends-with? x "?") [:span.btn.quiet (subs x 0 (dec (count x)))]
+                         (ends-with? x "^") [:span.btn.danger (subs x 0 (dec (count x)))]
+                         :else [:span.btn x]))]
+      "msg" [:div {:class (str "s-msg " (first c))} (md (join " | " (rest c)))]
+      "tool" [:div.s-tool [:span.s-tri "▸"] [:span (md (first c))] (when (> (count c) 1) [:em (md (nth c 1))])]
+      "diff" [:div.s-diff [:span.plusminus (first c)] [:code (nth c 1 "")]]
+      "code" [:pre.s-code rest-text]
+      "input" [:div.s-input [:span (first c)] [:span.s-send (nth c 1 "↑")]]
+      "tabs" [:div.s-tabs (for [x c] (if (ends-with? x "*") [:span.on (subs x 0 (dec (count x)))] [:span x]))]
+      "banner" [:div {:class (str "s-banner " (first c))} (md (nth c 1 ""))]
+      "note" [:div.s-note (md rest-text)]
+      "row" [:div.s-row [:span (md (first c))] [:b (md (nth c 1 ""))]]
+      "strip" [:div {:class (str "s-strip " (first c))} [:i.s-dot] [:span (md (nth c 1 ""))]
+               (when (> (count c) 2) [:span.btn.small (nth c 2)])]
+      "notif" (let [[app title body actions] c]
+                [:div.s-notif
+                 [:div.s-notif-app [:i "ω"] app [:em "now"]]
+                 [:b (md title)] [:div (md body)]
+                 (when actions [:div.s-notif-acts (for [x (String/split actions ",")] [:span (trim x)])])])
+      "lock" [:div.s-lock [:b (first c)] [:span (nth c 1 "")]]
+      "dest" (let [[icon title body] c]
+               [:div.s-dest [:i icon] [:div [:b (md title)] [:span (md body)]]])
+      "spacer" [:div.s-spacer]
+      [:div.s-note (md t)])))
+
+(defn- screen-body
+  "Lines → hiccup; a `sheet Title` line opens a bottom sheet over the rest."
+  [lines]
+  (let [lines (filter (fn [l] (not (blank? l))) lines)
+        before (take-while (fn [l] (not (starts-with? (trim l) "sheet"))) lines)
+        sheet (drop-while (fn [l] (not (starts-with? (trim l) "sheet"))) lines)]
+    (list
+      [:div.s-flow (map screen-line before)]
+      (when (seq sheet)
+        (list [:div.s-scrim]
+              [:div.s-sheet [:div.s-grip] [:div.s-sheet-title (md (trim (subs (trim (first sheet)) 5)))]
+               (map screen-line (rest sheet))])))))
+
+(defn screen-h [b]
+  (let [a (:attrs b) dark? (= "dark" (:theme a))]
+    [:figure {:class (str "phone" (if dark? " lockscreen" "")) :id (str "screen-" (:id a))}
+     [:div.device
+      [:div.statusbar [:span "9:41"] [:span.notch] [:span "◔ ▮▮"]]
+      [:div.screen (screen-body (:body b))]]
+     [:figcaption
+      [:div.cap-top [:span.chip (:id a)] [:b (md (:title a))]
+       (when (:job a) [:a {:href (str "#job-" (:job a))} (str "job " (:job a))])]
+      (when (:caption a) [:p (md (:caption a))])
+      (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
+
+(defn screens-h
+  "A `#+begin_screens` strip: consecutive screen blocks scroll sideways."
+  [blocks]
+  [:div.screens (map screen-h blocks)])
+
+; ─── sequence: who says what to whom, in order ─────────────────────────────
+
+(defn- sequence-steps
+  "The same sequence as a numbered list, for a phone-width column."
+  [rows]
+  [:ol.seq-steps
+   (for [l rows :let [t (trim l)] :when (not (starts-with? t "lanes "))]
+     (cond
+       (starts-with? t "==") [:li.div (trim (subs t 2))]
+       (starts-with? t "note ")
+       (let [m (Regex/run (Regex/compile! "^note\\s+([^:]+):\\s*(.*)$") t)]
+         [:li.note [:span.who (trim (nth m 1))] (md (nth m 2))])
+       :else
+       (let [m (Regex/run (Regex/compile! "^(.+?)\\s*(=>|-->|->)\\s*(.+?)\\s*:\\s*(.*)$") t)]
+         (when m
+           (let [[_ from arrow to label] m]
+             [:li {:class (case arrow "=>" "baton" "-->" "reply" "call")}
+              [:span.who (trim from) (if (= (trim from) (trim to)) "" (str " → " (trim to)))]
+              [:span.what (md label)]])))))])
+
+(defn- sequence-svg [b lanes M S W H out]
+    [:svg {:class "sequence" :viewBox (str "0 0 " W " " H) :style (str "min-width:" (n (* W 0.9)) "px")
+            :role "img" :aria-label (or (:title (:attrs b)) "sequence")}
+      [:defs [:marker {:id "sq-head" :viewBox "0 0 10 10" :refX "9" :refY "5" :markerUnits "userSpaceOnUse" :markerWidth "10" :markerHeight "10" :orient "auto-start-reverse"}
+              [:path {:d "M0,0 L10,5 L0,10 z"}]]]
+      (map-indexed
+        (fn [i l]
+          (let [[title sub] (String/split l " · ") cx (+ M (* S i))]
+            [:g.sq-lane
+             [:line.life {:x1 (n cx) :x2 (n cx) :y1 "50" :y2 (n (- H 6))}]
+             [:rect {:x (n (- cx 74)) :y "8" :width "148" :height "42" :rx "9"}]
+             [:text.t {:x (n cx) :y (if sub "26" "33") :text-anchor "middle"} title]
+             (when sub [:text.s {:x (n cx) :y "42" :text-anchor "middle"} sub])]))
+        lanes)
+      (map identity out)])
+
+(defn sequence-h [b]
+  (let [rows (filter (fn [l] (not (blank? l))) (:body b))
+        lane-line (first (filter (fn [l] (starts-with? (trim l) "lanes ")) rows))
+        lanes (cols (subs (trim lane-line) 6))
+        idx (into {} (map-indexed (fn [i l] [(first (String/split l " · ")) i]) lanes))
+        S 168 M 92 W (+ (* 2 M) (* S (dec (count lanes))))
+        x (fn [name] (+ M (* S (get idx (trim name) 0))))
+        steps (reduce
+                (fn [acc l]
+                  (let [t (trim l) y (:y acc)]
+                    (cond
+                      (starts-with? t "lanes ") acc
+                      (starts-with? t "==")
+                      (let [label (trim (subs t 2))]
+                        (-> acc (update :out conj
+                                        [:g.sq-div
+                                         [:line {:x1 "8" :x2 (n (- W 8)) :y1 (n y) :y2 (n y)}]
+                                         [:text {:x (n (/ W 2)) :y (n (- y 6)) :text-anchor "middle"} label]])
+                            (assoc :y (+ y 36))))
+                      (starts-with? t "note ")
+                      (let [m (Regex/run (Regex/compile! "^note\\s+([^:]+):\\s*(.*)$") t)
+                            who (vec (map trim (String/split (nth m 1) ",")))
+                            x1 (- (apply min (map x who)) 70) x2 (+ (apply max (map x who)) 70)
+                            ls (wrap-words (nth m 2) (max 20 (erlang/round (/ (- x2 x1) 6.6))))
+                            h (+ 12 (* 15 (count ls)))]
+                        (-> acc (update :out conj
+                                        [:g.sq-note
+                                         [:rect {:x (n x1) :y (n (- y 14)) :width (n (- x2 x1)) :height (n h) :rx "6"}]
+                                         (map-indexed (fn [i s] [:text {:x (n (/ (+ x1 x2) 2)) :y (n (+ y 2 (* 15 i))) :text-anchor "middle"} s]) ls)])
+                            (assoc :y (+ y h 14))))
+                      :else
+                      (let [m (Regex/run (Regex/compile! "^(.+?)\\s*(=>|-->|->)\\s*(.+?)\\s*:\\s*(.*)$") t)]
+                        (if (nil? m)
+                          acc
+                          (let [[_ from arrow to label] m
+                                x1 (x from) x2 (x to)
+                                self? (= x1 x2)
+                                span (if self? 150 (max 120 (- (max x1 x2) (min x1 x2))))
+                                ls (wrap-words label (max 18 (erlang/round (/ span 6.8))))
+                                lift (* 14 (dec (count ls)))
+                                y (+ y lift)
+                                kind (case arrow "=>" "baton" "-->" "reply" "call")]
+                            (-> acc (update :out conj
+                                            [:g {:class (str "sq-msg " kind)}
+                                             (if self?
+                                               [:path {:d (str "M" (n x1) " " (n (- y 4)) " h34 v16 h-30") :marker-end "url(#sq-head)"}]
+                                               [:line {:x1 (n x1) :x2 (n (if (> x2 x1) (- x2 6) (+ x2 6))) :y1 (n y) :y2 (n y) :marker-end "url(#sq-head)"}])
+                                             (map-indexed (fn [i s]
+                                                            [:text {:x (n (if self? (+ x1 42) (/ (+ x1 x2) 2)))
+                                                                    :y (n (+ (- y 7 lift) (* 14 i) (if self? 8 0)))
+                                                                    :text-anchor (if self? "start" "middle")} s])
+                                                          ls)])
+                                (assoc :y (+ y (if self? 40 34))))))))))
+                {:y 84 :out []} rows)
+        H (+ (:y steps) 10)
+        svg (fn [] (sequence-svg b lanes M S W H (:out steps)))]
+    [:div.seq
+     [:div.scrollx.seq-wide (svg)]
+     (sequence-steps rows)
+     [:details.seq-narrow [:summary "As a diagram"] [:div.scrollx (svg)]]]))
+
+; ─── graph: boxes on a grid, typed edges between them ──────────────────────
+
+(defn graph-h [b]
+  (let [rows (o/rows-of (:body b))
+        nodes (for [r rows :when (starts-with? (first r) "node ")]
+                (let [[c rr] (map (fn [s] (erlang/binary_to_integer (trim s))) (String/split (nth r 3 "0,0") ","))]
+                  {:id (trim (subs (first r) 5)) :label (nth r 1 "") :sub (nth r 2 "") :col c :row rr :tone (nth r 4 "")}))
+        edges (for [r rows :when (starts-with? (first r) "edge ")]
+                (let [m (Regex/run (Regex/compile! "^edge\\s+(\\S+)\\s*(->|<->|--)\\s*(\\S+)$") (first r))]
+                  {:from (nth m 1) :to (nth m 3) :arrow (nth m 2) :label (nth r 1 "") :style (nth r 2 "solid")}))
+        CW 280 RH 132 BW 176 BH 64 M 104
+        at (into {} (for [nd nodes] [(:id nd) [(+ M (* CW (:col nd))) (+ 56 (* RH (:row nd)))]]))
+        W (+ (* 2 M) (* CW (apply max 0 (map :col nodes))))
+        H (+ 112 (* RH (apply max 0 (map :row nodes))))
+        clip (fn [[x1 y1] [x2 y2]]
+               (let [dx (- x2 x1) dy (- y2 y1)
+                     ax (if (< dx 0) (- dx) dx) ay (if (< dy 0) (- dy) dy)
+                     tx (if (> ax 0) (/ (+ 6 (/ BW 2)) ax) 1.0e9)
+                     ty (if (> ay 0) (/ (+ 6 (/ BH 2)) ay) 1.0e9)
+                     t (min tx ty)]
+                 [(+ x1 (* t dx)) (+ y1 (* t dy))]))]
+    [:div.scrollx.graph-wrap {:data-hint "swipe ↔"}
+     [:svg {:class "graph" :viewBox (str "0 0 " W " " H) :style (str "min-width:" (n (* W 0.82)) "px")
+            :role "img" :aria-label (or (:title (:attrs b)) "graph")}
+      [:defs [:marker {:id "gr-head" :viewBox "0 0 10 10" :refX "9" :refY "5" :markerUnits "userSpaceOnUse" :markerWidth "10" :markerHeight "10" :orient "auto-start-reverse"}
+              [:path {:d "M0,0 L10,5 L0,10 z"}]]]
+      (for [e edges :when (and (get at (:from e)) (get at (:to e)))]
+        (let [p1 (get at (:from e)) p2 (get at (:to e))
+              [x1 y1] (clip p1 p2) [x2 y2] (clip p2 p1)]
+          [:g {:class (str "gr-edge " (:style e))}
+           [:line (merge {:x1 (n x1) :y1 (n y1) :x2 (n x2) :y2 (n y2)}
+                         (when (not= "--" (:arrow e)) {:marker-end "url(#gr-head)"})
+                         (when (= "<->" (:arrow e)) {:marker-start "url(#gr-head)"}))]
+           (when (not (blank? (:label e)))
+             [:text {:x (n (/ (+ x1 x2) 2)) :y (n (- (/ (+ y1 y2) 2) 5)) :text-anchor "middle"} (:label e)])]))
+      (for [nd nodes]
+        (let [[cx cy] (get at (:id nd))]
+          [:g {:class (str "gr-node " (:tone nd))}
+           [:rect {:x (n (- cx (/ BW 2))) :y (n (- cy (/ BH 2))) :width (n BW) :height (n BH) :rx "12"}]
+           [:text.t {:x (n cx) :y (n (- cy 4)) :text-anchor "middle"} (:label nd)]
+           [:text.s {:x (n cx) :y (n (+ cy 15)) :text-anchor "middle"} (:sub nd)]]))]]))
+
+; ─── dispatch ──────────────────────────────────────────────────────────────
+
+(defn block->h [b]
+  (case (:lang b)
+    "lede" (lede-h b)
+    "stats" (stats-h b)
+    "terms" (terms-h b)
+    "principles" (principles-h b)
+    "note" (callout-h b)
+    "warning" (callout-h b)
+    "honest" (callout-h b)
+    "rosetta" (rosetta-h b)
+    "matrix" (matrix-h b)
+    "job" (job-h b)
+    "decision" (decision-h b)
+    "ask" (ask-h b)
+    "screen" (screens-h [b])
+    "sequence" (sequence-h b)
+    "graph" (graph-h b)
+    "quote" [:blockquote (paras (:body b))]
+    [:pre {:class (str "block " (:lang b))} (join "\n" (:body b))]))
