@@ -262,7 +262,7 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 }
 
 /* ─── icons: @name in mockups ─────────────────────────────────────────── */
-.ic{width:1.1em;height:1.1em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic{display:inline-block;width:1.1em;height:1.1em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .chip .ic,.btn .ic,.s-tabs .ic{margin-right:3px}
 
 /* ─── desk: the product on a desktop, in Knowledger's own palette ─────── */
@@ -375,3 +375,12 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .s-intent{border:1.5px solid var(--ink);border-radius:12px;padding:9px 11px;margin:6px 0;font-size:13px;background:var(--card)}
 .s-intent-top{display:flex;gap:8px;align-items:center;margin-bottom:3px}.s-intent-top b{display:flex;gap:4px;align-items:center;font-size:13px}
 .s-intent-top span{font:11px var(--mono);color:var(--muted)}.s-intent .ic{width:15px;height:15px}
+.desk .chip,.s-chips .chip{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.desk .s-chips{display:flex;flex-wrap:wrap;gap:6px}
+/* desks break out of the reading column on wide screens */
+@media (min-width:1100px){.desk{width:min(1240px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}}
+.s-card.has-acts .s-card-top{flex-direction:column;gap:0}
+.s-card.has-acts .s-acts{gap:4px}
+.s-card.has-acts .ib{width:30px;height:30px}
+.s-card-main{min-width:0}
+.s-card.has-acts .s-card-top span{white-space:normal;overflow-wrap:anywhere}
