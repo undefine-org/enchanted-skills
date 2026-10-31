@@ -90,7 +90,17 @@
    "list" ["M8 6h12" "M8 12h12" "M8 18h12" "M4 6h.01" "M4 12h.01" "M4 18h.01"]
    "board" ["M4 4h4v16H4z" "M10 4h4v10h-4z" "M16 4h4v13h-4z"]
    "split" ["M4 4h16v16H4z" "M12 4v16"]
-   "spark" ["M12 3v4" "M12 17v4" "M3 12h4" "M17 12h4" "M6 6l2.5 2.5" "M15.5 15.5L18 18" "M18 6l-2.5 2.5" "M8.5 15.5L6 18"]})
+   "spark" ["M12 3v4" "M12 17v4" "M3 12h4" "M17 12h4" "M6 6l2.5 2.5" "M15.5 15.5L18 18" "M18 6l-2.5 2.5" "M8.5 15.5L6 18"]
+   "mic" ["M9 5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z" "M5 11a7 7 0 0 0 14 0" "M12 18v3"]
+   "stop" ["M6 6h12v12H6z"]
+   "terminal" ["M3 5h18v14H3z" "M7 10l3 2-3 2" "M12 15h5"]
+   "server" ["M4 4h16v7H4z" "M4 13h16v7H4z" "M8 7.5h.01" "M8 16.5h.01"]
+   "laptop" ["M5 5h14v10H5z" "M2 19h20"]
+   "phone" ["M8 2h8v20H8z" "M11 18h2"]
+   "branch" ["M6 3v12" "M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9c0 6-12 3-12 6"]
+   "folder" ["M3 6h6l2 2h10v11H3z"]
+   "wave" ["M3 12h2" "M7 8v8" "M11 5v14" "M15 9v6" "M19 11v2"]
+   "queue" ["M4 6h12" "M4 12h12" "M4 18h8" "M18 15v6" "M15 18h6"]})
 
 (defn ico
   "The icon named `nm`, or the literal text when there is no such icon."
@@ -270,12 +280,38 @@
       "sub" [:div.s-sub (mdi rest-text)]
       "chips" [:div.s-chips (for [x c] (if (ends-with? x "*") [:span.chip.on (mdi (subs x 0 (dec (count x))))] [:span.chip (mdi x)]))]
       "section" [:div.s-sec [:span (mdi (first c))] (when (> (count c) 1) [:em (nth c 1)])]
-      "card" (let [[tone title meta body] c]
-               [:div {:class (str "s-card " tone)}
+      "card" (let [[tone title meta body acts] c]
+               [:div {:class (str "s-card " tone (if acts " has-acts" ""))}
                 [:i.s-dot]
                 [:div.s-card-main
                  [:div.s-card-top [:b (mdi title)] (when meta [:span (mdi meta)])]
-                 (when body [:div.s-card-body (mdi body)])]])
+                 (when body [:div.s-card-body (mdi body)])]
+                (when acts
+                  [:div.s-acts
+                   (for [x (filter (fn [w] (not (blank? w))) (String/split acts " "))]
+                     (let [mark (last x)
+                           kind (case mark "!" "primary" "?" "quiet" "^" "danger" "")
+                           x (if (contains? #{"!" "?" "^"} mark) (subs x 0 (dec (count x))) x)]
+                       [:span {:class (str "ib " kind) :title (subs x 1)} (mdi x)]))])])
+      "machine" (let [[tone who role detail right] c]
+                  [:div {:class (str "s-machine " tone)}
+                   [:span.glyph (mdi (first (String/split who " ")))]
+                   [:div [:b (mdi (join " " (rest (String/split who " "))))] [:span (mdi role)]
+                    (when detail [:small (mdi detail)])]
+                   (when right [:em (mdi right)])])
+      "search" [:div.s-search (ico "search") [:span (mdi rest-text)] (ico "mic")]
+      "pick" (let [[what detail right] c
+                   on? (ends-with? what "*")
+                   what (if on? (subs what 0 (dec (count what))) what)]
+               [:div {:class (str "s-pick" (if on? " on" ""))}
+                [:span.glyph (mdi (first (String/split what " ")))]
+                [:div [:b (mdi (join " " (rest (String/split what " "))))] (when detail [:span (mdi detail)])]
+                (when right [:em (mdi right)])])
+      "listen" [:div.s-listen [:div.s-orb (ico "mic")] [:div.s-bars (for [h [6 14 22 12 26 18 9 20 13 7 17 24 11]] [:i {:style (str "height:" h "px")}])]
+                [:span (mdi rest-text)]]
+      "heard" [:div.s-heard [:em "heard"] [:span (mdi rest-text)]]
+      "intent" (let [[verb target text] c]
+                 [:div.s-intent [:div.s-intent-top [:b (mdi verb)] [:span (mdi target)]] [:div (mdi text)]])
       "ask" [:div.s-ask (mdi rest-text)]
       "actions" [:div.s-actions
                  (for [x c]

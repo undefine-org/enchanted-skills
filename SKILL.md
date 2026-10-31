@@ -81,6 +81,11 @@ Screen language, one verb per line: `bar Title | right` (`< Title` adds back), `
 `dest icon | title | body`, `note`, `spacer`, `input placeholder | ↑`, `tabs A* | B`,
 `lock time | date` + `notif app | title | body | Action, Action` (with `:theme dark`),
 `sheet Title` — everything after it sits in a bottom sheet over the screen.
+`card tone | title | meta | body | @check! @x @next?` — a fifth column puts icon-only actions on the card
+(say what is needed in the card, keep the actions as icons; Othman finds button rows hard to parse),
+`machine tone | @server name | role | detail | right` (tones `up busy asleep you`),
+`search placeholder` + `pick @folder name* | detail | right` (a project picker, `*` = chosen),
+`listen hint` (mic + waveform), `heard transcript`, `intent @send Verb | target | text` (voice).
 
 Answerable blocks: `ask decision screen job`. Each needs a unique `:id`.
 
