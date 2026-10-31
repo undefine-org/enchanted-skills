@@ -7,7 +7,7 @@
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui]))
 
-(def answerable #{"ask" "decision" "screen" "job"})
+(def answerable #{"ask" "decision" "screen" "desk" "job"})
 
 (defn- group-screens
   "Consecutive screen blocks (blank prose between them aside) as one node."

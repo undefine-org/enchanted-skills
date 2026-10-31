@@ -43,3 +43,14 @@
                     "class=\"matrix\"" "class=\"decision\"" "class=\"seq-steps\"" "✓ ran"]]
       (is (includes? html needle) (str "missing " needle)))
     (is (not (includes? html "✗ failed")))))
+
+(deftest a-desk-draws-regions-icons-and-a-review
+  (let [doc (o/read-doc (join "\n" ["* D" "#+begin_desk :id d1 :title \"Revue\""
+                                    "nav @home Accueil | @matter Affaires*" "head Affaire | turn · À revoir | Approuver!"
+                                    "col doc" "page Mise en demeure" "para la somme {-de 12 000 MAD-}{+majorée+} ‹P-02› ^1"
+                                    "col rail" "point turn | @check Contrôle | Délai | huit jours | Correct* | Réserve"
+                                    "comment 1 | Amina | Ajouter les intérêts." "#+end_desk"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["class=\"desk\"" "class=\"ic\"" "<ins>" "<del>" "class=\"piece\"" "d-cols doc-rail" "d-point turn" "d-comment" "class=\"btn primary\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (= ["d1"] (map :id (pg/feedback-items doc))))))
