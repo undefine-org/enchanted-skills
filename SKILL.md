@@ -12,7 +12,9 @@ the tailnet, and writes every answer the reader gives into the block it answers.
 No database, no second copy: `git diff` shows what Othman said.
 
 Exemplar, read it before writing a new one:
-`~/projects/tiny-tools/mobile-app/dossier/baton.bl.org` (live: `work url baton-dossier`).
+`~/projects/tiny-tools/mobile-app/dossier/pocket-harness.bl.org` (renamed from baton.bl.org on 2026-10-31).
+A desktop-heavy exemplar with desks and an executable lifecycle:
+`~/projects/knowledger-interface-review/docs/reports/interface-review-20261031/knowledger-interface.bl.org`.
 House taste it descends from: `~/code/undefine/omega/spikes/mobile/design-review/design-review.bl.org`.
 
 ## The loop
@@ -71,6 +73,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `decision :id :title :status proposed\|decided` | `- [x] chosen`, `- [ ] rejected`, then rationale | decision card + Agree/Rework/Disagree |
 | `ask :id :title :options "A\|B\|C"` | context | question card + options |
 | `screen :id :title :job :caption [:theme dark]` | screen language (below) | phone mock + reaction; consecutive screens form a swipeable strip |
+| `desk :id :title :job :caption [:url]` | desk language (below) | a desktop app frame + reaction; same answer buttons as screens |
 | `sequence :title` | `lanes a · sub \| b · sub`, `a -> b : label` (call), `a --> b : label` (reply), `a => b : label` (the key moment), `note a, b : text`, `== divider` | SVG on wide screens, numbered steps on phones |
 | `graph :title` | `node id \| label \| sub \| col,row \| tone` (`you door station builder foreign`), `edge a -> b \| label \| style` (`baton solid dash none`; `<->`, `--` too) | SVG topology |
 
@@ -87,7 +90,19 @@ Screen language, one verb per line: `bar Title | right` (`< Title` adds back), `
 `search placeholder` + `pick @folder name* | detail | right` (a project picker, `*` = chosen),
 `listen hint` (mic + waveform), `heard transcript`, `intent @send Verb | target | text` (voice).
 
-Answerable blocks: `ask decision screen job`. Each needs a unique `:id`.
+Desk language — every screen verb, plus desktop regions and a document:
+`nav @home Accueil* | @matter Affaires` (sidebar, `*` = here), `crumb a › b`,
+`head Title | tone · Status | Action! | Other?` (the action slot, top right), `meta a | b`, `tabs`,
+`col doc|rail|main` (columns; `doc` draws paper; repeat `col main` for a row of cards),
+`page Title`, `para text` with `{+inserted+}` `{-deleted-}` `{~proposed~}` `{!to verify!}` `‹P-01›` (source chip) `^1` (comment anchor),
+`point tone | @icon kind | title | body | Option* | Option`, `comment 1 | who | text` (same number as its `^1`), `opts A* | B`.
+Lines before the first `col` span the full width. Desks use Knowledger's Warm Signal palette (lamp in dark mode).
+
+Icons: `@name` anywhere in a screen or desk line draws a line icon — `home matter library playbook people audit settings
+search plus send file word check x alert clock user bot chat comment link seal eye edit version diff filter more back next
+down up bell wait calendar scale flag play undo lock attach grid list board split spark`. Prefer an icon to a word for kinds of things.
+
+Answerable blocks: `ask decision screen desk job`. Each needs a unique `:id`.
 
 Plain Org works too: headings with TODO keywords and tags, `:PROPERTIES:` drawers (chips),
 tables, lists, `[ ]`/`[X]` checkboxes, `=code=`, `*bold*`, `/italic/`, `[[url][label]]`, `[[#screen-ID][label]]`.

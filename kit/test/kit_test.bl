@@ -36,7 +36,7 @@
   (is (= ["q1" "d1"] (map :id (pg/feedback-items (o/read-doc (join "\n" sample)))))))
 
 (deftest the-baton-dossier-renders
-  (let [path (Path/expand "~/projects/tiny-tools/mobile-app/dossier/baton.bl.org")
+  (let [path (Path/expand "~/projects/tiny-tools/mobile-app/dossier/pocket-harness.bl.org")
         html (h/hiccup->html (pg/page-h (o/read-doc (File/read! path)) "" ""))]
     (is (> (count html) 50000))
     (doseq [needle ["class=\"phone" "class=\"sequence\"" "class=\"graph\"" "class=\"rosetta\""

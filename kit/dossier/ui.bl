@@ -326,7 +326,7 @@
       "note" [:div.s-note (mdi rest-text)]
       "row" [:div.s-row [:span (mdi (first c))] [:b (mdi (nth c 1 ""))]]
       "strip" [:div {:class (str "s-strip " (first c))} [:i.s-dot] [:span (mdi (nth c 1 ""))]
-               (when (> (count c) 2) [:span.btn.small (mdi (nth c 2))])]
+               (when (and (> (count c) 2) (not (blank? (nth c 2)))) [:span.btn.small (mdi (nth c 2))])]
       "notif" (let [[app title body actions] c]
                 [:div.s-notif
                  [:div.s-notif-app [:i "ω"] app [:em "now"]]
@@ -567,9 +567,9 @@
                     (or (starts-with? t "crumb ") (starts-with? t "head ") (starts-with? t "meta ") (and (starts-with? t "tabs ") (empty? (:cols acc))))
                     (update acc :top conj t)
                     (starts-with? t "col ") (update acc :cols conj [(trim (subs t 4)) []])
-                    (empty? (:cols acc)) (update acc :cols conj ["main" [t]])
+                    (empty? (:cols acc)) (update acc :pre conj t)
                     :else (update-in acc [:cols (dec (count (:cols acc))) 1] conj t))))
-          {:nav nil :top [] :cols []} lines))
+          {:nav nil :top [] :pre [] :cols []} lines))
 
 (defn- desk-top [t]
   (let [sp (index-of t " ") verb (subs t 0 sp) c (cols (trim (subs t (inc sp))))]
@@ -585,7 +585,7 @@
       nil)))
 
 (defn desk-h [b]
-  (let [a (:attrs b) {:keys [nav top cols]} (desk-parts (:body b))
+  (let [a (:attrs b) {:keys [nav top pre cols]} (desk-parts (:body b))
         names (map first cols)]
     [:figure.desk {:id (str "desk-" (:id a))}
      [:div.d-frame
@@ -596,6 +596,7 @@
           (for [x nav] (if (ends-with? x "*") [:span.on (mdi (subs x 0 (dec (count x))))] [:span (mdi x)]))])
        [:div.d-main
         (keep desk-top top)
+        (map desk-line pre)
         [:div {:class (str "d-cols " (join "-" names))}
          (for [[nm ls] cols]
            [:div {:class (str "d-col " nm)}
