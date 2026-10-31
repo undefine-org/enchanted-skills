@@ -407,3 +407,6 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .s-reply{display:flex;align-items:center;gap:8px;border:1px solid var(--latte);border-radius:12px;padding:6px 6px 6px 11px;margin:6px 0;background:var(--bg);font-size:13px;color:var(--muted)}
 .s-reply span:first-child{flex:1}.s-reply>.ic{width:17px;height:17px;color:var(--clay)}
 .s-reply .s-send{width:28px;height:28px}.s-reply .s-send .ic{width:15px;height:15px}
+.s-card-top{flex-wrap:wrap;row-gap:0}
+.s-card-top b{flex:0 1 auto}
+.s-card.has-acts .s-card-top span,.s-card-top span{white-space:normal}
