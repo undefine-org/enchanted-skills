@@ -20,3 +20,7 @@ ln -s ~/projects/enchanted-skills/ux-from-use ~/.claude/skills/ux-from-use
 
 The dossier kit runs on [Beam Lisp](https://github.com/undefine-org) (`bl`).
 Tests: `bl test -p bl-org-dossier/kit bl-org-dossier/kit/test/kit_test.bl`.
+
+## License
+
+[Eclipse Public License 2.0](LICENSE).
