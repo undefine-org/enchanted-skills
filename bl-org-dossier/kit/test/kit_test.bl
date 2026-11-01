@@ -44,6 +44,12 @@
         cleared (:lines (ans/answer-lines once "q1" "" "" "t" "me"))]
     (is (= sample cleared))))
 
+(deftest by-is-a-handle-never-an-email
+  (is (= "timinou" (ans/handle "someone@example.com" "timinou")))
+  (is (= "someone" (ans/handle "someone@example.com" nil)))
+  (is (= "someone" (ans/handle "someone@example.com" "  ")))
+  (is (nil? (ans/handle nil nil))))
+
 (deftest only-answerable-blocks
   (is (:error (ans/answer-lines sample "nope" "A" "" "t" "")))
   (is (= ["q1" "d1"] (map :id (pg/feedback-items (o/read-doc (join "\n" sample)))))))

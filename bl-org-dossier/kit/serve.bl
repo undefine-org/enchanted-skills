@@ -3,6 +3,8 @@
 ;   bl serve serve.bl -- /abs/path/doc.bl.org
 ;   PORT / HOST from the environment (work serve supplies them), else 4071.
 ;   DOSSIER_OWNER=login@domain  → only that Tailscale identity may answer.
+;   DOSSIER_HANDLE=handle       → the name answers carry in :by (else the
+;                                 login's part before @; never the email).
 ;
 ; Routes: GET /        the page        GET /doc   {rev html} for live refresh
 ;         GET /rev     {rev}           GET /src   the .bl.org itself
@@ -39,7 +41,8 @@
     (if (not (owner-ok? conn))
       (web/json conn 403 {:error "only the dossier owner can answer (Tailscale identity)"})
       (let [r (ans/answer! doc-path (get req "id") (or (get req "answer") "") (or (get req "note") "")
-                           (or (web/req-header conn "tailscale-user-login") ""))]
+                           (or (ans/handle (web/req-header conn "tailscale-user-login")
+                                           (System/get_env "DOSSIER_HANDLE")) ""))]
         (if (:error r)
           (web/json conn 404 {:error (:error r)})
           (web/json conn 200 {:ok true :rev (rev (File/read! doc-path))}))))))

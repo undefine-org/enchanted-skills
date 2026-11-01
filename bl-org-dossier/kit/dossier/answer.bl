@@ -4,7 +4,8 @@
 ; block's own header line (`:answer`, `:note`, `:at`, `:by`). Everything
 ; else in the file is left byte for byte, so Emacs, git diff and
 ; `bl doc run` all keep working on it. `answer-lines` is pure;
-; `answer!` is the one effect (read, patch, atomic rename).
+; `answer!` is the one effect (read, patch, atomic rename). `:by` holds a
+; handle, never a login: `handle` is the only way a name reaches the file.
 
 (ns dossier.answer
   (:require [dossier.attrs :as at] [dossier.page :as pg]))
@@ -28,6 +29,14 @@
                      "by" (if (or clear? (blank? by)) nil by)}]
         {:lines (assoc lines i (at/patch-line l changes))
          :line i}))))
+
+(defn handle
+  "Who answered, as written to `:by`: `configured` (DOSSIER_HANDLE) when set,
+   else the part of `login` before the @. An email never lands in the file."
+  [login configured]
+  (cond (not (blank? configured)) (trim configured)
+        (blank? login) nil
+        :else (first (String/split (trim login) "@"))))
 
 (defn now-stamp []
   (let [s (str (DateTime/utc_now))]

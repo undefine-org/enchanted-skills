@@ -29,8 +29,10 @@ House taste it descends from: `~/code/undefine/omega/spikes/mobile/design-review
      --env-file ~/.config/baton-dossier/service.env --ready-timeout 120 \
      -- /etc/profiles/per-user/othman/bin/bl serve serve.bl -- /abs/path/NAME.bl.org
    ```
-   The env file holds `DOSSIER_OWNER=othman@undefine.org`; only that Tailscale
+   The env file holds `DOSSIER_OWNER=` the owner's Tailscale login; only that
    identity may answer (Serve sets `Tailscale-User-Login`; verified 2026-10-31).
+   `DOSSIER_HANDLE=timinou` is the name answers carry in `:by`; a login (an
+   email) is never written into the file.
    The server re-reads the file per request: editing the `.bl.org` needs no restart.
    Editing the kit's `.bl` code does: `work restart NAME`.
 6. Read the answers:
