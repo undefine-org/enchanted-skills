@@ -1,0 +1,61 @@
+; serve.bl — a .bl.org dossier as a live page that listens back.
+;
+;   bl serve serve.bl -- /abs/path/doc.bl.org
+;   PORT / HOST from the environment (work serve supplies them), else 4071.
+;   DOSSIER_OWNER=login@domain  → only that Tailscale identity may answer.
+;
+; Routes: GET /        the page        GET /doc   {rev html} for live refresh
+;         GET /rev     {rev}           GET /src   the .bl.org itself
+;         GET /answers every answer    POST /answer {id answer note}
+
+(ns serve
+  (:require [web] [live.hiccup :as h] [bl.json :as json]
+            [dossier.org :as o] [dossier.page :as pg] [dossier.answer :as ans]))
+
+(defn- arg-path []
+  (let [a (first (BeamLisp/argv))]
+    (when (nil? a) (throw (ex-info "usage: bl serve serve.bl -- FILE.bl.org" {})))
+    (Path/expand a)))
+
+(def doc-path (arg-path))
+(defn- asset [name]
+  (File/read! (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) name)))
+
+(defn- rev [text] (str (erlang/phash2 text)))
+
+(defn- owner-ok? [conn]
+  (let [owner (System/get_env "DOSSIER_OWNER")]
+    (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
+
+(defn- full-page [text]
+  (str "<!doctype html>" (h/hiccup->html (pg/page-h (o/read-doc text) (asset "style.css") (asset "live.js")))))
+
+(defn- doc-json [text]
+  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (o/read-doc text))))})
+
+(defn- post-answer [conn]
+  (let [[body conn] (web/read-body* conn)
+        req (json/decode body)]
+    (if (not (owner-ok? conn))
+      (web/json conn 403 {:error "only the dossier owner can answer (Tailscale identity)"})
+      (let [r (ans/answer! doc-path (get req "id") (or (get req "answer") "") (or (get req "note") "")
+                           (or (web/req-header conn "tailscale-user-login") ""))]
+        (if (:error r)
+          (web/json conn 404 {:error (:error r)})
+          (web/json conn 200 {:ok true :rev (rev (File/read! doc-path))}))))))
+
+(defn router [conn]
+  (web/route conn
+    [:get "/"] (web/html conn (full-page (File/read! doc-path)))
+    [:get "/doc"] (web/json conn (doc-json (File/read! doc-path)))
+    [:get "/rev"] (web/json conn {:rev (rev (File/read! doc-path))})
+    [:get "/src"] (web/text conn (File/read! doc-path))
+    [:get "/answers"] (web/json conn (vec (map (fn [i] (into {} (for [[k v] i :when v] [(name k) v])))
+                                               (pg/feedback-items (o/read-doc (File/read! doc-path))))))
+    [:post "/answer"] (post-answer conn)
+    :else (web/text conn 404 "not found")))
+
+(def port (let [p (System/get_env "PORT")] (if p (erlang/binary_to_integer p) 4071)))
+
+(web/serve {:port port :ip (tuple 127 0 0 1) :plug router :log :off})
+(println (str "dossier: " doc-path " on http://127.0.0.1:" port "/"))
