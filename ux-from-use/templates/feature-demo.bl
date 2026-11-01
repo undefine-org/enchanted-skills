@@ -1,0 +1,74 @@
+; feature-demo.bl — an app's features as filmed, provable scenarios.
+;
+;   bl test -p ~/projects/beam-lisp/optional/browser-port/bl test/feature-demo.bl
+;   DEMO_RECORD=1     model turns not on tape are recorded (needs credentials)
+;   BL_DEMO_EXPORT=1  render MP4 + subtitles per film into demos/<id>/film
+;
+; Replace the four marked places: how the app starts on a copy of its data, who
+; the people are, and the films. A scene's :say is the experience it establishes.
+
+(ns app.feature-demo
+  (:require [scenario :as s] [scenario.demo :as demo] [browser.film :as bf] [browser.page :as page]
+            [app.server :as server]))                       ; ① the app's own server namespace
+
+(def root (Path/expand "."))
+(def port 24099)
+(defn- at [path] (str "http://127.0.0.1:" port path))
+(defn- out [id] (str root "/demos/" id))
+
+;; ② the app under test: a reflink copy of its data, a spare port, tapes for model turns
+(def ^:private started (atom nil))
+(defn- start! []
+  (when-not @started
+    (let [copy (str root "/.local/demo-data")]
+      (File/rm_rf! copy)
+      (System/cmd "cp" (list "-a" "--reflink=auto" (str root "/data") copy))
+      (System/put_env "APP_DATA" copy)
+      (System/put_env "APP_CASSETTE" (str root "/demos/cassettes"))
+      (System/put_env "APP_CASSETTE_MODE" (if (= "1" (System/get_env "DEMO_RECORD")) "record" "replay"))
+      (reset! started (server/serve! port))))
+  @started)
+(defn- fixture [f] (start!) (f))
+
+;; ③ the people: identity added to every request their page makes
+(def people {:alice ["alice@example.org" "Alice"] :bob ["bob@example.org" "Bob"]})
+
+(def ^:private rt (str (System/get_env "HOME") "/.local/share/bl-browser/runtime-wayland/bin/"))
+(def ^:private port-bin (or (System/get_env "BL_BROWSER_PORT")
+                            (str (System/get_env "HOME") "/projects/beam-lisp/optional/browser-port/target/release/bl-browser-port")))
+(defn- page-opts [w] {:executable port-bin :width w :height 860
+                      :launch {"chromium" (str rt "chromium") "compositor" (str rt "sway") "vnc" (str rt "wayvnc") "width" w "height" 960}})
+(defn- world [actors]
+  (fn [context]
+    (let [w (bf/owned-worlds (mapv (fn [[a wd]] [a (page-opts wd)]) actors) (:frames context) {:fps 24})]
+      (assoc w :open (fn [ctx]
+                       (let [pages ((:open w) ctx)]
+                         (doseq [[a pg] pages]
+                           (let [[login nm] (get people a)]
+                             (page/cdp! pg "Network.enable" {})
+                             (page/cdp! pg "Network.setExtraHTTPHeaders" {"headers" {"x-user-login" login "x-user-name" nm}})))
+                         pages))))))
+
+(defn- quiet [text]
+  (let [secs (max 3.0 (+ 1.4 (* 0.065 (count text)))) f (str root "/.local/demo-audio/" (erlang/phash2 text) ".wav")]
+    (when-not (File/exists? f)
+      (File/mkdir_p! (Path/dirname f))
+      (System/cmd "python3" (list "-c" "import wave,sys; w=wave.open(sys.argv[1],'wb'); w.setparams((1,2,48000,0,'NONE','not compressed')); w.writeframes(b'\\0\\0'*int(48000*float(sys.argv[2]))); w.close()" f (str secs))))
+    f))
+(defn- scene [id title say & events]
+  (apply demo/scene id (merge {:title title :say say :capture :video}
+                              (when (empty? (str (System/get_env "DEEPGRAM_API_KEY"))) {:audio (quiet say)})) events))
+(defn- sees [who js msg] (s/sees who (fn [p _] (= true (page/evaluate! p js))) msg))
+
+;; ④ the films: one per experience
+(demo/defdemo a-change-reaches-everyone
+  {:title "A change reaches everyone" :world (world [[:alice 1100] [:bob 1100]]) :with-fixture fixture :output (out "a-change-reaches-everyone")}
+  (s/scenario "A change reaches everyone" {:alice {} :bob {}}
+    [(s/does :alice [:navigate (at "/list")])
+     (s/does :bob [:navigate (at "/list")])
+     (scene :add "What one adds, the other sees"
+       "Alice adds an item. Bob's page shows it at once, without reloading."
+       (s/does :alice [:fill "input[name=item]" "Lettre au client"])
+       (s/does :alice [:key "Enter"])
+       (s/does :bob [:wait "document.body.textContent.includes('Lettre au client')"])
+       (sees :bob "document.body.textContent.includes('Lettre au client')" "Bob sees Alice's item"))]))

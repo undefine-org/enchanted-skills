@@ -1,0 +1,46 @@
+; probe.bl — use the app as one person, in a real browser, and look.
+;
+;   bl run -p ~/projects/beam-lisp/optional/browser-port/bl probe.bl -- URL [LOGIN NAME]
+;
+; Opens URL with the person's identity (Tailscale headers, as the tailnet proxy
+; adds them), records the session, prints what the page says, keeps a
+; screenshot. Edit the middle: every line you add here is a scenario event
+; later (see SKILL.md, « From probe to film »).
+
+(ns probe (:require [browser.page :as page]))
+
+(def args (vec (BeamLisp/argv)))
+;; (get v i default) gives nil, not default, past the end of a vector: use or
+(def url (or (get args 0) "http://127.0.0.1:24025/"))
+(def login (or (get args 1) "othman@undefine.org"))
+(def nm (or (get args 2) "Othman Benkiran"))
+
+(def home (System/get_env "HOME"))
+(def rt (str home "/.local/share/bl-browser/runtime-wayland/bin/"))
+(def root (str "/tmp/probe-" (erlang/unique_integer (list :positive))))
+(File/mkdir_p! root)
+
+(def p (page/open! {:executable (or (System/get_env "BL_BROWSER_PORT") (str home "/projects/beam-lisp/optional/browser-port/target/release/bl-browser-port"))
+                    :width 1440 :height 860
+                    :launch {"profile" (str root "/profile") "runtime" (str root "/runtime")
+                             "chromium" (str rt "chromium") "compositor" (str rt "sway") "vnc" (str rt "wayvnc")
+                             "width" 1440 "height" 960}}))
+
+(try
+  (page/cdp! p "Network.enable" {})
+  (page/cdp! p "Network.setExtraHTTPHeaders" {"headers" {"tailscale-user-login" login "tailscale-user-name" nm}})
+  (page/show-cursor! p)
+  (page/record! p (str root "/take.mp4") {:fps 24})
+  (page/navigate! p url)
+  (page/wait! p "document.readyState === 'complete'")
+  ;; ── your session: act, then ask the page what a person sees ──────────────
+  (println "title:" (page/evaluate! p "document.title"))
+  (println "fits the width:" (page/evaluate! p "document.documentElement.scrollWidth <= innerWidth"))
+  ;; (page/click! p "a.nav[href='/team']")
+  ;; (page/wait! p "location.pathname === '/team'")
+  ;; phone width:
+  ;; (page/cdp! p "Emulation.setDeviceMetricsOverride" {"width" 390 "height" 844 "deviceScaleFactor" 2 "mobile" true})
+  (page/screenshot! p (str root "/last.png"))
+  (println "movie:" (get (page/stop-recording! p) "path"))
+  (println "look at:" (str root "/last.png"))
+  (finally (page/close! p)))
