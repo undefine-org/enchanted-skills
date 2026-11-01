@@ -313,14 +313,14 @@ proposed here for you to react to. Everything under Palette (light), Type and
 Shape is copied from what ships, and the =parity= cell keeps it honest.
 #+end_honest
 
-#+begin_ask :id F1 :title "Dark mode: is forest at night right?" :options "Yes|Darker ground|Keep the primary forest-green, not lime"
+#+begin_ask :id F1 :title "Dark mode: is forest at night right?" :options "Yes|Darker ground|Keep the primary forest-green, not lime" :answer Yes :at "2026-11-01 20:49" :by othman@undefine.org
 In dark mode the primary moves to the lime (=#b9dc7f=) so that it stays readable on the dark ground.
 #+end_ask
 
-#+begin_ask :id F2 :title "Is hand-over the one celebration?" :options "Yes|Gate opening instead|No celebration at all"
+#+begin_ask :id F2 :title "Is hand-over the one celebration?" :options "Yes|Gate opening instead|No celebration at all" :answer Yes :note "gate opening is a smaller celebration but still one" :at "2026-11-01 20:50" :by othman@undefine.org
 Only hand-over overshoots. Everything else settles.
 #+end_ask
 
-#+begin_ask :id F3 :title "Retire the skeleton shimmer for a breathing card?" :options "Yes|Keep shimmer for loading, breathe for drafting|Keep shimmer"
+#+begin_ask :id F3 :title "Retire the skeleton shimmer for a breathing card?" :options "Yes|Keep shimmer for loading, breathe for drafting|Keep shimmer" :answer "Keep shimmer for loading, breathe for drafting" :at "2026-11-01 20:50" :by othman@undefine.org
 =draft= breathes at 2.4 s while the harness writes. Loading the page is a different thing and could keep the shimmer.
 #+end_ask
