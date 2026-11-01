@@ -97,7 +97,7 @@ Run anything that uses it with `bl run -p ~/projects/beam-lisp/optional/browser-
 (try
   ;; who is looking: the identity the proxy would add (here Tailscale headers); it reaches the live socket too
   (page/cdp! p "Network.enable" {})
-  (page/cdp! p "Network.setExtraHTTPHeaders" {"headers" {"tailscale-user-login" "othman@undefine.org" "tailscale-user-name" "Othman Benkiran"}})
+  (page/cdp! p "Network.setExtraHTTPHeaders" {"headers" {"tailscale-user-login" "someone@example.com" "tailscale-user-name" "timinou"}})
   (page/record! p "/tmp/probe/take.mp4" {:fps 24})          ; optional: the whole session as a movie
   (page/navigate! p "http://127.0.0.1:24025/a/sahel-…")
   (page/wait! p "document.documentElement.dataset.live==='1'") ; a JS predicate, 30 s bound by default

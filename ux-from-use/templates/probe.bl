@@ -12,8 +12,8 @@
 (def args (vec (BeamLisp/argv)))
 ;; (get v i default) gives nil, not default, past the end of a vector: use or
 (def url (or (get args 0) "http://127.0.0.1:24025/"))
-(def login (or (get args 1) "othman@undefine.org"))
-(def nm (or (get args 2) "Othman Benkiran"))
+(def login (or (get args 1) (System/get_env "PROBE_LOGIN") "someone@example.com"))
+(def nm (or (get args 2) "timinou"))
 
 (def home (System/get_env "HOME"))
 (def rt (str home "/.local/share/bl-browser/runtime-wayland/bin/"))
