@@ -46,7 +46,7 @@ rises on hover, and a sheet is the only thing that casts a real shadow.
 * Components
 The kit's mockup lines, drawn in Forest. Nothing in the screen language changed.
 
-#+begin_screen :id f-cards :title "Cards and their tones" :caption "run breathes while work is in progress; turn is yours; approve waits; done rests; fail asks for repair." :answer love :note "I would like a proper component catalog here btw using the catalog annotation funciton as a basis and then extending the kit as needed, and more screens that build off of the catatlog. nice extra would be if i click on a component, i can filter to the views that use that component" :at "2026-11-01 20:52" :by othman@undefine.org
+#+begin_screen :id f-cards :title "Cards and their tones" :caption "run breathes while work is in progress; turn is yours; approve waits; done rests; fail asks for repair." :answer love :note "I would like a proper component catalog here btw using the catalog annotation funciton as a basis and then extending the kit as needed, and more screens that build off of the catatlog. nice extra would be if i click on a component, i can filter to the views that use that component" :at "2026-11-01 20:52" :by timinou
 bar Needs you | @bell
 sub Othman · 2 things wait on you
 card run | Deliver: Architecture sketch | Team machine spine · draft ready | Omega drafted it from the nouns. | @edit! @attach @eye?
@@ -56,7 +56,7 @@ card done | Problem statement | final · Othman |
 card fail | Change: Discussion guide | asked by Othman | Add the two consent questions. | @edit!
 #+end_screen
 
-#+begin_screen :id f-surfaces :title "Rows, chips, strips, actions" :caption "The quieter parts: rows for facts, chips for lenses, a strip for the one next thing." :answer fine :note "feels a bit too textual and hard to parse. you can find an even cooler layout." :at "2026-11-01 20:51" :by othman@undefine.org
+#+begin_screen :id f-surfaces :title "Rows, chips, strips, actions" :caption "The quieter parts: rows for facts, chips for lenses, a strip for the one next thing." :answer fine :note "feels a bit too textual and hard to parse. you can find an even cooler layout." :at "2026-11-01 20:51" :by timinou
 bar < Team machine spine | @more
 chips Week | Cycle* | Quarter | Year
 section Facts | 4
@@ -69,7 +69,7 @@ input Message Team machine spine | ↑
 actions Hand over! | Share as draft | Later?
 #+end_screen
 
-#+begin_desk :id f-desk :title "The app frame" :caption "Rail, top bar, three columns: the shell every Forest page sits in." :firm "Ora" :url "ora · work" :answer fine :note "This is fine, make sure that this kind of code builds on top of each other so it's structurally straightforward to include the whole interface without having to think about it (right here, a few components are missing such as the account view to go to user accoutns, the headings if there are any that are needed, etc. Make sure it is a skill improvement as well so that it's easy to do it for any app ever)" :at "2026-11-01 20:53" :by othman@undefine.org
+#+begin_desk :id f-desk :title "The app frame" :caption "Rail, top bar, three columns: the shell every Forest page sits in." :firm "Ora" :url "ora · work" :answer fine :note "This is fine, make sure that this kind of code builds on top of each other so it's structurally straightforward to include the whole interface without having to think about it (right here, a few components are missing such as the account view to go to user accoutns, the headings if there are any that are needed, etc. Make sure it is a skill improvement as well so that it's easy to do it for any app ever)" :at "2026-11-01 20:53" :by timinou
 nav @bell Needs you | @chat Talk | @flag Goals* | @folder Projects | @people People
 head Goals | run · cycle to 21 Nov | Capture! | New goal?
 col rail
@@ -313,14 +313,14 @@ proposed here for you to react to. Everything under Palette (light), Type and
 Shape is copied from what ships, and the =parity= cell keeps it honest.
 #+end_honest
 
-#+begin_ask :id F1 :title "Dark mode: is forest at night right?" :options "Yes|Darker ground|Keep the primary forest-green, not lime" :answer Yes :at "2026-11-01 20:49" :by othman@undefine.org
+#+begin_ask :id F1 :title "Dark mode: is forest at night right?" :options "Yes|Darker ground|Keep the primary forest-green, not lime" :answer Yes :at "2026-11-01 20:49" :by timinou
 In dark mode the primary moves to the lime (=#b9dc7f=) so that it stays readable on the dark ground.
 #+end_ask
 
-#+begin_ask :id F2 :title "Is hand-over the one celebration?" :options "Yes|Gate opening instead|No celebration at all" :answer Yes :note "gate opening is a smaller celebration but still one" :at "2026-11-01 20:50" :by othman@undefine.org
+#+begin_ask :id F2 :title "Is hand-over the one celebration?" :options "Yes|Gate opening instead|No celebration at all" :answer Yes :note "gate opening is a smaller celebration but still one" :at "2026-11-01 20:50" :by timinou
 Only hand-over overshoots. Everything else settles.
 #+end_ask
 
-#+begin_ask :id F3 :title "Retire the skeleton shimmer for a breathing card?" :options "Yes|Keep shimmer for loading, breathe for drafting|Keep shimmer" :answer "Keep shimmer for loading, breathe for drafting" :at "2026-11-01 20:50" :by othman@undefine.org
+#+begin_ask :id F3 :title "Retire the skeleton shimmer for a breathing card?" :options "Yes|Keep shimmer for loading, breathe for drafting|Keep shimmer" :answer "Keep shimmer for loading, breathe for drafting" :at "2026-11-01 20:50" :by timinou
 =draft= breathes at 2.4 s while the harness writes. Loading the page is a different thing and could keep the shimmer.
 #+end_ask
