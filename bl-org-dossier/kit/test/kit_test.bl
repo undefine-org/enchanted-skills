@@ -75,9 +75,12 @@
                                     "#+end_schema"
                                     "#+begin_procedure :id p1 :title Align :makes project"
                                     "step @edit Frame | owner | problem · doc, risks · list"
+                                    "call @link Publish | dossier.publish/serve! | link · link"
+                                    "check @eye Read it | verifier | problem"
                                     "gate @check Agree | everyone | problem" "Why it exists." "#+end_procedure"]))
         html (h/hiccup->html (pg/page-h doc "" ""))]
     (doseq [needle ["class=\"schema\"" "id=\"entity-goal\"" "class=\"s-ref\"" "class=\"sx-flow\""
-                    "2 entities · 3 attributes · 3 states" "class=\"procedure\"" "p-gate" "p-item needs" "Why it exists."]]
+                    "2 entities · 3 attributes · 3 states" "class=\"procedure\"" "p-gate" "p-item needs" "Why it exists."
+                    "p-call" "dossier.publish/serve!" "p-check" "p-item reads"]]
       (is (includes? html needle) (str "missing " needle)))
     (is (= ["s1" "p1"] (map :id (pg/feedback-items doc))))))

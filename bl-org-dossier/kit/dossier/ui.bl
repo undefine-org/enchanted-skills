@@ -687,14 +687,17 @@
 ;
 ;   step @edit Frame the problem | lead | problem statement · doc · draft
 ;   check @eye Check against the principles | verifier | problem statement
+;   call @link Publish it | dossier.publish/serve! | demo link · link
 ;   gate @check Frame is in | everyone | problem statement
 ;
 ; A step produces deliverables (`name · kind`, comma separated; a third
 ; `· draft` means a harness drafts it the moment the task starts). A check
-; reads deliverables and leaves advice; a gate names the deliverables that
-; must be handed over before work goes on. Other lines are prose.
+; reads deliverables and leaves advice; a call runs code instead of a person
+; (a Beam Lisp fn or an API, named in the middle column) and produces like a
+; step; a gate names the deliverables that must be handed over before work
+; goes on. Other lines are prose.
 
-(def ^:private step-re (Regex/compile! "^\\s*(step|gate|check)\\s"))
+(def ^:private step-re (Regex/compile! "^\\s*(step|gate|check|call)\\s"))
 
 (defn procedure-of
   "Steps of a procedure body: [{:kind :icon :title :who :items [{:name :kind :draft?}]} …]."

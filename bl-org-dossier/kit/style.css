@@ -490,5 +490,8 @@ li.p-gate .p-mark .ic{transform:rotate(-45deg);stroke:var(--card)}
 .p-draft{font:600 10.5px var(--sans);font-style:normal;text-transform:uppercase;letter-spacing:.06em;color:var(--sage);margin-left:7px}
 li.p-check .p-mark{border-style:dashed;border-color:var(--slate)}
 li.p-check .p-mark .ic{stroke:var(--slate)}
+li.p-call .p-mark{border-radius:8px;background:var(--ink);border-color:var(--ink)}
+li.p-call .p-mark .ic{stroke:var(--bg)}
+li.p-call .p-who{font:12.5px var(--mono)}
 @media (max-width:640px){.s-grid{grid-template-columns:1fr}}
 .desk .s-msg.you{background:var(--k-ink);color:var(--k-bg)}
