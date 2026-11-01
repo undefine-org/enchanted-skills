@@ -129,6 +129,11 @@ for a phone).
   then patch from data. Bugs hide in the difference (a class dropped on insert,
   a list beginning with text read as a tag name). Reach every screen once by
   URL and once by navigating to it.
+- **Wait for the page to be live, not just connected.** A live client may
+  replace the server-rendered page with its socket's first render. Text typed
+  in between is lost, for a test and for a person typing quickly after load.
+  The app should keep what was typed across that mount and then say it is live
+  (`data-mounted`). Tests wait on that flag.
 - **Look at phone width.** Check `document.documentElement.scrollWidth === innerWidth`
   at 390px, then look at the screenshot.
 - **Never touch real data, and prove it.** Point the app at a reflink copy
@@ -192,6 +197,12 @@ bl test -p ~/projects/beam-lisp/optional/browser-port/bl app/test/features-demo.
 DEMO_RECORD=1 bl test -p …                       # put missing model turns on tape (needs model credentials)
 BL_DEMO_EXPORT=1 bl test -p …                    # also render MP4 + subtitles + chapters per film
 ```
+
+Each film clears its last take in its fixture, because a recording never
+overwrites one. Keep each narration within two subtitle lines (about 130
+characters), or the render refuses it. A loaded machine can starve the
+screencast encoder: check `frames/recordings.json`, where `encodedFrames`
+should be about seconds × fps, and rerun when a take is short.
 
 Rendering (`scenario.film/export!`) needs Python 3 and FFmpeg with libass.
 Narration is spoken when `DEEPGRAM_API_KEY` is set. Otherwise each scene gets

@@ -28,7 +28,12 @@
       (System/put_env "APP_CASSETTE_MODE" (if (= "1" (System/get_env "DEMO_RECORD")) "record" "replay"))
       (reset! started (server/serve! port))))
   @started)
-(defn- fixture [f] (start!) (f))
+(defn- film
+  "A film's options: its world, and a fixture that clears its last take (a
+   recording never overwrites one) and starts the app."
+  [id title actors]
+  {:title title :world (world actors) :output (out id)
+   :with-fixture (fn [f] (File/rm_rf! (out id)) (start!) (f))})
 
 ;; ③ the people: identity added to every request their page makes
 (def people {:alice ["alice@example.org" "Alice"] :bob ["bob@example.org" "Bob"]})
@@ -58,14 +63,17 @@
 (defn- scene [id title say & events]
   (apply demo/scene id (merge {:title title :say say :capture :video}
                               (when (empty? (str (System/get_env "DEEPGRAM_API_KEY"))) {:audio (quiet say)})) events))
+;; :say stays within two subtitle lines (about 130 characters), or the render refuses it
 (defn- sees [who js msg] (s/sees who (fn [p _] (= true (page/evaluate! p js))) msg))
 
 ;; ④ the films: one per experience
 (demo/defdemo a-change-reaches-everyone
-  {:title "A change reaches everyone" :world (world [[:alice 1100] [:bob 1100]]) :with-fixture fixture :output (out "a-change-reaches-everyone")}
+  (film "a-change-reaches-everyone" "A change reaches everyone" [[:alice 1100] [:bob 1100]])
   (s/scenario "A change reaches everyone" {:alice {} :bob {}}
     [(s/does :alice [:navigate (at "/list")])
+     (s/does :alice [:wait "document.documentElement.dataset.mounted==='1'"])   ; live = mounted, not just connected
      (s/does :bob [:navigate (at "/list")])
+     (s/does :bob [:wait "document.documentElement.dataset.mounted==='1'"])
      (scene :add "What one adds, the other sees"
        "Alice adds an item. Bob's page shows it at once, without reloading."
        (s/does :alice [:fill "input[name=item]" "Lettre au client"])
