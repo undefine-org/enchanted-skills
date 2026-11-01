@@ -76,6 +76,12 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `desk :id :title :job :caption [:url]` | desk language (below) | a desktop app frame + reaction; same answer buttons as screens |
 | `sequence :title` | `lanes a · sub \| b · sub`, `a -> b : label` (call), `a --> b : label` (reply), `a => b : label` (the key moment), `note a, b : text`, `== divider` | SVG on wide screens, numbered steps on phones |
 | `graph :title` | `node id \| label \| sub \| col,row \| tone` (`you door station builder foreign`), `edge a -> b \| label \| style` (`baton solid dash none`; `<->`, `--` too) | SVG topology |
+| `schema :id :title` | unindented `entity @icon \| gloss`; indented `attr type \| note`. Types: `text date`, `-> kind` (ref), `->> kind` (many), `a > b / c` (state flow), `a, b, c` (enum) | entity cards, refs link to `#entity-NAME`, a count of entities · attributes · states; answerable |
+| `procedure :id :title :makes` | `step @icon Title \| who \| name · kind, …` (produces), `gate @icon Title \| who \| name, …` (signs off); other lines are prose | a step rail, gates as diamonds; answerable |
+
+A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
+passes the file in `(BeamLisp/argv)`, so a cell can read its own block and turn it into
+datom attributes or tasks (exemplar: `team-machine/design/work/WORK.bl.org`, cells `spine`, `procedure`).
 
 Screen language, one verb per line: `bar Title | right` (`< Title` adds back), `sub`, `chips a* | b` (`*` = selected),
 `section Label | count`, `card tone | title | meta | body` (tones `turn approve run done fail idle`),
@@ -104,7 +110,7 @@ Icons: `@name` anywhere in a screen or desk line draws a line icon — `home mat
 search plus send file word check x alert clock user bot chat comment link seal eye edit version diff filter more back next
 down up bell wait calendar scale flag play undo lock attach grid list board split spark`. Prefer an icon to a word for kinds of things.
 
-Answerable blocks: `ask decision screen desk job`. Each needs a unique `:id`.
+Answerable blocks: `ask decision screen desk job schema procedure`. Each needs a unique `:id`.
 
 Plain Org works too: headings with TODO keywords and tags, `:PROPERTIES:` drawers (chips),
 tables, lists, `[ ]`/`[X]` checkboxes, `=code=`, `*bold*`, `/italic/`, `[[url][label]]`, `[[#screen-ID][label]]`.
