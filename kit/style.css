@@ -307,6 +307,8 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .d-cols{display:grid;gap:16px;align-items:start;padding-top:6px}
 .d-cols.doc-rail,.d-cols.main-rail{grid-template-columns:minmax(0,1fr) 300px}
 .d-cols.rail-doc{grid-template-columns:300px minmax(0,1fr)}
+.d-cols.rail-main{grid-template-columns:230px minmax(0,1fr)}
+.d-cols.rail-main>.d-col.rail{border-left:0;padding-left:0;border-right:1px solid var(--k-hair);padding-right:14px}
 .d-cols.main-main,.d-cols.doc-doc{grid-template-columns:1fr 1fr}
 .d-cols.main-main-main{grid-template-columns:repeat(3,minmax(0,1fr))}
 .d-cols.main-main-main-main,.d-cols.main-main-main-main-main{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
