@@ -359,9 +359,14 @@
               [:div.s-sheet [:div.s-grip] [:div.s-sheet-title (md (trim (subs (trim (first sheet)) 5)))]
                (map screen-line (rest sheet))])))))
 
+(defn- design-class
+  "` design-NAME` when a mockup is drawn in a design language (dossier.design)."
+  [a]
+  (if (:design a) (str " design-" (:design a)) ""))
+
 (defn screen-h [b]
   (let [a (:attrs b) dark? (= "dark" (:theme a))]
-    [:figure {:class (str "phone" (if dark? " lockscreen" "")) :id (str "screen-" (:id a))}
+    [:figure {:class (str "phone" (if dark? " lockscreen" "") (design-class a)) :id (str "screen-" (:id a))}
      [:div.device
       [:div.statusbar [:span "9:41"] [:span.notch] [:span "◔ ▮▮"]]
       [:div.screen (screen-body (:body b))]]
@@ -595,7 +600,7 @@
 (defn desk-h [b]
   (let [a (:attrs b) {:keys [nav top pre cols]} (desk-parts (:body b))
         names (map first cols)]
-    [:figure.desk {:id (str "desk-" (:id a))}
+    [:figure {:class (str "desk" (design-class a)) :id (str "desk-" (:id a))}
      [:div.d-frame
       [:div.d-chrome [:i] [:i] [:i] [:span (or (:url a) "knowledger · cabinet-atlas")]]
       [:div {:class (if nav "d-app" "d-app bare")}
@@ -680,17 +685,19 @@
 
 ; ─── procedure: a reusable shape of work, steps and sign-offs ──────────────
 ;
-;   step @edit Frame the problem | owner | problem statement · doc
-;   gate @check Agree on the frame | everyone | problem statement
+;   step @edit Frame the problem | lead | problem statement · doc · draft
+;   check @eye Check against the principles | verifier | problem statement
+;   gate @check Frame is in | everyone | problem statement
 ;
-; A step produces deliverables (`name · kind`, comma separated); a gate
-; names the deliverables its people must accept before work goes on.
-; Other lines are prose under the steps.
+; A step produces deliverables (`name · kind`, comma separated; a third
+; `· draft` means a harness drafts it the moment the task starts). A check
+; reads deliverables and leaves advice; a gate names the deliverables that
+; must be handed over before work goes on. Other lines are prose.
 
-(def ^:private step-re (Regex/compile! "^\\s*(step|gate)\\s"))
+(def ^:private step-re (Regex/compile! "^\\s*(step|gate|check)\\s"))
 
 (defn procedure-of
-  "Steps of a procedure body: [{:kind :icon :title :who :items [{:name :kind}]} …]."
+  "Steps of a procedure body: [{:kind :icon :title :who :items [{:name :kind :draft?}]} …]."
   [body]
   (vec (for [l body :when (Regex/run step-re l)]
          (let [[head who items] (map trim (String/split (trim l) "|"))
@@ -700,7 +707,8 @@
             :title (join " " (filter (fn [w] (not (starts-with? w "@"))) ws))
             :who (or who "")
             :items (vec (for [it (String/split (or items "") ",") :when (not (blank? it))]
-                          (let [[nm k] (map trim (String/split it "·"))] {:name nm :kind k})))}))))
+                          (let [[nm k flag] (map trim (String/split it "·"))]
+                            {:name nm :kind k :draft? (= "draft" flag)})))}))))
 
 (defn procedure-h [b]
   (let [a (:attrs b) steps (procedure-of (:body b))
@@ -709,15 +717,16 @@
      [:header (when (:id a) [:span.chip (:id a)]) [:h4 (md (or (:title a) "Procedure"))]
       (when (:makes a) [:span.p-makes (str "makes a " (:makes a))])]
      [:ol.p-steps
-      (for [s steps :let [gate? (= "gate" (:kind s))]]
-        [:li {:class (str "p-" (:kind s))}
+      (for [s steps :let [k (:kind s)]]
+        [:li {:class (str "p-" k)}
          [:div.p-mark (when (:icon s) (ico (:icon s)))]
          [:div.p-body
           [:b (md (:title s))] [:span.p-who (md (:who s))]
           [:div.p-items
            (for [it (:items s)]
-             [:span {:class (if gate? "p-item needs" "p-item")}
-              (if gate? "✓ " "→ ") (:name it) (when (:kind it) [:i (:kind it)])])]]])]
+             [:span {:class (str "p-item" (case k "gate" " needs" "check" " reads" ""))}
+              (case k "gate" "✓ " "check" "◎ " "→ ") (:name it) (when (:kind it) [:i (:kind it)])
+              (when (:draft? it) [:em.p-draft "drafted"])])]]])]
      (paras prose)
      (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Is this the right shape of work?"))]))
 

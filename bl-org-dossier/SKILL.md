@@ -77,7 +77,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `sequence :title` | `lanes a · sub \| b · sub`, `a -> b : label` (call), `a --> b : label` (reply), `a => b : label` (the key moment), `note a, b : text`, `== divider` | SVG on wide screens, numbered steps on phones |
 | `graph :title` | `node id \| label \| sub \| col,row \| tone` (`you door station builder foreign`), `edge a -> b \| label \| style` (`baton solid dash none`; `<->`, `--` too) | SVG topology |
 | `schema :id :title` | unindented `entity @icon \| gloss`; indented `attr type \| note`. Types: `text date`, `-> kind` (ref), `->> kind` (many), `a > b / c` (state flow), `a, b, c` (enum) | entity cards, refs link to `#entity-NAME`, a count of entities · attributes · states; answerable |
-| `procedure :id :title :makes` | `step @icon Title \| who \| name · kind, …` (produces), `gate @icon Title \| who \| name, …` (signs off); other lines are prose | a step rail, gates as diamonds; answerable |
+| `procedure :id :title :makes` | `step @icon Title \| who \| name · kind, …` (produces; a third `· draft` = the harness drafts it as the task starts), `check @icon Title \| who \| name, …` (a verifier's advice, agent or person), `gate @icon Title \| who \| name, …` (waits for hand-over); `who` names a role; other lines are prose | a step rail, checks dashed, gates as diamonds; answerable |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
 passes the file in `(BeamLisp/argv)`, so a cell can read its own block and turn it into
@@ -156,15 +156,36 @@ everything; any `#anchor` opens the section that holds it. On a phone the chips
 switch sections the same way. Write level-1 headings as the report's pages and
 level-2 as their parts.
 
+## Design languages
+
+Mockups can wear a product's real design language. `#+design: forest` at the top of a
+dossier draws every `screen` and `desk` in it (one block can override with `:design NAME`,
+or opt out with `:design none`); the mockup lines don't change. Prefer the product's own
+language over the kit's default palette whenever one exists.
+
+A language is a literate module, `kit/dossier/design/NAME.bl.org`, whose cells *are* the
+namespace `dossier.design.NAME`: tokens (light and dark), type scale, radii, shadows,
+motion tokens, and the CSS that re-binds the kit's mockup variables. Register it in
+`kit/dossier/design.bl`. The same file is its specimen page, through four blocks that draw
+themselves from the module: `#+begin_palette`, `#+begin_type`, `#+begin_shape`,
+`#+begin_motion` (each with `:design NAME`, empty body). Keep a `parity` cell that checks
+the tokens against the product's shipped CSS; the kit test asserts no drift.
+
+Shipped: `forest` — Nurturing Forest, Ora's team machine (`design/forest.bl.org`,
+published as the `forest-language` service).
+
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,
-`kit/dossier/{org,attrs,ui,page,answer}.bl` (pure), `kit/style.css`, `kit/live.js`.
+`kit/dossier/{org,attrs,ui,page,answer,design}.bl` (pure), `kit/dossier/design/*.bl.org`,
+`kit/style.css`, `kit/live.js`.
 Tests: `bl test -p ~/.claude/skills/bl-org-dossier/kit kit/test/kit_test.bl`.
 A new component = one `-h` fn in `ui.bl`, a case in `block->h`, CSS, a needle in the test.
 Answers are written by `patch-line`: only `:answer :note :at :by` change; every other byte of the file stays.
 
-The kit is a git repo shared by every session that uses this skill. Commit as you go, one idea per
+The skill lives in `~/projects/enchanted-skills/bl-org-dossier` (the public
+`undefine-org/enchanted-skills` repo); `~/.claude/skills/bl-org-dossier` is a symlink to it.
+It is shared by every session that uses this skill. Commit as you go, one idea per
 commit, and stage only your own files (`git status` first: another session may be mid-edit). A
 `work restart` of a dossier service loads whatever is on disk, uncommitted edits included.
 Keep a reader's answers in their own commit in the dossier's repo, so `git diff` shows what they said.

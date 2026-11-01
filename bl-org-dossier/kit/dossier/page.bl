@@ -5,9 +5,19 @@
 ; every cell shows its last recorded result as proof. Pure.
 
 (ns dossier.page
-  (:require [dossier.org :as o] [dossier.ui :as ui]))
+  (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design]))
 
 (def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure"})
+
+(defn- with-design
+  "`#+design: NAME` draws every screen and desk without its own :design in that language."
+  [d nodes]
+  (if (blank? (str d))
+    nodes
+    (vec (for [nd nodes]
+           (if (and (= :block (:t nd)) (contains? #{"screen" "desk"} (:lang nd)) (nil? (:design (:attrs nd))))
+             (assoc-in nd [:attrs :design] (trim d))
+             nd)))))
 
 (defn- group-screens
   "Consecutive screen blocks (blank prose between them aside) as one node."
@@ -40,7 +50,7 @@
              (when (seq (:head nd)) [:thead (for [r (:head nd)] [:tr (for [c r] [:th (ui/md c)])])])
              [:tbody (for [r (:rows nd)] [:tr (for [c r] [:td (ui/md c)])])]]]
     :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
-    :block (ui/block->h nd)
+    :block (or (design/block-h nd) (ui/block->h nd))
     :screens (ui/screens-h (:blocks nd))
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
            [:div.cell-head
@@ -127,7 +137,7 @@
 (defn doc-h
   "The document body (sidebar, header, nav and sections) as hiccup."
   [doc]
-  (let [meta (:meta doc) secs (vec (sections (group-screens (:nodes doc))))
+  (let [meta (:meta doc) secs (vec (sections (group-screens (with-design (:design meta) (:nodes doc)))))
         n (count secs)]
     (list
       [:div.app2
@@ -164,8 +174,9 @@
     [:meta {:charset "utf-8"}]
     [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
     [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"}]
+    (for [href (design/font-links)] [:link {:rel "stylesheet" :href href}])
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
-    [:style css]]
+    [:style css (design/css)]]
    [:body
     [:div.live [:i] [:span#stamp "live"] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} "theme"]]
     [:main#doc (doc-h doc)]

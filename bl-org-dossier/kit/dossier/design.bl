@@ -1,0 +1,92 @@
+; dossier/design.bl — the design languages a mockup can be drawn in.
+;
+; A screen or desk with `:design forest` (or a document with `#+design:
+; forest`) gets the class `design-forest`. Each language is a literate
+; module (`design/NAME.bl.org`) that owns its tokens and turns them into the
+; CSS that re-skins the kit's mockups. The module is the single source: its
+; showcase page, its CSS and its token checks are one file.
+;
+; Four blocks show a language instead of describing it; each reads the
+; module, so a token changed there changes the page:
+;
+;   #+begin_palette :design forest      swatches, light and dark
+;   #+begin_type :design forest         the type scale, set in the face
+;   #+begin_shape :design forest        radii and elevations on real cards
+;   #+begin_motion :design forest       every motion token, playing
+
+(ns dossier.design
+  (:require [dossier.design.forest :as forest]))
+
+(def languages
+  "name → the module's `language` map:
+   {:name :title :fonts [href] :css :font :light :dark :palette :type :radii :shadows :motion}"
+  {"forest" forest/language})
+
+(defn css [] (join "\n" (map :css (vals languages))))
+
+(defn font-links [] (vec (distinct (mapcat :fonts (vals languages)))))
+
+(defn- lang-of [nd] (get languages (or (:design (:attrs nd)) "forest")))
+
+(defn- frame
+  "A showcase block: drawn inside `design-NAME` so it wears the language."
+  [nd kind body]
+  (let [l (lang-of nd) a (:attrs nd)]
+    [:figure {:class (str "lang-show " kind " design-" (:name l))}
+     (when (:title a) [:figcaption (:title a)])
+     body]))
+
+(defn- palette-h [nd]
+  (let [l (lang-of nd)]
+    (frame nd "palette"
+      (for [[group ks] (:palette l)]
+        [:div.f-group
+         [:h5 group]
+         [:div.f-swatches
+          (for [k ks]
+            [:div.f-sw
+             [:div.f-chip [:i {:style (str "background:" (get (:light l) k))}] [:i {:style (str "background:" (get (:dark l) k))}]]
+             [:b (name k)]
+             [:code (str (get (:light l) k) " · " (get (:dark l) k))]])]]))))
+
+(defn- type-h [nd]
+  (let [l (lang-of nd)]
+    (frame nd "type"
+      (for [t (:type l)]
+        [:div.f-type
+         [:span.f-type-meta (str (:role t) " · " (:size t) "/" (:lh t) " · " (:weight t))]
+         [:div {:style (str "font:" (:weight t) " " (:size t) "px/" (:lh t) " " (:font l)
+                            ";letter-spacing:" (or (:ls t) 0) "px;color:var(--f-" (name (or (:ink t) :ink)) ")")}
+          (:sample t)]]))))
+
+(defn- shape-h [nd]
+  (let [l (lang-of nd)]
+    (frame nd "shape"
+      (list
+        [:div.f-shapes
+         (for [[k r] (:radii l)]
+           [:div.f-shape {:style (str "border-radius:" r "px")} [:b (name k)] [:code (str r "px")]])]
+        [:div.f-shapes
+         (for [[k s] (:shadows l)]
+           [:div.f-shape.lift {:style (str "box-shadow:" s)} [:b (name k)] [:code s]])]))))
+
+(defn- motion-h [nd]
+  (let [l (lang-of nd)]
+    (frame nd "motion"
+      [:div.f-motions
+       (for [m (:motion l)]
+         [:div.f-motion
+          [:div.f-stage [:div {:class (str "f-demo fm-" (:name m))} [:span]]]
+          [:b (:name m)]
+          [:code (str (:ms m) "ms · " (:ease m))]
+          [:p (:use m)]])])))
+
+(defn block-h
+  "Hiccup for a showcase block, or nil when `nd` is not one."
+  [nd]
+  (case (:lang nd)
+    "palette" (palette-h nd)
+    "type" (type-h nd)
+    "shape" (shape-h nd)
+    "motion" (motion-h nd)
+    nil))

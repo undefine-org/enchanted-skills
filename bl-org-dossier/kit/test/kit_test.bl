@@ -7,7 +7,20 @@
 
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
-            [dossier.page :as pg] [dossier.answer :as ans]))
+            [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest]))
+
+(deftest a-design-language-dresses-mockups-and-shows-itself
+  (let [doc (o/read-doc (join "\n" ["#+design: forest" "* D"
+                                    "#+begin_screen :id s1 :title S" "bar Hi" "#+end_screen"
+                                    "#+begin_desk :id k1 :title K :design none" "head H" "#+end_desk"
+                                    "#+begin_palette" "#+end_palette" "#+begin_motion" "#+end_motion"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["phone design-forest" "desk design-none" "--f-forest:#204e3d" "class=\"f-sw\""
+                    "fm-hand-over" "Manrope" "@keyframes fm-draft"]]
+      (is (includes? html needle) (str "missing " needle)))))
+
+(deftest forest-matches-the-shipped-app
+  (is (empty? forest/drift) (str "drift: " (pr-str forest/drift))))
 
 (def sample
   ["* Q" "#+begin_ask :id q1 :title \"Who drives?\" :options \"A|B\"" "Context." "#+end_ask"
