@@ -465,9 +465,10 @@ article.schema h4,article.procedure h4{font:500 21px/1.3 var(--serif);margin:0}
 .s-type{font:13px var(--mono);color:var(--mocha)}
 .s-ref{font:600 13px var(--mono);color:var(--slate);text-decoration:none;background:var(--paper);border-radius:6px;padding:1px 6px}
 .s-ref i{font:500 11px var(--sans);color:var(--muted);margin-left:5px;font-style:normal}
-.s-flow{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center}
-.s-flow b{font:600 12px var(--mono);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:0 7px}
-.s-flow i{font-style:normal;color:var(--mocha);font-size:12px}.s-flow i.alt{font-size:11px}
+.sx-flow{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center}
+.sx-flow b{font:600 12px var(--mono);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:0 7px}
+.sx-flow i{font-style:normal;color:var(--mocha);font-size:12px}.sx-flow i.alt{font-size:11px}
+.sx-flow.enum b{background:transparent;border-style:dashed}
 .s-count{margin-top:10px;font:13px var(--mono);color:var(--muted)}
 .p-makes{font-size:13px;color:var(--muted)}
 ol.p-steps{list-style:none;margin:0;padding:0}

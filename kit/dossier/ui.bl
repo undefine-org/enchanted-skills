@@ -615,8 +615,116 @@
       (when (:caption a) [:p (md (:caption a))])
       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
 
+; ─── schema: entities and their datoms in a few lines ──────────────────────
+;
+;   goal @flag | What the team wants true by a date
+;     done-when  text            | how we will know
+;     state      open > met / missed / dropped
+;     kind       doc, decision, link   | one of, not a flow
+;     serves     ->> goal        | many refs; `-> goal` is one
+;
+; An unindented line names an entity; indented lines are its attributes.
+
+(defn- head-tail [s]
+  (let [[l & r] (String/split s "|")] [(trim l) (when (seq r) (trim (join "|" r)))]))
+
+(defn schema-of
+  "Entities of a schema body: [{:name :icon :gloss :attrs [{:name :type :note}]} …]."
+  [body]
+  (reduce
+    (fn [es l]
+      (cond
+        (or (blank? l) (starts-with? (trim l) "#")) es
+        (Regex/run (Regex/compile! "^\\s") l)
+        (if (empty? es) es
+            (let [[h r] (head-tail l) [nm & ty] (String/split h (Regex/compile! "\\s+"))]
+              (conj (pop es) (update (peek es) :attrs conj {:name nm :type (join " " ty) :note r}))))
+        :else
+        (let [[h r] (head-tail l) ws (String/split h (Regex/compile! "\\s+"))
+              ic (first (filter (fn [w] (starts-with? w "@")) ws))]
+          (conj es {:name (first ws) :icon (when ic (subs ic 1)) :gloss r :attrs []}))))
+    [] body))
+
+(defn flow-states
+  "The states of a flow type `a > b / c`, or [] for any other type."
+  [t]
+  (if (and (includes? t ">") (not (starts-with? t "->")))
+    (vec (filter (fn [w] (not (contains? #{">" "/" ""} w))) (String/split t (Regex/compile! "\\s+"))))
+    []))
+
+(defn- schema-type-h [t]
+  (cond
+    (starts-with? t "->>") (let [k (trim (subs t 3))] [:a.s-ref {:href (str "#entity-" k)} "→ " k [:i "many"]])
+    (starts-with? t "->") (let [k (trim (subs t 2))] [:a.s-ref {:href (str "#entity-" k)} "→ " k])
+    (includes? t ">") [:span.sx-flow (for [w (String/split t (Regex/compile! "\\s+")) :when (not= "" w)]
+                                      (case w ">" [:i "›"] "/" [:i.alt "or"] [:b w]))]
+    (includes? t ",") [:span.sx-flow.enum (for [w (String/split t ",") :when (not (blank? w))] [:b (trim w)])]
+    :else [:span.s-type t]))
+
+(defn schema-h [b]
+  (let [a (:attrs b) es (schema-of (:body b))
+        n-attr (reduce + 0 (map (fn [e] (count (:attrs e))) es))
+        n-state (reduce + 0 (for [e es at (:attrs e)] (count (flow-states (:type at)))))]
+    [:article.schema {:id (str "schema-" (:id a))}
+     [:header (when (:id a) [:span.chip (:id a)]) [:h4 (md (or (:title a) "Schema"))]]
+     [:div.s-grid
+      (for [e es]
+        [:section.s-ent {:id (str "entity-" (:name e))}
+         [:div.s-name (when (:icon e) (ico (:icon e))) [:b (:name e)]]
+         (when (:gloss e) [:p (md (:gloss e))])
+         [:dl (for [at (:attrs e)]
+                (list [:dt (:name at)]
+                      [:dd (schema-type-h (:type at)) (when (:note at) [:small (md (:note at))])]))]])]
+     [:footer.s-count (str (count es) " entities · " n-attr " attributes · " n-state " states")]
+     (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Does this shape hold?"))]))
+
+; ─── procedure: a reusable shape of work, steps and sign-offs ──────────────
+;
+;   step @edit Frame the problem | owner | problem statement · doc
+;   gate @check Agree on the frame | everyone | problem statement
+;
+; A step produces deliverables (`name · kind`, comma separated); a gate
+; names the deliverables its people must accept before work goes on.
+; Other lines are prose under the steps.
+
+(def ^:private step-re (Regex/compile! "^\\s*(step|gate)\\s"))
+
+(defn procedure-of
+  "Steps of a procedure body: [{:kind :icon :title :who :items [{:name :kind}]} …]."
+  [body]
+  (vec (for [l body :when (Regex/run step-re l)]
+         (let [[head who items] (map trim (String/split (trim l) "|"))
+               [kind & ws] (String/split head (Regex/compile! "\\s+"))
+               ic (first (filter (fn [w] (starts-with? w "@")) ws))]
+           {:kind kind :icon (when ic (subs ic 1))
+            :title (join " " (filter (fn [w] (not (starts-with? w "@"))) ws))
+            :who (or who "")
+            :items (vec (for [it (String/split (or items "") ",") :when (not (blank? it))]
+                          (let [[nm k] (map trim (String/split it "·"))] {:name nm :kind k})))}))))
+
+(defn procedure-h [b]
+  (let [a (:attrs b) steps (procedure-of (:body b))
+        prose (filter (fn [l] (not (Regex/run step-re l))) (:body b))]
+    [:article.procedure {:id (str "procedure-" (:id a))}
+     [:header (when (:id a) [:span.chip (:id a)]) [:h4 (md (or (:title a) "Procedure"))]
+      (when (:makes a) [:span.p-makes (str "makes a " (:makes a))])]
+     [:ol.p-steps
+      (for [s steps :let [gate? (= "gate" (:kind s))]]
+        [:li {:class (str "p-" (:kind s))}
+         [:div.p-mark (when (:icon s) (ico (:icon s)))]
+         [:div.p-body
+          [:b (md (:title s))] [:span.p-who (md (:who s))]
+          [:div.p-items
+           (for [it (:items s)]
+             [:span {:class (if gate? "p-item needs" "p-item")}
+              (if gate? "✓ " "→ ") (:name it) (when (:kind it) [:i (:kind it)])])]]])]
+     (paras prose)
+     (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Is this the right shape of work?"))]))
+
 (defn block->h [b]
   (case (:lang b)
+    "schema" (schema-h b)
+    "procedure" (procedure-h b)
     "lede" (lede-h b)
     "stats" (stats-h b)
     "terms" (terms-h b)

@@ -54,3 +54,17 @@
     (doseq [needle ["class=\"desk\"" "class=\"ic\"" "<ins>" "<del>" "class=\"piece\"" "d-cols doc-rail" "d-point turn" "d-comment" "class=\"btn primary\""]]
       (is (includes? html needle) (str "missing " needle)))
     (is (= ["d1"] (map :id (pg/feedback-items doc))))))
+
+(deftest a-schema-and-a-procedure-draw-and-answer
+  (let [doc (o/read-doc (join "\n" ["* S" "#+begin_schema :id s1 :title \"Nouns\""
+                                    "goal @flag | What we want true" "  done-when text | how we know"
+                                    "  state open > met / missed" "project | A body of work" "  serves ->> goal"
+                                    "#+end_schema"
+                                    "#+begin_procedure :id p1 :title Align :makes project"
+                                    "step @edit Frame | owner | problem · doc, risks · list"
+                                    "gate @check Agree | everyone | problem" "Why it exists." "#+end_procedure"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["class=\"schema\"" "id=\"entity-goal\"" "class=\"s-ref\"" "class=\"sx-flow\""
+                    "2 entities · 3 attributes · 3 states" "class=\"procedure\"" "p-gate" "p-item needs" "Why it exists."]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (= ["s1" "p1"] (map :id (pg/feedback-items doc))))))
