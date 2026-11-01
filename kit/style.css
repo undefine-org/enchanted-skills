@@ -412,3 +412,38 @@ form.fb.picked textarea{display:block}form.fb.picked .fb-row .send{display:inlin
 .s-card-top{flex-wrap:wrap;row-gap:0}
 .s-card-top b{flex:0 1 auto}
 .s-card.has-acts .s-card-top span,.s-card-top span{white-space:normal}
+
+/* ── a report as an app: sections in a sidebar, one at a time, #all for the whole file ── */
+main:has(.app2){max-width:1400px}
+section.part[hidden],header.doc[hidden]{display:none}
+.side{display:none}
+.side-title{display:block;font:500 19px/1.2 var(--serif);color:var(--ink);text-decoration:none;margin:0 10px 16px}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-sec{display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px;line-height:1.35}
+.side-sec:hover{background:var(--paper);color:var(--ink)}
+.side-item.on .side-sec{background:var(--card);color:var(--ink);font-weight:600;box-shadow:inset 3px 0 0 var(--clay)}
+.side-sec .st{flex:1}
+.side-sec .wait{font:600 11px var(--mono);color:#fff;background:var(--clay);border-radius:99px;padding:1px 7px}
+.side-sec .ok{color:var(--sage);font-size:12px}
+.side-sec .prog{font:11px var(--mono);color:var(--muted)}
+.side-subs{display:none;flex-direction:column;margin:2px 0 8px 18px;border-left:1px solid var(--line)}
+.side-item.on .side-subs{display:flex}
+.side-subs a{font-size:13px;color:var(--muted);text-decoration:none;padding:4px 10px;line-height:1.35}
+.side-subs a:hover{color:var(--ink)}
+.side-all{display:block;margin:16px 10px 0;font:12px var(--mono);color:var(--muted);text-decoration:none}
+.side-all.on{color:var(--clay)}
+.pager{display:flex;justify-content:space-between;gap:12px;margin:64px 0 0;padding-top:16px;border-top:1px solid var(--line)}
+.pager a{text-decoration:none;color:var(--muted);font-size:14px;max-width:48%}
+.pager a:hover{color:var(--ink)}
+.pager .next{margin-left:auto;text-align:right;font-weight:600;color:var(--clay)}
+.all-mode .pager{display:none}
+nav.chips a.on{color:var(--ink);border-color:var(--clay);background:var(--paper)}
+nav.chips a.all{font-family:var(--mono);font-size:12px}
+@media (min-width:1000px){
+  .app2{display:grid;grid-template-columns:250px minmax(0,1fr);gap:40px;align-items:start}
+  .side{display:block;position:sticky;top:46px;max-height:calc(100vh - 58px);overflow:auto;padding:22px 0 28px;scrollbar-width:thin}
+  .app2 nav.chips{display:none}
+  .content{min-width:0}
+  .app2 .desk{width:auto;margin-left:0;transform:none}
+  section.part>h2:first-child{margin-top:30px}
+}

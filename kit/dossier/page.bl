@@ -92,27 +92,69 @@
        [:a.next {:href (str "#" (:lang (first asks)) "-" (:id (first asks)))}
         (str (count asks) " questions wait for you →")])]))
 
+(defn- sec-id [s] (if (:head s) (str "s-" (ui/slug (:title (:head s)))) "s-intro"))
+
+(defn- sec-asks
+  "Answerable blocks of a section: [answered total]."
+  [s]
+  (let [bs (filter (fn [nd] (and (= :block (:t nd)) (contains? answerable (:lang nd)) (:id (:attrs nd))))
+                   (mapcat (fn [nd] (if (= :screens (:t nd)) (:blocks nd) [nd])) (:nodes s)))]
+    [(count (filter (fn [b] (:answer (:attrs b))) bs)) (count bs)]))
+
+(defn- side-h
+  "The sections as an app's sidebar: where you are, what waits for an answer,
+   how far a roster got. Purely a view of the same file."
+  [meta secs]
+  [:aside.side
+   [:a.side-title {:href "#s-intro"} (ui/md (String/replace (or (:title meta) "Dossier") (Regex/compile! "\\s+—.*$") ""))]
+   [:nav.side-nav
+    (for [s secs]
+      (let [[ok n] (sec-asks s)
+            kws (keep :todo (filter (fn [nd] (= :heading (:t nd))) (:nodes s)))
+            done (count (filter (fn [k] (= "DONE" k)) kws))
+            subs (filter (fn [nd] (and (= :heading (:t nd)) (= 2 (:level nd)))) (:nodes s))]
+        [:div.side-item {:data-sec (sec-id s)}
+         [:a.side-sec {:href (str "#" (sec-id s))}
+          [:span.st (if (:head s) (ui/md (:title (:head s))) "Overview")]
+          (cond (> n ok) [:span.wait {:title "waiting for your answer"} (- n ok)]
+                (> n 0) [:span.ok {:title "answered"} "✓"]
+                (seq kws) [:span.prog {:title "done / total"} (str done "/" (count kws))]
+                :else nil)]
+         (when (seq subs)
+           [:div.side-subs (for [h subs] [:a {:href (str "#" (ui/slug (:title h)))} (ui/md (:title h))])])]))]
+   [:a.side-all {:href "#all"} "Whole document"]])
+
 (defn doc-h
-  "The document body (header, nav and sections) as hiccup."
+  "The document body (sidebar, header, nav and sections) as hiccup."
   [doc]
-  (let [meta (:meta doc) secs (sections (group-screens (:nodes doc)))]
+  (let [meta (:meta doc) secs (vec (sections (group-screens (:nodes doc))))
+        n (count secs)]
     (list
-      [:header.doc
-       (when (:kicker meta) [:div.kicker (ui/md (:kicker meta))])
-       [:h1 (ui/md (or (:title meta) "Untitled"))]
-       (when (:subtitle meta) [:div.sub (ui/md (:subtitle meta))])
-       [:div.meta
-        (when (:date meta) [:span (:date meta)])
-        (when (:status meta) [:span (ui/md (:status meta))])
-        (when (:author meta) [:span (:author meta)])]
-       (tally-h doc)]
-      [:nav.chips (for [s secs :when (:head s)]
-                    [:a {:href (str "#" (ui/slug (:title (:head s))))} (:title (:head s))])]
-      (for [s secs]
-        [:section.part
-         (when (:head s) (node->h (:head s)))
-         (when (and (:head s) (= "roster" (lower-case (:title (:head s))))) (roster-h (:nodes s)))
-         (keep node->h (:nodes s))]))))
+      [:div.app2
+       (side-h meta secs)
+       [:div.content
+        [:header.doc
+         (when (:kicker meta) [:div.kicker (ui/md (:kicker meta))])
+         [:h1 (ui/md (or (:title meta) "Untitled"))]
+         (when (:subtitle meta) [:div.sub (ui/md (:subtitle meta))])
+         [:div.meta
+          (when (:date meta) [:span (:date meta)])
+          (when (:status meta) [:span (ui/md (:status meta))])
+          (when (:author meta) [:span (:author meta)])]
+         (tally-h doc)]
+        [:nav.chips (for [s secs :when (:head s)]
+                      [:a {:href (str "#" (ui/slug (:title (:head s))))} (:title (:head s))])
+         [:a.all {:href "#all"} "All"]]
+        (map-indexed
+          (fn [i s]
+            [:section.part {:id (sec-id s) :data-sec (sec-id s)}
+             (when (:head s) (node->h (:head s)))
+             (when (and (:head s) (= "roster" (lower-case (:title (:head s))))) (roster-h (:nodes s)))
+             (keep node->h (:nodes s))
+             [:nav.pager
+              (when (> i 0) (let [p (get secs (dec i))] [:a.prev {:href (str "#" (sec-id p))} "← " (if (:head p) (:title (:head p)) "Overview")]))
+              (when (< (inc i) n) (let [x (get secs (inc i))] [:a.next {:href (str "#" (sec-id x))} (if (:head x) (:title (:head x)) "Overview") " →"]))]])
+          secs)]])))
 
 (defn page-h
   "The full HTML document."

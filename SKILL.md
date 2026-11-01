@@ -139,6 +139,17 @@ nix shell nixpkgs#imagemagick --command magick /tmp/d.png -crop 412x1000+0+0 +re
 Pages taller than 16000 px: save the HTML with earlier `section.part`s hidden and shoot that.
 Check: phone width first, every diagram readable, both themes, no `✗ failed` cell.
 
+## Reading it as an app
+
+On a wide screen the page is a two-column app with no change to the file: every
+level-1 heading becomes a page in a sidebar (with its level-2 headings under it
+when open). A section shows how many answers it still waits for, a ✓ once
+answered, and a roster its DONE/total. One section shows at a time, with
+previous/next at its foot and ←/→ to move. `#all` (« Whole document ») shows
+everything; any `#anchor` opens the section that holds it. On a phone the chips
+switch sections the same way. Write level-1 headings as the report's pages and
+level-2 as their parts.
+
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,
