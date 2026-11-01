@@ -605,7 +605,7 @@
       [:div.d-chrome [:i] [:i] [:i] [:span (or (:url a) "knowledger · cabinet-atlas")]]
       [:div {:class (if nav "d-app" "d-app bare")}
        (when nav
-         [:nav.d-nav [:div.d-firm "Cabinet Atlas"]
+         [:nav.d-nav [:div.d-firm (or (:firm a) "Cabinet Atlas")]
           (for [x nav] (if (ends-with? x "*") [:span.on (mdi (subs x 0 (dec (count x))))] [:span (mdi x)]))])
        [:div.d-main
         (keep desk-top top)
