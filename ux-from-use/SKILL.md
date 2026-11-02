@@ -205,10 +205,34 @@ screencast encoder: check `frames/recordings.json`, where `encodedFrames`
 should be about seconds × fps, and rerun when a take is short.
 
 Rendering (`scenario.film/export!`) needs Python 3 and FFmpeg with libass.
-Narration is spoken when `DEEPGRAM_API_KEY` is set. Otherwise each scene gets
-a silent track as long as its subtitle takes to read. Never assume a voice key
-exists. Browse the films with `(scenario.demo/serve! dir {:port 4163})` on
-loopback, or publish that with `work serve`.
+
+### A voice
+
+The renderer speaks a scene with its built-in voice (Deepgram, when
+`DEEPGRAM_API_KEY` is set), unless the scene carries local `:audio`. That is
+the override point: a small module turns each sentence into a WAV with
+another provider, cached by voice, model and text, and the scene passes it as
+`:audio`. The renderer itself never changes. `templates/narration.bl` does this
+for ElevenLabs. It uses the workstation gateway's `/elevenlabs` route (the
+gateway adds the credentials) or `ELEVENLABS_BASE_URL` with
+`ELEVENLABS_API_KEY`, and a multilingual model, so French works with any voice.
+
+Make voices only when rendering (`BL_DEMO_EXPORT=1`). With no voice reachable,
+give each scene a silent track as long as its subtitle takes to read. Never
+assume a key exists. A key, when used, reaches curl through a mode-600 header
+file, never a command line.
+
+### Reading films, and their gaps
+
+Browse the films with `(scenario.demo/serve! dir {:port 4163})` on loopback,
+or publish that with `work serve`. To review them, and to answer, put them in
+a dossier. The bl-org-dossier kit's `film` block reads a run folder
+(`:run`) and draws the movie with a chapter per scene, then each scene's
+narration, steps and claims with their verdicts, then the gaps computed from
+the run: a scene that proves nothing, a gesture after its scene's last claim,
+a claim not witnessed, no movie yet. `missing Beat | why` lines declare what
+cannot be filmed yet. Add a coverage `matrix` of every experience against the
+films, so the scenarios that are missing show as plainly as the steps.
 
 ## Before you say it is done
 

@@ -1,0 +1,58 @@
+; narration.bl — scenario films narrated by ElevenLabs (an override of the renderer's voice).
+;
+; scenario.film renders a scene with local audio when the scene carries
+; :audio, and asks its built-in voice (Deepgram) otherwise. This module is
+; the override: it turns a scene's sentence into a WAV with ElevenLabs, cached
+; by voice, model and text, so a scene can carry :audio and the stock renderer
+; uses it as it is. Nothing in Beam Lisp's renderer changes.
+;
+;   ELEVENLABS_BASE_URL   the API root; default $SERVICE_GATEWAY/elevenlabs
+;                         (the workstation's gateway, which adds the credentials)
+;   ELEVENLABS_API_KEY    sent as xi-api-key when set (never on a command line:
+;                         curl reads it from a mode-600 header file)
+;   ELEVENLABS_VOICE_ID   default Daniel, a steady broadcaster (onwK4e9ZLuTAKqWW03F9)
+;   ELEVENLABS_MODEL      default eleven_multilingual_v2 (speaks French with any voice)
+;   ELEVENLABS_LANGUAGE   default fr
+
+(ns narration
+  (:require [bl.json :as json]))
+
+(defn- setting [k dflt] (let [v (System/get_env k)] (if (or (nil? v) (= "" v)) dflt v)))
+
+(defn base []
+  (let [b (System/get_env "ELEVENLABS_BASE_URL") g (System/get_env "SERVICE_GATEWAY")]
+    (cond (and b (not= "" b)) b
+          (and g (not= "" g)) (str g "/elevenlabs")
+          :else nil)))
+
+(defn available? [] (some? (base)))
+(defn voice [] (setting "ELEVENLABS_VOICE_ID" "onwK4e9ZLuTAKqWW03F9"))
+(defn model [] (setting "ELEVENLABS_MODEL" "eleven_multilingual_v2"))
+
+(defn- digest [s] (subs (String/downcase (Base/encode16 (crypto/hash :sha256 s))) 0 24))
+
+(defn narrate!
+  "The sentence spoken, as a WAV under dir (made once per voice, model and text). → its path."
+  [text dir]
+  (let [k (digest (str (voice) "\n" (model) "\n" text))
+        wav (str dir "/" k ".wav")]
+    (when-not (File/exists? wav)
+      (File/mkdir_p! dir)
+      (let [body (str dir "/" k ".json") pcm (str dir "/" k ".pcm") hdr (str dir "/" k ".headers")
+            key (System/get_env "ELEVENLABS_API_KEY")]
+        (File/write! body (json/encode {"text" text "model_id" (model) "language_code" (setting "ELEVENLABS_LANGUAGE" "fr")}))
+        ;; the header file is restricted before anything is written to it
+        (File/write! hdr "")
+        (file/change_mode hdr 384)
+        (File/write! hdr (str "Content-Type: application/json\nAccept: audio/pcm\n" (if (and key (not= "" key)) (str "xi-api-key: " key "\n") "")))
+        (try
+          (let [r (System/cmd "curl" (list "-sS" "-f" "-m" "120" "-X" "POST" "-H" (str "@" hdr) "--data-binary" (str "@" body)
+                                           "-o" pcm (str (base) "/v1/text-to-speech/" (voice) "?output_format=pcm_24000")))]
+            (when (not= 0 (elem r 1))
+              (throw (ex-info "ElevenLabs did not speak this narration" {:exit (elem r 1)})))
+            (let [f (System/cmd (or (System/find_executable "ffmpeg") "ffmpeg")
+                                (list "-v" "error" "-y" "-f" "s16le" "-ar" "24000" "-ac" "1" "-i" pcm wav))]
+              (when (not= 0 (elem f 1))
+                (throw (ex-info "Could not wrap the narration as WAV" {:diagnostic (elem f 0)})))))
+          (finally (File/rm_rf! hdr) (File/rm_rf! body) (File/rm_rf! pcm)))))
+    wav))
