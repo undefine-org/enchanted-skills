@@ -22,7 +22,16 @@
    {:name :title :fonts [href] :css :font :light :dark :palette :type :radii :shadows :motion}"
   {"forest" forest/language})
 
-(defn css [] (join "\n" (map :css (vals languages))))
+(defn- product-css
+  "Languages that live with their product (a private repository, say): CSS
+   files styling `.design-NAME`, named by DOSSIER_DESIGN_CSS (comma-separated),
+   read per page so a regenerated file shows at once."
+  []
+  (let [paths (filter (fn [p] (and (not= "" p) (File/regular? p)))
+                      (map trim (split (or (System/get_env "DOSSIER_DESIGN_CSS") "") ",")))]
+   (map (fn [p] (File/read! p)) paths)))
+
+(defn css [] (join "\n" (concat (map :css (vals languages)) (product-css))))
 
 (defn font-links [] (vec (distinct (mapcat :fonts (vals languages)))))
 
