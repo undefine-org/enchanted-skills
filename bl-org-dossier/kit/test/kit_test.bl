@@ -41,6 +41,27 @@
     (is (includes? html "Missing start view: absent"))
     (is (not (includes? html "data-sg-to")))))
 
+(deftest a-prototype-connects-the-apps-own-controls
+  (let [body ["view inbox | Inbox" "brand Example | Studio" "identity Ada"
+              "nav [[view:inbox][@home Inbox]]* | [[view:task][@chat Work]]"
+              "head Inbox | turn · A suggestion | [[view:task][@check Save]]!"
+              "col main" "card turn | [[view:task][Review <draft>]] | Ada | Read the source"
+              "compose Say something | [[view:task][@send]]"
+              "view task | Work" "head Work" "col main" "row Source | [[view:inbox][@back Inbox]]"]
+        g (ui/screen-graph body)
+        text (join "\n" (concat ["* P" "#+begin_screen_graph :id p :start inbox"] body ["#+end_screen_graph"]))
+        html (h/hiccup->html (pg/page-h (o/read-doc text) "" ""))]
+    (is (empty? (:errors g)))
+    (is (= 5 (count (:edges (first (:views g))))))
+    (doseq [needle ["class=\"sg-app\"" "App navigation" "class=\"btn sg-link primary\""
+                    "Review &lt;draft&gt;" "<input" "data-sg-highlight" "data-sg-mode" "data-sg-expand" "data-sg-zoom"]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (not (includes? html "href=\"view:")))
+    (is (not (includes? html "sg-legacy-actions")))
+    (is (not (includes? html "class=\"sg-map\""))))
+  (let [g (ui/screen-graph ["view a | A" "actions [[view:missing][Open]]!"])]
+    (is (= ["a points to missing view: missing"] (:errors g)))))
+
 (deftest a-run-draws-a-persons-screen-from-the-procedure
   (let [doc (o/read-doc (join "\n" ["* R"
                                     "#+begin_procedure :id demo :title \"Demo hand-off\""

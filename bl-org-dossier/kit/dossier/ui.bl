@@ -24,7 +24,9 @@
         target (String/replace (nth m 1) (Regex/compile! "^file:") "")
         label (if (> (count m) 2) (nth m 2) target)
         outside? (starts-with? target "http")]
-    [:a (if outside? {:href target :target "_blank" :rel "noopener"} {:href target}) label]))
+    (if (starts-with? target "view:")
+      [:button {:type "button" :class "sg-link" :data-sg-to (subs target 5)} (mdi label)]
+      [:a (if outside? {:href target :target "_blank" :rel "noopener"} {:href target}) (mdi label)])))
 
 (defn md
   "Hiccup children for one line of org inline markup."
@@ -100,7 +102,10 @@
    "branch" ["M6 3v12" "M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9c0 6-12 3-12 6"]
    "folder" ["M3 6h6l2 2h10v11H3z"]
    "wave" ["M3 12h2" "M7 8v8" "M11 5v14" "M15 9v6" "M19 11v2"]
-   "queue" ["M4 6h12" "M4 12h12" "M4 18h8" "M18 15v6" "M15 18h6"]})
+   "queue" ["M4 6h12" "M4 12h12" "M4 18h8" "M18 15v6" "M15 18h6"]
+   "graph" ["M3 4h6v5H3z" "M15 4h6v5h-6z" "M9 16h6v5H9z" "M9 6.5h6" "M6 9v4h6v3" "M18 9v4h-6"]
+   "expand" ["M8 3H3v5" "M16 3h5v5" "M3 16v5h5" "M21 16v5h-5"]
+   "cursor" ["M5 3l14 9-7 1-3 7z" "M13 14l4 6"]})
 
 (defn ico
   "The icon named `nm`, or the literal text when there is no such icon."
@@ -109,7 +114,7 @@
     [:svg {:class "ic" :viewBox "0 0 24 24" :aria-hidden "true"} (for [d ps] [:path {:d d}])]
     (str "@" nm)))
 
-(def ^:private icon-re (Regex/compile! "(@[a-z][a-z-]*)"))
+(def ^:private icon-re (Regex/compile! "(\\[\\[[^\\]]+\\](?:\\[[^\\]]+\\])?\\]|@[a-z][a-z-]*)"))
 
 (defn mdi
   "md, plus `@name` icons — the inline language of mockups."
@@ -276,10 +281,13 @@
 (defn- btn-h
   "`Label!` primary, `Label?` quiet, `Label^` danger, else plain."
   [x]
-  (cond (ends-with? x "!") [:span.btn.primary (mdi (subs x 0 (dec (count x))))]
-        (ends-with? x "?") [:span.btn.quiet (mdi (subs x 0 (dec (count x))))]
-        (ends-with? x "^") [:span.btn.danger (mdi (subs x 0 (dec (count x))))]
-        :else [:span.btn (mdi x)]))
+  (let [mark (last x)
+        kind (case mark "!" " primary" "?" " quiet" "^" " danger" "")
+        text (if (contains? #{"!" "?" "^"} mark) (subs x 0 (dec (count x))) x)
+        link (Regex/run (Regex/compile! "^\\[\\[view:([^\\]]+)\\]\\[([^\\]]+)\\]\\]$") text)]
+    (if link
+      [:button {:type "button" :class (str "btn sg-link" kind) :data-sg-to (nth link 1)} (mdi (nth link 2))]
+      [:span {:class (str "btn" kind)} (mdi text)])))
 
 (defn- screen-line
   "One `verb rest` line of a screen body as hiccup."
@@ -412,8 +420,13 @@
                       (empty? vs) vs
                       (starts-with? t "go ")
                       (conj (pop vs) (update (last vs) :edges conj
-                        {:to (trim (subs (first c) 3)) :label (nth c 1 "Open")}))
-                      :else (conj (pop vs) (update (last vs) :body conj line)))))
+                        {:to (trim (subs (first c) 3)) :label (nth c 1 "Open") :legacy? true}))
+                      :else (conj (pop vs)
+                              (-> (last vs)
+                                  (update :body conj line)
+                                  (update :edges into
+                                    (for [[_ to label] (Regex/scan (Regex/compile! "\\[\\[view:([^\\]]+)\\]\\[([^\\]]+)\\]\\]") line)]
+                                      {:to to :label label})))))))
                 [] body)
         ids (map :id views)
         errors (vec (concat
@@ -434,28 +447,33 @@
       [:p (md (or (:caption a) "Walk the screens. Changes stay inside this prototype."))]]
      (if (seq errors)
        [:div.warning {:role "alert"} (for [e errors] [:p e])]
-       (list
-         [:nav.sg-map {:aria-label "Screen graph"}
-          (for [v vs]
-            [:button {:type "button" :data-sg-to (:id v)} (:title v)])]
-         [:div.sg-layout
-          [:div.sg-stage
-           (for [v vs]
-             [:section {:class "sg-view" :data-view (:id v) :hidden (not= start (:id v))}
-              [:h4 {:tabindex "-1"} (:title v)]
-              [:div.device [:div.screen (screen-body (:body v))]]
-              [:div.sg-actions
-               (for [e (:edges v)]
-                 [:button {:type "button" :data-sg-to (:to e)} (mdi (:label e))])]
-              (when (not (blank? (:cue v))) [:p.sg-cue (md (:cue v))])])]
-          [:details.sg-edges [:summary "Connections between screens"]
-           (for [v vs e (:edges v)]
-             [:p [:span (:title v)] " → "
-              [:button {:type "button" :data-sg-to (:to e)} (mdi (:label e))]])]]
-         [:div.sg-tools
-          [:button {:type "button" :data-sg-back "true" :disabled true} "Back"]
-          [:button {:type "button" :data-sg-reset "true"} "Start again"]
-          [:span.sg-position {:aria-live "polite"}]]))
+       [:div.sg-workbench {:tabindex "0" :aria-label "Interactive prototype"}
+        [:div.sg-stage
+         (for [v vs]
+           [:section {:class "sg-view" :data-view (:id v) :data-title (:title v)
+                      :data-cue (:cue v) :hidden (not= start (:id v))}
+            (prototype-body (:body v))
+            (when (some :legacy? (:edges v))
+              [:div.sg-legacy-actions
+               (for [e (:edges v) :when (:legacy? e)]
+                 [:button {:type "button" :class "btn sg-link" :data-sg-to (:to e)} (mdi (:label e))])])])]
+        [:div.sg-overview {:hidden true}
+         [:header.sg-overview-head [:div [:span "SCREEN GRAPH"] [:h4 "Every screen. Every way through."]]
+          [:div.sg-overview-actions [:p "Choose a screen to return. Connections follow the app's own controls."]
+           [:div.sg-zoom {:aria-label "Graph zoom"}
+            [:button {:type "button" :data-sg-zoom "out" :aria-label "Zoom out"} "−"]
+            [:button {:type "button" :data-sg-zoom "fit"} "Fit"]
+            [:button {:type "button" :data-sg-zoom "in" :aria-label "Zoom in"} "+"]]]]
+         [:div.sg-graph-scroll [:div.sg-graph-sizer [:div.sg-canvas [:svg.sg-wires {:aria-hidden "true"}] [:div.sg-nodes]]]]
+         [:div.sg-graph-inspector {:aria-label "Connections from this screen"}]]
+        [:div.sg-toolbar {:role "toolbar" :aria-label "Prototype controls"}
+         [:button {:type "button" :data-sg-back "true" :disabled true :aria-label "Back" :data-tip "Back"} (ico "back")]
+         [:button {:type "button" :data-sg-highlight "true" :aria-pressed "false" :aria-label "Highlight links" :data-tip "Highlight links · H"} (ico "cursor")]
+         [:button {:type "button" :data-sg-mode "true" :aria-pressed "false" :aria-label "Show screen graph" :data-tip "Screen graph · G"} (ico "graph")]
+         [:button {:type "button" :data-sg-expand "true" :aria-pressed "false" :aria-label "Expand prototype" :data-tip "Full screen · Esc to exit"} (ico "expand")]
+         [:button {:type "button" :data-sg-reset "true" :aria-label "Start again" :data-tip "Start again"} (ico "undo")]]
+        [:span.sg-announcement {:aria-live "polite"}]])
+     [:p.sg-footnote "Click the screen's own controls. " [:span "Hover for tools · H highlights links · G shows the graph."]]
      (when (:id a)
        (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this flow fit how you work?"))]))
 
@@ -697,6 +715,40 @@
        (when (:job a) [:a {:href (str "#job-" (:job a))} (str "job " (:job a))])]
       (when (:caption a) [:p (md (:caption a))])
       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
+
+(defn- prototype-line [line]
+  (if (starts-with? (trim line) "compose ")
+    (let [c (cols (subs (trim line) 8))]
+      [:div.sg-compose
+       [:input {:type "text" :placeholder (first c) :aria-label (first c)}]
+       (mdi (nth c 1 ""))])
+    (desk-line line)))
+
+(defn- prototype-body
+  "A real app layout inside a prototype, using the existing desk language."
+  [lines]
+  (let [brand (first (filter (fn [l] (starts-with? (trim l) "brand ")) lines))
+        brand (if brand (cols (subs (trim brand) 6)) ["Workspace" ""])
+        who (first (filter (fn [l] (starts-with? (trim l) "identity ")) lines))
+        who (if who (trim (subs (trim who) 9)) "You")
+        parts (desk-parts (remove (fn [l] (or (starts-with? (trim l) "brand ")
+                                              (starts-with? (trim l) "identity "))) lines))]
+    [:div {:class (str "sg-app" (when (empty? (:nav parts)) " sg-bare"))}
+     (when (seq (:nav parts))
+       [:aside.sg-app-nav
+        [:div.sg-brand [:span.sg-mark (ico "spark")] [:div [:b (first brand)] [:small (nth brand 1 "")]]]
+        [:nav.sg-app-menu {:aria-label "App navigation"}
+         (for [x (:nav parts)]
+           [:div {:class (str "sg-menu-item" (when (ends-with? x "*") " on"))}
+            (mdi (if (ends-with? x "*") (subs x 0 (dec (count x))) x))])]
+        [:div.sg-person (ico "user") (mdi who)]])
+     [:div.sg-workspace
+      [:header.sg-app-top (keep desk-top (:top parts))]
+      [:div.sg-app-content
+       (map prototype-line (:pre parts))
+       [:div {:class (str "sg-columns " (join "-" (map first (:cols parts))))}
+        (for [[name ls] (:cols parts)]
+          [:div {:class (str "sg-column " name)} (map prototype-line ls)])]]]]))
 
 ; ─── schema: entities and their datoms in a few lines ──────────────────────
 ;

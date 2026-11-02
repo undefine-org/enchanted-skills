@@ -76,7 +76,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `decision :id :title :status proposed\|decided` | `- [x] chosen`, `- [ ] rejected`, then rationale | decision card + Agree/Rework/Disagree |
 | `ask :id :title :options "A\|B\|C"` | context | question card + options |
 | `screen :id :title :job :caption [:theme dark]` | screen language (below) | phone mock + reaction; consecutive screens form a swipeable strip |
-| `screen_graph :id :title [:start VIEW] :caption` | `view ID \| title \| context`, ordinary screen lines, `go TARGET \| action label`; repeat for each view | walkable prototype with a screen map, branching actions, Back and Start again; navigation stays local, feedback writes into the block header |
+| `screen_graph :id :title [:start VIEW] :caption` | `view ID \| title \| context`, desk/screen lines with `[[view:TARGET][@icon Label]]` in the actual controls | full app prototype; hover tools reveal links, expand to full screen, or switch to a connected graph of screen thumbnails; feedback writes into the block header |
 | `desk :id :title :job :caption [:url]` | desk language (below) | a desktop app frame + reaction; same answer buttons as screens |
 | `sequence :title` | `lanes a · sub \| b · sub`, `a -> b : label` (call), `a --> b : label` (reply), `a => b : label` (the key moment), `note a, b : text`, `== divider` | SVG on wide screens, numbered steps on phones |
 | `graph :title` | `node id \| label \| sub \| col,row \| tone` (`you door station builder foreign`), `edge a -> b \| label \| style` (`baton solid dash none`; `<->`, `--` too) | SVG topology |
@@ -121,32 +121,59 @@ Answerable blocks: `ask decision screen screen_graph run desk job schema procedu
 
 ### Screen graphs
 
-Use a `screen_graph` when the reader needs to experience transitions rather than
-compare static mockups. Every `view` has a unique, stable ID; every `go` points to
-a declared view. The renderer reports broken targets, duplicate IDs and missing
-start views. The graph inherits the document's design language. Its buttons are
-keyboard accessible; navigation survives live document refreshes. Changing a
-view does not write product data or make the depicted action real: label future
-events as rehearsals. Keep real seeds separate from invented examples.
+Use a `screen_graph` to experience the app, not a strip of miniature screens
+with navigation buttons underneath. Draw a full app: navigation, header,
+content and context column. Put `[[view:ID][Label]]` on the actual card titles,
+tabs, breadcrumbs, buttons and icons that should navigate. Actions such as
+`[[view:saved][@check Save task]]!` become native buttons with the primary style.
+`go TARGET | label` remains compatible with older dossiers, but new prototypes
+should connect the app's own controls. Every view target is validated.
+
+Desk verbs (`nav`, `crumb`, `head`, `meta`, `col main`, `col rail`) structure the
+screen. `brand Name | subtitle` and `identity Person` dress its sidebar;
+`compose placeholder | [[view:sent][@send]]` draws an editable composer. The
+prototype inherits the document's design language and adapts to phone width.
+
+Hover reveals a floating icon toolbar. Touch devices keep it visible. H toggles
+link outlines, G switches between app and graph, Expand fills the viewport and
+Escape exits. Graph thumbnails show the actual screens; connections come from
+their actual controls. Hover a node to see its outgoing routes; choose a node or
+route to return to the app. Fit/zoom and mouse dragging help explore larger
+graphs. The app view and full-screen focus scope survive live file updates.
+
+Prototype actions stay local. Only the reaction form writes into the dossier.
+Use real seed facts and label designed exchanges and future outcomes as rehearsals.
+Do not invent a person's commitment. Saving a suggested task and accepting it
+are distinct transitions whenever the product's rules distinguish them.
 
 ```org
 #+begin_screen_graph :id handoff :title "A request becomes work" :start request
-view request | Read the request | Example, awaiting a real exchange
-bar Your turn
+view request | Read the request | A designed exchange, not an imported message
+brand Studio | Team workspace
+identity Ada
+nav [[view:request][@home Now]]* | [[view:committed][@chat Work]]
+head Read the proposal | turn · Suggested | [[view:committed][@check I will take it]]!
+col main
 msg you | Can you read the proposal?
-go committed | I will read it
-go later | Ask about timing
+compose Ask about timing… | [[view:later][@send]]
+col rail
+row Source | [[view:request][@chat Original request]]
 view committed | A commitment
-bar Work in context
-go request | Return to the source
+head Read the proposal | run · Taken on
+col main
+msg you | I will read it.
+actions [[view:request][@back Return to the source]]
 view later | Clarify first
-bar When do you need it?
-go request | Return to the request
+head When do you need it?
+col main
+actions [[view:request][@back Return to the request]]
 #+end_screen_graph
 ```
 
-Inspect the branch choices, Back, reset and a file-refresh while inside a view at
-phone and desktop widths. The feedback is separate from prototype navigation.
+Inspect the actual app controls, link highlighting, graph selection, Back,
+reset, full screen, Escape and a live file refresh at phone and desktop widths.
+Verify that modal focus stays inside the full-screen prototype, shortcuts do
+not fire while typing, graph previews are inert, and external links stay external.
 
 Plain Org works too: headings with TODO keywords and tags, `:PROPERTIES:` drawers (chips),
 tables, lists, `[ ]`/`[X]` checkboxes, `=code=`, `*bold*`, `/italic/`, `[[url][label]]`, `[[#screen-ID][label]]`.
