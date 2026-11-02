@@ -101,6 +101,8 @@
             st (cond (and (= "gate" (:verb s)) all-final?) :done
                      blocked? :waiting
                      (and (makes s) all-final?) :done
+                     (and (= "check" (:verb s))
+                          (every? (fn [o] (some (fn [x] (and (= :checked (:fact x)) (= (:name o) (:output x)))) (:facts run))) (:outputs s))) :done
                      (= "route" (:verb s)) :done
                      :else :open)]
         (recur (rest ss) (or blocked? (and (= "gate" (:verb s)) (not all-final?)))
@@ -136,7 +138,7 @@
              :when (or (= "call" (:verb s))
                        (and o (= "step" (:verb s)) (= st :expected) (:draft? o))
                        (and o (= "step" (:verb s)) (:auto? o) (not= st :final))
-                       (and o (= "check" (:verb s)) (not-any? (fn [x] (and (= :checked (:fact x)) (= (:name o) (:output x)))) (:facts run))))]
+                       (and o (= "check" (:verb s)) (not= :expected st) (not-any? (fn [x] (and (= :checked (:fact x)) (= (:name o) (:output x)))) (:facts run))))]
          {:step (:id s) :verb (:verb s) :output i :who (:who s)
           :does (cond (= "call" (:verb s)) :call (= "check" (:verb s)) :check (and (:draft? o) (= st :expected)) :draft (:auto? o) :finish :else :draft)})))
 
