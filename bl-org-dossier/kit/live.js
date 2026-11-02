@@ -211,7 +211,11 @@
       if (r.rev === rev && !force) return;
       if (busy || editing()) return;
       const d = await (await fetch('doc', { cache: 'no-store' })).json();
-      const y = scrollY; $('#doc').innerHTML = d.html; rev = d.rev; show(current); paintGraphs(); scrollTo(0, y);
+      const y = scrollY; $('#doc').innerHTML = d.html; rev = d.rev;
+      const design = $('#doc .app2')?.dataset.design;
+      if (design) document.documentElement.dataset.design = design;
+      else delete document.documentElement.dataset.design;
+      show(current); paintGraphs(); scrollTo(0, y);
     } catch (e) { stamp('offline · ' + e.message); }
   }
 
@@ -225,11 +229,15 @@
     e.preventDefault();
     const on = f.querySelector('.opt.on');
     const body = { id: f.dataset.id, answer: on ? on.dataset.v : '', note: f.querySelector('textarea').value };
+    if (f.classList.contains('sending')) return;
     busy = true; f.classList.add('sending');
     try {
       const res = await fetch('answer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || res.status);
+      const text = await res.text();
+      let j;
+      try { j = text ? JSON.parse(text) : null; } catch { j = null; }
+      if (!res.ok) throw new Error(j?.error || `The server returned HTTP ${res.status}. Your draft is still here; try again.`);
+      if (!j || j.ok !== true || typeof j.rev !== 'string') throw new Error('The server did not confirm the save. Your draft is still here; try again.');
       toast(body.answer ? 'Written into the .bl.org — Claude will read it' : 'Answer cleared');
       busy = false; document.activeElement && document.activeElement.blur(); await refresh(true);
     } catch (err) { toast('Not saved: ' + err.message); }

@@ -229,10 +229,19 @@ level-2 as their parts.
 
 ## Design languages
 
-Mockups can wear a product's real design language. `#+design: forest` at the top of a
-dossier draws every `screen` and `desk` in it (one block can override with `:design NAME`,
-or opt out with `:design none`); the mockup lines don't change. Prefer the product's own
-language over the kit's default palette whenever one exists.
+`#+design: forest` applies the product's language to the report as well as its
+mockups: headings, prose, navigation, feedback controls and diagrams share its
+font roles and palette. A block can override with `:design NAME` or opt out with
+`:design none`; the mockup lines don't change. Prefer the product's own language
+over the kit's default palette whenever one exists.
+
+The kit's base CSS is in `@layer dossier`; product CSS sits outside that layer,
+so an intended product heading is not silently overridden by a more specific
+kit selector. Use `--font-display`, `--font-body`, `--font-ui` and `--font-data`
+for deliberate roles. A one-face language can assign the first three to the
+same face and reserve the data role for code and machine values. Inspect
+computed fonts and weights on the report, forms and explorer at phone and
+desktop widths; looking only at a mockup misses report-level drift.
 
 A language is a literate module, `kit/dossier/design/NAME.bl.org`, whose cells *are* the
 namespace `dossier.design.NAME`: tokens (light and dark), type scale, radii, shadows,
@@ -246,10 +255,20 @@ Shipped: `forest` — Nurturing Forest, Ora's team machine (`design/forest.bl.or
 published as the `forest-language` service).
 
 A product's own language can stay in its own (private) repository: generate a
-CSS file that styles `.design-NAME` (rebinding the kit's mockup variables, as a
-module's `css` cell does) and start the dossier service with
+CSS file that styles `html[data-design="NAME"]` for the report's tokens and
+`.design-NAME` for any mockup-specific treatment, and start the dossier service with
 `DOSSIER_DESIGN_CSS=/abs/path/NAME.css` (comma-separated for several). Mockups
 with `:design NAME` then wear it, and no brand material enters the kit.
+Only the faces actually used by the document are requested. An external
+language supplies any font assets it needs; unrelated registered language
+fonts are not loaded as a side effect.
+
+Before publishing, save and reload a real answer through the browser on a
+disposable dossier. A denied-write check or pure header-patching test does not
+exercise the authorized HTTP handler. Hosts can use `dossier.feedback/submit!`
+after their own authentication; it returns explicit JSON outcomes for valid,
+invalid, oversized and failed writes. Check that an empty/error response keeps
+the reader's draft and reports the HTTP failure instead of a JSON parser error.
 
 ## Kit
 

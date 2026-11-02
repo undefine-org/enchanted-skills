@@ -1,0 +1,59 @@
+(ns dossier.feedback-test
+  (:require [dossier.feedback :as feedback] [dossier.org :as org]
+            [dossier.page :as page] [dossier.design :as design] [bl.json :as json]))
+
+(def text "#+title: A scratch review\n* Decide\n#+begin_ask :id Q :title Choose :options \"Yes|Later\"\nA choice.\n#+end_ask\n")
+(defn scratch [f]
+  (let [dir (str "/tmp/dossier-feedback-" (erlang/unique_integer (list :positive)))
+        path (str dir "/review.bl.org")]
+    (File/mkdir_p! dir)
+    (File/write! path text)
+    (try (f path) (finally (File/rm_rf! dir)))))
+
+(deftest an-authorized-http-payload-persists-one-header-and-confirms-it
+  (scratch
+    (fn [path]
+      (let [result (feedback/submit! path "reviewer" (json/encode {:id "Q" :answer "Yes" :note "été · تحية"}))
+            saved (File/read! path)
+            item (first (page/feedback-items (org/read-doc saved)))]
+        (is (= 200 (:status result)))
+        (is (= true (get-in result [:body :ok])))
+        (is (string? (get-in result [:body :rev])))
+        (is (= "Yes" (:answer item)))
+        (is (= "été · تحية" (:note item)))
+        (is (= 1 (count (filter (fn [[before after]] (not= before after))
+                               (map (fn [a b] [a b]) (String/split text "\n") (String/split saved "\n"))))))
+        (is (= 200 (:status (feedback/submit! path "reviewer" (json/encode {:id "Q" :answer "" :note ""})))))
+        (is (nil? (:answer (first (page/feedback-items (org/read-doc (File/read! path)))))))))))
+
+(deftest invalid-and-oversize-inputs-return-json-errors-without-writing
+  (scratch
+    (fn [path]
+      (doseq [body ["{" "null" "[]" (json/encode {:id "Q" :answer 42})]]
+        (let [result (feedback/submit! path "reviewer" body)]
+          (is (= 400 (:status result)))
+          (is (string? (get-in result [:body :error])))))
+      (is (= 413 (:status (feedback/submit! path "reviewer" (join "" (repeat 6000 "世"))))))
+      (is (= 404 (:status (feedback/submit! path "reviewer" (json/encode {:id "missing" :answer "Yes"})))))
+      (is (= text (File/read! path))))))
+
+(deftest a-write-failure-is-an-explicit-error-response
+  (scratch
+    (fn [path]
+      (let [result (feedback/submit! (str path "/missing") "reviewer" (json/encode {:id "Q" :answer "Yes"}))]
+        (is (= 500 (:status result)))
+        (is (string? (get-in result [:body :error])))
+        (is (= text (File/read! path)))))))
+
+(deftest report-design-and-fonts-follow-the-selected-language
+  (let [signal (org/read-doc "#+design: signal\n* A report\nText.")
+        forest (org/read-doc "#+design: forest\n* A report\nText.")
+        plain (org/read-doc "* A report\nText.")
+        html (live.hiccup/hiccup->html (page/page-h signal "" ""))]
+    (is (= [] (design/font-links signal)))
+    (is (every? (fn [url] (not (String/contains? url "Newsreader"))) (design/font-links forest)))
+    (is (some (fn [url] (String/contains? url "Manrope")) (design/font-links forest)))
+    (is (some (fn [url] (String/contains? url "Newsreader")) (design/font-links plain)))
+    (is (= 2 (count (Regex/scan (Regex/compile! "data-design=\"signal\"") html))))
+    (is (String/contains? (design/css) "html[data-design=\"forest\"]"))
+    (is (String/contains? (design/css) "--font-body:Manrope"))))

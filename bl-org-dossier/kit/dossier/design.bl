@@ -31,9 +31,42 @@
                       (map trim (split (or (System/get_env "DOSSIER_DESIGN_CSS") "") ",")))]
    (map (fn [p] (File/read! p)) paths)))
 
-(defn css [] (join "\n" (concat (map :css (vals languages)) (product-css))))
+(defn- report-vars [language colors]
+  (str "--font-body:" (:font language) ";--font-display:" (:font language)
+       ";--font-ui:" (:font language) ";"
+       (join ";" (for [[kit token] [["bg" :paper] ["paper" :inset] ["card" :card]
+                                    ["line" :line] ["latte" :edge] ["ink" :ink]
+                                    ["muted" :muted] ["mocha" :secondary] ["clay" :forest]
+                                    ["sage" :success] ["ochre" :pending] ["slate" :neutral] ["plum" :lilac]]]
+                   (str "--" kit ":" (get colors token))))))
 
-(defn font-links [] (vec (distinct (mapcat :fonts (vals languages)))))
+(defn- report-css [language]
+  (let [selector (str "html[data-design=\"" (:name language) "\"]")]
+    (str selector "{" (report-vars language (:light language)) "}"
+         "@media(prefers-color-scheme:dark){" selector ":not([data-theme=\"light\"]){"
+         (report-vars language (:dark language)) "}}"
+         selector "[data-theme=\"dark\"]{" (report-vars language (:dark language)) "}")))
+
+(defn css []
+  (join "\n" (concat (map :css (vals languages)) (map report-css (vals languages)) (product-css))))
+
+(defn font-links
+  "Load only faces used by this document. An external language supplies its own
+   font assets; unrelated registered languages do not leak into its report."
+  [doc]
+  (let [theme (get-in doc [:meta :design])
+        chosen (set (concat (when theme [theme])
+                            (keep (fn [node] (get-in node [:attrs :design])) (:nodes doc))))
+        legacy-desk? (some (fn [node] (and (= "desk" (:lang node))
+                                          (or (= "none" (get-in node [:attrs :design]))
+                                              (and (nil? theme) (nil? (get-in node [:attrs :design])))))) (:nodes doc))]
+    (vec (distinct
+           (concat
+             (when (or (nil? theme) (= theme "none"))
+               ["https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"])
+             (when legacy-desk?
+               ["https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght,SOFT@9..144,400..600,100&family=Literata:opsz,wght@7..72,400..600&display=swap"])
+             (mapcat (fn [name] (:fonts (get languages name))) chosen))))))
 
 (defn- lang-of [nd] (get languages (or (:design (:attrs nd)) "forest")))
 

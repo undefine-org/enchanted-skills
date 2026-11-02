@@ -160,7 +160,7 @@
   (let [meta (:meta doc) secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
         n (count secs)]
     (list
-      [:div.app2
+      [:div {:class "app2" :data-design (:design meta)}
        (side-h meta secs)
        [:div.content
         [:header.doc
@@ -189,12 +189,11 @@
 (defn page-h
   "The full HTML document."
   [doc css js]
-  [:html {:lang "en"}
+  [:html {:lang "en" :data-design (get-in doc [:meta :design])}
    [:head
     [:meta {:charset "utf-8"}]
     [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
-    [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap"}]
-    (for [href (design/font-links)] [:link {:rel "stylesheet" :href href}])
+    (for [href (design/font-links doc)] [:link {:rel "stylesheet" :href href}])
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
     [:style css (design/css)]]
    [:body
