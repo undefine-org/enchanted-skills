@@ -93,7 +93,7 @@
                          (when (and (nil? run) (nil? (:failure d))) [["render" "Aucune exécution enregistrée"]])
                          (when (:failure d) [["claim" (str "Échec de capture : " (get (:failure d) "message"))]])
                          (mapcat (fn [sc] (gaps-of (in (:from sc) (:to sc)))) scenes)
-                         (map (fn [x] (let [[t why] (map trim (String/split x "|"))] ["missing" (str "Pas encore filmé : " (ui/mdi t) (if why (str " — " why) ""))])) declared))]
+                         (map (fn [x] (let [[t why] (map trim (String/split x "|"))] ["missing" (list "Pas encore filmé : " (ui/mdi t) (when why (str " — " why)))])) declared))]
     [:figure.film {:id (str "film-" (:id a))}
      [:header [:span.chip (:id a)] [:h4 (ui/md (:title a))]
       [:span {:class (str "fverdict " vcls)} vm " " (or (get run "verdict") (if (:failure d) "échec" "pas lancé"))]
