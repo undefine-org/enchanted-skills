@@ -5,26 +5,42 @@
 ; every cell shows its last recorded result as proof. Pure.
 
 (ns dossier.page
-  (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]))
+  (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
+            [dossier.runview :as rv]))
 
-(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film"})
+(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film" "run"})
 
 (defn- with-design
-  "`#+design: NAME` draws every screen and desk without its own :design in that language."
+  "`#+design: NAME` draws every screen, run and desk without its own :design in that language."
   [d nodes]
   (if (blank? (str d))
     nodes
     (vec (for [nd nodes]
-           (if (and (= :block (:t nd)) (contains? #{"screen" "desk"} (:lang nd)) (nil? (:design (:attrs nd))))
+           (if (and (= :block (:t nd)) (contains? #{"screen" "desk" "run"} (:lang nd)) (nil? (:design (:attrs nd))))
              (assoc-in nd [:attrs :design] (trim d))
              nd)))))
 
+(defn- with-procedures
+  "Each run block gets the procedure (from this document) its :procedure names."
+  [nodes]
+  (let [procs (into {} (for [nd nodes :when (and (= :block (:t nd)) (= "procedure" (:lang nd)) (:id (:attrs nd)))]
+                         [(:id (:attrs nd)) (rv/procedure-of-node nd)]))]
+    (vec (for [nd nodes]
+           (if (and (= :block (:t nd)) (= "run" (:lang nd)))
+             (assoc nd :proc (get procs (:procedure (:attrs nd))))
+             nd)))))
+
+(defn- phone-h [b]
+  (if (= "run" (:lang b))
+    (if (:proc b) (rv/run-h b (:proc b)) [:pre.block (str "run: no procedure " (:procedure (:attrs b)) " in this document")])
+    (ui/screen-h b)))
+
 (defn- group-screens
-  "Consecutive screen blocks (blank prose between them aside) as one node."
+  "Consecutive screen and run blocks (blank prose between them aside) as one strip."
   [nodes]
   (reduce (fn [out nd]
             (let [prev (last out)]
-              (if (and (= :block (:t nd)) (= "screen" (:lang nd)))
+              (if (and (= :block (:t nd)) (contains? #{"screen" "run"} (:lang nd)))
                 (if (= :screens (:t prev))
                   (conj (pop out) (update prev :blocks conj nd))
                   (conj out {:t :screens :blocks [nd]}))
@@ -50,8 +66,11 @@
              (when (seq (:head nd)) [:thead (for [r (:head nd)] [:tr (for [c r] [:th (ui/md c)])])])
              [:tbody (for [r (:rows nd)] [:tr (for [c r] [:td (ui/md c)])])]]]
     :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
-    :block (if (= "film" (:lang nd)) (film/film-h nd) (or (design/block-h nd) (ui/block->h nd)))
-    :screens (ui/screens-h (:blocks nd))
+    :block (case (:lang nd)
+             "film" (film/film-h nd)
+             "run" (phone-h nd)
+             (or (design/block-h nd) (ui/block->h nd)))
+    :screens [:div.screens (map phone-h (:blocks nd))]
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
            [:div.cell-head
             [:span.badge (cond (:error? nd) "✗ failed" (:result nd) "✓ ran" :else "not run")]
@@ -137,7 +156,7 @@
 (defn doc-h
   "The document body (sidebar, header, nav and sections) as hiccup."
   [doc]
-  (let [meta (:meta doc) secs (vec (sections (group-screens (with-design (:design meta) (:nodes doc)))))
+  (let [meta (:meta doc) secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
         n (count secs)]
     (list
       [:div.app2

@@ -9,6 +9,29 @@
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
             [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]))
 
+(deftest a-run-draws-a-persons-screen-from-the-procedure
+  (let [doc (o/read-doc (join "\n" ["* R"
+                                    "#+begin_procedure :id demo :title \"Demo hand-off\""
+                                    "route @people Who reviews | reviewers · everyone | reviewer"
+                                    "step @spark Write the demo | lead | demo · dossier · draft"
+                                    "gate @check The demo is out | lead | demo"
+                                    "step @eye React | reviewer | reaction · dossier · draft"
+                                    "gate @check Every reaction is in | reviewer | reaction"
+                                    "#+end_procedure"
+                                    "#+begin_run :id r1 :procedure demo :as ahmed :title \"Ahmed\""
+                                    "team lead othman | reviewers ahmed amine"
+                                    "fact handed-over | demo | othman"
+                                    "fact drafted | reaction/ahmed | harness"
+                                    "#+end_run"
+                                    "#+begin_screen :id s9 :title S" "bar Hi" "#+end_screen"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["phone rv" "rv-rail" "rv-s gate" "rv-card draft" "rv-verb deliver" ">reaction<" "drafted"
+                    "rv-gate" "rv-chip" "class=\"screens\"" "id=\"screen-s9\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    ;; the run and the screen after it share one strip
+    (is (= 1 (count (Regex/scan (Regex/compile! "class=\"screens\"") html))))
+    (is (some (fn [i] (= "r1" i)) (map :id (pg/feedback-items doc))))))
+
 (deftest a-design-language-dresses-mockups-and-shows-itself
   (let [doc (o/read-doc (join "\n" ["#+design: forest" "* D"
                                     "#+begin_screen :id s1 :title S" "bar Hi" "#+end_screen"
