@@ -585,3 +585,23 @@ li.p-call .p-who{font:12.5px var(--mono)}
 .rv-wait{display:flex}.rv-wait .rv-av{margin-left:-6px}
 .rv-clear{display:flex;gap:8px;align-items:center;justify-content:center;padding:16px;border-radius:13px;background:var(--card);border:1px solid var(--line);color:var(--sage);font-weight:600}
 @media (prefers-reduced-motion:reduce){.rv-chip{animation:none}}
+
+/* horizons: a telescope of nested time */
+figure.horizons{margin:16px 0;padding:14px;border-radius:14px;background:var(--card);border:1px solid var(--line)}
+figure.horizons figcaption{margin-bottom:6px}
+svg.hz{width:100%;height:auto;display:block;font-family:var(--sans)}
+.hz-band{fill:var(--bg);stroke:var(--line)}
+.hz-slice{fill:color-mix(in srgb,var(--clay) 16%,transparent);stroke:var(--clay);stroke-width:1}
+.hz-funnel{fill:color-mix(in srgb,var(--clay) 7%,transparent);stroke:none}
+.hz-name{font:700 13px var(--sans);fill:var(--ink)}
+.hz-span{font:11px var(--mono);fill:var(--muted)}
+.hz-now{stroke:var(--clay);stroke-width:2}
+.hz-now-label{font:700 10px var(--sans);fill:var(--clay);text-transform:uppercase;letter-spacing:.08em}
+.hz-someday{stroke:var(--latte);stroke-width:1.5;stroke-dasharray:3 3}
+.hz-goal{fill:var(--card);stroke:var(--clay);stroke-width:2}
+.hz-goal.someday{stroke:var(--latte);stroke-dasharray:2 2}
+.hz-ring{fill:var(--card);stroke:var(--line);stroke-width:3}
+.hz-arc{fill:none;stroke:var(--sage);stroke-width:3;stroke-linecap:round}
+.hz-label{font:600 11.5px var(--sans);fill:var(--ink)}
+.hz-label.someday{fill:var(--muted);font-weight:500;font-style:italic}
+.hz-cap{color:var(--muted);font-size:14px;margin:8px 0 0}

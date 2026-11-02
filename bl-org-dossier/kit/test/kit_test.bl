@@ -32,6 +32,18 @@
     (is (= 1 (count (Regex/scan (Regex/compile! "class=\"screens\"") html))))
     (is (some (fn [i] (= "r1" i)) (map :id (pg/feedback-items doc))))))
 
+(deftest horizons-draw-as-a-telescope
+  (let [doc (o/read-doc (join "\n" ["* H" "#+begin_horizons :id h1 :now 2026-11-02"
+                                    "horizon year | 2026-01-01 | 2026-12-31"
+                                    "horizon cycle | 2026-10-26 | 2026-11-14"
+                                    "goal year | Pilots | 2026-12-31"
+                                    "goal cycle | Agree | 2026-11-14 | 2/4"
+                                    "goal cycle | Publish the method"
+                                    "#+end_horizons"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["svg" "hz-funnel" "hz-slice" "hz-arc" "hz-now" "by when?" ">cycle<"]]
+      (is (includes? html needle) (str "missing " needle)))))
+
 (deftest a-design-language-dresses-mockups-and-shows-itself
   (let [doc (o/read-doc (join "\n" ["#+design: forest" "* D"
                                     "#+begin_screen :id s1 :title S" "bar Hi" "#+end_screen"

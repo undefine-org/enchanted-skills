@@ -6,9 +6,9 @@
 
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
-            [dossier.runview :as rv]))
+            [dossier.runview :as rv] [dossier.horizon :as hz]))
 
-(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film" "run"})
+(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film" "run" "horizons"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen, run and desk without its own :design in that language."
@@ -16,7 +16,7 @@
   (if (blank? (str d))
     nodes
     (vec (for [nd nodes]
-           (if (and (= :block (:t nd)) (contains? #{"screen" "desk" "run"} (:lang nd)) (nil? (:design (:attrs nd))))
+           (if (and (= :block (:t nd)) (contains? #{"screen" "desk" "run" "horizons"} (:lang nd)) (nil? (:design (:attrs nd))))
              (assoc-in nd [:attrs :design] (trim d))
              nd)))))
 
@@ -69,6 +69,7 @@
     :block (case (:lang nd)
              "film" (film/film-h nd)
              "run" (phone-h nd)
+             "horizons" (hz/horizons-h nd)
              (or (design/block-h nd) (ui/block->h nd)))
     :screens [:div.screens (map phone-h (:blocks nd))]
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
