@@ -63,6 +63,13 @@
          :who who :rule (when (and rule (not (blank? rule))) rule)
          :outputs (vec (for [o (String/split (or outs "") ",") :when (not (blank? o))] (output o)))}))))
 
+(defn terms-of
+  "A block header without a reader's answer (:answer :note :at :by): answering a
+   procedure in a dossier never changes its revision."
+  [header]
+  (trim (reduce (fn [h k] (String/replace h (Regex/compile! (str "\\s+:" k "\\s+(\"(?:[^\"\\\\]|\\\\.)*\"|[^\\s]+)")) ""))
+                header ["answer" "note" "at" "by"])))
+
 (defn procedures
   "Every procedure block in a .bl.org text: [{:id :title :attrs :steps :prose :revision} …]."
   [text]
@@ -79,7 +86,7 @@
                      (conj out {:id (or (:id a) (slug (:title a))) :title (or (:title a) (:id a)) :attrs a
                                 :steps (vec (keep second parsed))
                                 :prose (join " " (map trim (for [[x s] parsed :when (and (nil? s) (not (blank? x)))] x)))
-                                :revision (subs (sha (join "\n" (cons l body))) 0 12)})))
+                                :revision (subs (sha (join "\n" (cons (terms-of l) body))) 0 12)})))
             (recur (rest ls) out)))))))
 
 (defn by-id [procs id] (first (filter (fn [p] (= id (:id p))) procs)))
