@@ -172,6 +172,23 @@ conversation on tape).
 Write scenes as the experience, not the fix: « Chaque point mène à sa place »,
 never « fix the §-link handler ». The narration is the documentation.
 
+**Write every film for someone who has never seen the product**, and make it
+about what they gain, even when it was made to prove a bug fix:
+
+- The first scene says in one sentence who is there, in which product, and
+  what they are trying to get done (« Dans Knowledger, le bureau du cabinet,
+  Othman relit la lettre qu'un agent a rédigée pour un client. »).
+- Each scene names the benefit before the gesture: what the person no longer
+  has to do, find or fear (« Plus besoin de chercher le passage : chaque point
+  y mène. »). Name no internal term (socket, intent, criterion id) without
+  saying what it is for.
+- The last scene closes on the result, in the person's terms.
+- One idea per scene, two subtitle lines at most. If a film needs more, it is
+  two films.
+- Before rendering, read the narration alone, as a stranger: does it make
+  sense without the images? Then watch the frames: does each image show what
+  its sentence says?
+
 ### Model turns on tape
 
 Anything an agent does should go through the app's own tool door, so only the
