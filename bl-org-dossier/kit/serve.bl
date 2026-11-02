@@ -5,6 +5,11 @@
 ;   DOSSIER_OWNER=login@domain  → only that Tailscale identity may answer.
 ;   DOSSIER_HANDLE=handle       → the name answers carry in :by (else the
 ;                                 login's part before @; never the email).
+;   DOSSIER_DESIGN_CSS=/abs/a.css,/abs/b.css → design languages that live with
+;                                 their product (a private repo, say): each file
+;                                 styles `.design-NAME` and is appended to the
+;                                 kit's CSS; `:design NAME` / `#+design: NAME`
+;                                 then draw mockups in it. Read per request.
 ;
 ; Routes: GET /        the page        GET /doc   {rev html} for live refresh
 ;         GET /rev     {rev}           GET /src   the .bl.org itself
@@ -23,6 +28,13 @@
 (defn- asset [name]
   (File/read! (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) name)))
 
+(defn- product-designs
+  "CSS of design languages kept outside the kit (DOSSIER_DESIGN_CSS)."
+  []
+  (join "\n" (for [p (split (or (System/get_env "DOSSIER_DESIGN_CSS") "") ",")
+                   :let [p (trim p)] :when (and (not= "" p) (File/regular? p))]
+               (File/read! p))))
+
 (defn- rev [text] (str (erlang/phash2 text)))
 
 ;; a film block's recorded run is read from disk here, so the page stays pure
@@ -33,7 +45,7 @@
     (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
 
 (defn- full-page [text]
-  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text) (asset "style.css") (asset "live.js")))))
+  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text) (str (asset "style.css") "\n" (product-designs)) (asset "live.js")))))
 
 (defn- doc-json [text]
   {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (read-doc text))))})

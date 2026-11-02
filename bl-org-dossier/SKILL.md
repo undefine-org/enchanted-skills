@@ -179,6 +179,12 @@ the tokens against the product's shipped CSS; the kit test asserts no drift.
 Shipped: `forest` — Nurturing Forest, Ora's team machine (`design/forest.bl.org`,
 published as the `forest-language` service).
 
+A product's own language can stay in its own (private) repository: generate a
+CSS file that styles `.design-NAME` (rebinding the kit's mockup variables, as a
+module's `css` cell does) and start the dossier service with
+`DOSSIER_DESIGN_CSS=/abs/path/NAME.css` (comma-separated for several). Mockups
+with `:design NAME` then wear it, and no brand material enters the kit.
+
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,
