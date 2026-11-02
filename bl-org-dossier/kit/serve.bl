@@ -12,7 +12,7 @@
 
 (ns serve
   (:require [web] [live.hiccup :as h] [bl.json :as json]
-            [dossier.org :as o] [dossier.page :as pg] [dossier.answer :as ans]))
+            [dossier.org :as o] [dossier.page :as pg] [dossier.answer :as ans] [dossier.film :as film]))
 
 (defn- arg-path []
   (let [a (first (BeamLisp/argv))]
@@ -25,15 +25,18 @@
 
 (defn- rev [text] (str (erlang/phash2 text)))
 
+;; a film block's recorded run is read from disk here, so the page stays pure
+(defn- read-doc [text] (film/enrich (o/read-doc text) (Path/dirname doc-path)))
+
 (defn- owner-ok? [conn]
   (let [owner (System/get_env "DOSSIER_OWNER")]
     (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
 
 (defn- full-page [text]
-  (str "<!doctype html>" (h/hiccup->html (pg/page-h (o/read-doc text) (asset "style.css") (asset "live.js")))))
+  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text) (asset "style.css") (asset "live.js")))))
 
 (defn- doc-json [text]
-  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (o/read-doc text))))})
+  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (read-doc text))))})
 
 (defn- post-answer [conn]
   (let [[body conn] (web/read-body* conn)

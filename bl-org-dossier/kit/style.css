@@ -495,3 +495,40 @@ li.p-call .p-mark .ic{stroke:var(--bg)}
 li.p-call .p-who{font:12.5px var(--mono)}
 @media (max-width:640px){.s-grid{grid-template-columns:1fr}}
 .desk .s-msg.you{background:var(--k-ink);color:var(--k-bg)}
+
+/* ── film: a filmed scenario, its steps, claims and gaps ───────────────── */
+.film{margin:22px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow)}
+.film header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-bottom:8px}
+.film header h4{margin:0;font:500 20px/1.25 var(--serif);flex:1;min-width:12ch}
+.film .fverdict{font:600 12px var(--mono);padding:3px 9px;border-radius:99px;border:1px solid var(--line)}
+.film .fverdict.ok{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 50%,var(--line))}
+.film .fverdict.ko{color:var(--clay);border-color:color-mix(in srgb,var(--clay) 50%,var(--line))}
+.film .fcount{font:12px var(--mono);color:var(--muted)}
+.film .fx{color:var(--muted);margin:2px 0 10px}
+.fplay video{width:100%;border-radius:10px;background:#000;display:block;aspect-ratio:16/9}
+.fchap{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.fchap button{font:500 13px var(--sans);border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:99px;padding:5px 11px;cursor:pointer}
+.fchap button:hover{border-color:var(--mocha)}
+.fgaps{list-style:none;margin:10px 0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--ochre) 12%,var(--card));border:1px solid color-mix(in srgb,var(--ochre) 35%,var(--line))}
+.fgaps li{display:flex;gap:8px;font-size:14px;padding:2px 0}
+.fgaps li.missing{color:var(--muted)}
+.fgaps .fm{color:var(--ochre)}
+.fscenes{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.fscene{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.fscene.gap{border-color:color-mix(in srgb,var(--ochre) 45%,var(--line))}
+.fscene>summary{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;list-style:none}
+.fscene>summary::-webkit-details-marker{display:none}
+.fscene>summary .n{font:12px var(--mono);color:var(--muted)}
+.fscene .fwarn{color:var(--ochre);margin-left:auto}
+.fscene.setup>summary b{font-weight:500;color:var(--muted)}
+.fsay{margin:0 12px 6px;font:italic 15px/1.5 var(--serif);color:var(--muted)}
+.fscene ol{list-style:none;margin:0;padding:0 12px 10px}
+.fs{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:14px;border-top:1px dashed var(--line)}
+.fs:first-child{border-top:0}
+.fs .fm{font:600 12px var(--mono);width:14px;flex:none}
+.fs.ok .fm{color:var(--sage)}.fs.ko .fm{color:var(--clay)}.fs.unk .fm{color:var(--ochre)}
+.fs .fa{font:12px var(--mono);color:var(--muted)}
+.fs .fv{font:600 12px var(--mono)}
+.fs code{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.fs.quiet{opacity:.55}
+.fs.claim b{font-weight:600}

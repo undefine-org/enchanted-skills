@@ -5,9 +5,9 @@
 ; every cell shows its last recorded result as proof. Pure.
 
 (ns dossier.page
-  (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design]))
+  (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]))
 
-(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure"})
+(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen and desk without its own :design in that language."
@@ -50,7 +50,7 @@
              (when (seq (:head nd)) [:thead (for [r (:head nd)] [:tr (for [c r] [:th (ui/md c)])])])
              [:tbody (for [r (:rows nd)] [:tr (for [c r] [:td (ui/md c)])])]]]
     :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
-    :block (or (design/block-h nd) (ui/block->h nd))
+    :block (if (= "film" (:lang nd)) (film/film-h nd) (or (design/block-h nd) (ui/block->h nd)))
     :screens (ui/screens-h (:blocks nd))
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
            [:div.cell-head

@@ -7,7 +7,7 @@
 
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
-            [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest]))
+            [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]))
 
 (deftest a-design-language-dresses-mockups-and-shows-itself
   (let [doc (o/read-doc (join "\n" ["#+design: forest" "* D"
@@ -90,3 +90,16 @@
                     "p-call" "dossier.publish/serve!" "p-check" "p-item reads"]]
       (is (includes? html needle) (str "missing " needle)))
     (is (= ["s1" "p1"] (map :id (pg/feedback-items doc))))))
+
+(deftest a-film-draws-its-run-and-its-gaps
+  ;; a scene with a gesture after its last claim, a refuted claim, a declared missing beat
+  (let [doc (o/read-doc (join "\n" ["* F" "#+begin_film :id f1 :title Relire :src x.mp4" "On relit." "missing Déposer | pas encore" "#+end_film"]))
+        run {"verdict" "refuted"
+             "steps" [{"i" 1 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["navigate" "/x"]]}}
+                      {"i" 2 "actor" "a" "verdict" "refuted" "trace" {"kind" "expect" "action" ["expect" "a" {} "Le rail s'ouvre"]}}
+                      {"i" 3 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["click" ".x"]]}}]}
+        nd (first (filter (fn [n] (= "film" (:lang n))) (:nodes doc)))
+        doc2 (assoc doc :nodes (mapv (fn [n] (if (= n nd) (assoc n :data {:run run :film {"scenes" [{"id" "s" "title" "Scène" "step-marks" [{"step" 1} {"step" 2} {"step" 3}]}]}}) n)) (:nodes doc)))
+        html (h/hiccup->html (pg/page-h doc2 "" ""))]
+    (doseq [needle ["film-f1" "<video" "Geste non prouvé : click" "Non vérifié (refuted)" "Pas encore filmé" "Pas encore rendu" "data-id=\"f1\""]]
+      (is (includes? html needle) (str "missing " needle)))))
