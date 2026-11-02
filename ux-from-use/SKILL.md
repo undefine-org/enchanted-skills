@@ -150,6 +150,11 @@ for a phone).
 
 ## From probe to film
 
+For Knowledger remediation, put any new product component in the review
+`.bl.org` catalog before implementation: specimen, states, user action and a
+stable ID linked from the roster. Describe planned films as unfilmed until a
+real run exists; a mockup or model cell does not establish app behaviour.
+
 A `scenario.demo/defdemo` is an ordinary test (`bl test`). Steps map one to one:
 
 | Probe | Scenario |

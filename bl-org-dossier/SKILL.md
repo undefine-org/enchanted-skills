@@ -60,6 +60,14 @@ Open with the thesis, end with what he must decide. In between, earn each sectio
 
 ## Components
 
+For Knowledger work, register every proposed new product component in a catalog
+inside the `.bl.org` dossier before implementing it in the app or kit. Give it a
+stable ID, a rendered specimen using the existing design language, its states
+(including waiting, empty, failure and read-only where relevant), and its next
+action. Link implementation roster items to that catalog entry. Keep proposed
+and accepted entries distinct; a proposal is not approval. Prefer composing the
+existing kit vocabulary before adding a renderer primitive.
+
 Header attributes: `:key value` or `:key "quoted value"`. Bodies are line languages; `a | b | c` rows unless noted.
 
 | Block | Body | Renders |
