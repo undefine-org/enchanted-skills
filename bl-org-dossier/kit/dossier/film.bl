@@ -6,6 +6,10 @@
 ;   missing @upload Déposer depuis le bureau | why it cannot be filmed yet
 ;   #+end_film
 ;
+; A beat not filmed yet is best declared in the scenario itself, where it
+; belongs: a step whose act is [:missing "what" "why"], which the world records
+; without doing anything. It is drawn among the other steps in its own colour.
+;
 ; :run is a scenario.demo output folder (run.json, film.json, film/manifest.json),
 ; relative to the dossier. `enrich` reads it — the one impure function, called by
 ; the server before rendering; `film-h` draws from the data it attached. The
@@ -35,12 +39,15 @@
 
 ;; ── reading a step ───────────────────────────────────────────────────────
 
-(def ^:private cosmetic #{"pause" "hover" "wait"})
+(def ^:private cosmetic #{"pause" "hover" "wait" "missing"})
 
 (defn- step-kind [s] (get-in s ["trace" "kind"]))
 (defn- verb [s] (let [a (get-in s ["trace" "action"])] (when (= "act" (first a)) (first (nth a 2)))))
 (defn- target [s] (let [a (get-in s ["trace" "action"])] (when (= "act" (first a)) (str (or (second (nth a 2)) "")))))
 (defn- claim-msg [s] (let [a (get-in s ["trace" "action"])] (when (= "expect" (first a)) (str (last a)))))
+(defn- missing-of
+  "[what why] when the step is a beat not filmed yet."
+  [s] (let [a (get-in s ["trace" "action"])] (when (and (= "act" (first a)) (= "missing" (first (nth a 2)))) [(str (nth (nth a 2) 1)) (str (nth (nth a 2) 2 ""))])))
 
 (defn- mark [v]
   (case v "witnessed" ["◉" "ok"] "proven" ["✓" "ok"] "refuted" ["✗" "ko"] "unknown" ["?" "unk"] ["·" ""]))
@@ -66,16 +73,19 @@
       (keep (fn [s] (when (> (get s "i") last-claim) ["act" (str "Geste non prouvé : " (verb s) " " (short (target s) 60))])) (when (seq claims) acts))
       (keep (fn [s] (when (not (contains? #{"witnessed" "proven"} (get s "verdict")))
                       ["claim" (str "Non vérifié (" (get s "verdict") ") : " (or (claim-msg s) (get s "label")))]))
-            claims))))
+            claims)
+      (keep (fn [s] (when-let [[what why] (missing-of s)] ["missing" (str "Pas encore filmé : " what (if (not= "" why) (str " — " why) ""))])) steps))))
 
 ;; ── drawing ──────────────────────────────────────────────────────────────
 
 (defn- step-h [s]
   (let [[m cls] (mark (get s "verdict")) k (step-kind s)]
+    (if-let [[what why] (missing-of s)]
+      [:li.fs.missing [:span.fm "◌"] [:b what] (when (not= "" why) [:small why])]
     (if (= "expect" k)
       [:li {:class (str "fs claim " cls)} [:span.fm m] [:b (claim-msg s)]]
       [:li {:class (str "fs act " cls (if (contains? cosmetic (verb s)) " quiet" ""))}
-       [:span.fm m] [:span.fa (get s "actor")] [:span.fv (verb s)] [:code (short (target s) 70)]])))
+       [:span.fm m] [:span.fa (get s "actor")] [:span.fv (verb s)] [:code (short (target s) 70)]]))))
 
 (defn- gap-h [[kind text]] [:li {:class (str "fg " kind)} [:span.fm "⚠"] text])
 

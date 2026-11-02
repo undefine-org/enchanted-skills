@@ -132,9 +132,10 @@
         run {"verdict" "refuted"
              "steps" [{"i" 1 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["navigate" "/x"]]}}
                       {"i" 2 "actor" "a" "verdict" "refuted" "trace" {"kind" "expect" "action" ["expect" "a" {} "Le rail s'ouvre"]}}
-                      {"i" 3 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["click" ".x"]]}}]}
+                      {"i" 3 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["click" ".x"]]}}
+                      {"i" 4 "actor" "a" "verdict" "witnessed" "trace" {"kind" "act" "action" ["act" "a" ["missing" "Signer" "à filmer"]]}}]}
         nd (first (filter (fn [n] (= "film" (:lang n))) (:nodes doc)))
-        doc2 (assoc doc :nodes (mapv (fn [n] (if (= n nd) (assoc n :data {:run run :film {"scenes" [{"id" "s" "title" "Scène" "step-marks" [{"step" 1} {"step" 2} {"step" 3}]}]}}) n)) (:nodes doc)))
+        doc2 (assoc doc :nodes (mapv (fn [n] (if (= n nd) (assoc n :data {:run run :film {"scenes" [{"id" "s" "title" "Scène" "step-marks" [{"step" 1} {"step" 2} {"step" 3} {"step" 4}]}]}}) n)) (:nodes doc)))
         html (h/hiccup->html (pg/page-h doc2 "" ""))]
-    (doseq [needle ["film-f1" "<video" "Geste non prouvé : click" "Non vérifié (refuted)" "Pas encore filmé" "Pas encore rendu" "data-id=\"f1\""]]
+    (doseq [needle ["film-f1" "<video" "fs missing" "Pas encore filmé : Signer" "Geste non prouvé : click" "Non vérifié (refuted)" "Pas encore filmé" "Pas encore rendu" "data-id=\"f1\""]]
       (is (includes? html needle) (str "missing " needle)))))
