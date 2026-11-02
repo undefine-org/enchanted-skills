@@ -109,6 +109,14 @@
       (is (includes? html needle) (str "missing " needle)))
     (is (= ["d1"] (map :id (pg/feedback-items doc))))))
 
+(deftest a-roadmap-sorts-now-next-later
+  (let [doc (o/read-doc (join "\n" ["* R" "#+begin_roadmap :id r1 :title \"What comes next\""
+                                    "now | Remote servers | OAuth, policies | X1" "next | Shared folders | Office, Google | J2"
+                                    "later | Local commands | sandboxed |" "#+end_roadmap"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["class=\"roadmap\"" "id=\"roadmap-r1\"" "rm-col rm-now" "rm-col rm-next" "rm-col rm-later" "Shared folders" ">J2<"]]
+      (is (includes? html needle) (str "missing " needle)))))
+
 (deftest a-schema-and-a-procedure-draw-and-answer
   (let [doc (o/read-doc (join "\n" ["* S" "#+begin_schema :id s1 :title \"Nouns\""
                                     "goal @flag | What we want true" "  done-when text | how we know"

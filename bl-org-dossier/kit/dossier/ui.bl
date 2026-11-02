@@ -216,6 +216,22 @@
          [:tr [:th (md (first r))] (for [c (rest r)] [:td (mark c)])])]]
      [:div.legend [:i.dot.full] "does it" [:i.dot.half] "partly" [:i.dot.none] "no"]]))
 
+;; A roadmap: what is built, what comes next, what waits — one card each, with
+;; what it answers. Body rows: `now | title | detail | ref` (now, next or later).
+(defn roadmap-h [b]
+  (let [a (:attrs b) rows (o/rows-of (:body b))
+        col (fn [k label]
+              (let [its (filter (fn [r] (= k (trim (str (first r))))) rows)]
+                [:div {:class (str "rm-col rm-" k)}
+                 [:h5 label [:span.n (count its)]]
+                 (for [r its]
+                   [:div.rm-item [:b (md (nth r 1 ""))]
+                    (when-not (= "" (trim (str (nth r 2 "")))) [:p (md (nth r 2 ""))])
+                    (when-not (= "" (trim (str (nth r 3 "")))) [:span.chip (nth r 3 "")])])]))]
+    [:section.roadmap {:id (when (:id a) (str "roadmap-" (:id a)))}
+     (when (:title a) [:h4 (md (:title a))])
+     [:div.rm-cols (col "now" "Now") (col "next" "Next") (col "later" "Later")]]))
+
 ; ─── jobs, decisions, asks ─────────────────────────────────────────────────
 
 (defn job-h [b]
@@ -746,6 +762,7 @@
     "honest" (callout-h b)
     "rosetta" (rosetta-h b)
     "matrix" (matrix-h b)
+    "roadmap" (roadmap-h b)
     "job" (job-h b)
     "decision" (decision-h b)
     "ask" (ask-h b)

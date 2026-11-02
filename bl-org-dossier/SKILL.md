@@ -71,6 +71,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `note` / `warning` / `honest` (`:title`) | prose | callouts (slate / clay / ochre) |
 | `rosetta` | first row = headers | aligned table; cards on a phone |
 | `matrix` | first row = headers; cells `y`, `~`, `n` + optional words | dot matrix with legend |
+| `roadmap :id :title` | `now \| title \| detail \| ref` (now, next, later) | three columns: what is built, what comes next, what waits |
 | `job :id :title :codex :claude :decision :screen` | the JTBD sentence | job card + answer |
 | `decision :id :title :status proposed\|decided` | `- [x] chosen`, `- [ ] rejected`, then rationale | decision card + Agree/Rework/Disagree |
 | `ask :id :title :options "A\|B\|C"` | context | question card + options |

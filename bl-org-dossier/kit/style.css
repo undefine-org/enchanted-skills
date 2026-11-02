@@ -609,3 +609,17 @@ svg.hz{width:100%;height:auto;display:block;font-family:var(--sans)}
 .fs.missing .fm{color:var(--plum)}
 .fs.missing b{font-weight:600}
 .fs.missing small{color:var(--muted);font-size:12.5px}
+
+/* roadmap: now / next / later */
+.roadmap{margin:18px 0}
+.roadmap h4{margin:0 0 10px}
+.rm-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.rm-col{background:var(--card,#fff);border:1px solid var(--line,#e6e0d6);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.rm-col h5{margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:6px;color:var(--muted,#7a6f64)}
+.rm-col h5 .n{font-weight:500;opacity:.7}
+.rm-now{box-shadow:inset 3px 0 0 #3f7d5a}.rm-next{box-shadow:inset 3px 0 0 #c9922e}.rm-later{box-shadow:inset 3px 0 0 #8a8f98}
+.rm-item{border-top:1px dashed var(--line,#e6e0d6);padding-top:7px}
+.rm-item:first-of-type{border-top:0;padding-top:0}
+.rm-item b{display:block;font-size:14px}
+.rm-item p{margin:3px 0 4px;font-size:13px;color:var(--muted,#7a6f64)}
+@media (max-width:720px){.rm-cols{grid-template-columns:1fr}}
