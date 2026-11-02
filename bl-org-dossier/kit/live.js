@@ -8,6 +8,39 @@
   const stamp = (s) => { $('#stamp').textContent = s; };
   const editing = () => { const a = document.activeElement; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
 
+  // Each graph keeps its own navigation, including across a live doc refresh.
+  const graphs = new Map();
+  function paintGraph(g, focus = false) {
+    const ids = Array.from(g.querySelectorAll('[data-view]'), v => v.dataset.view);
+    if (!ids.length) return;
+    let history = graphs.get(g.dataset.graph) || [];
+    history = history.filter(id => ids.includes(id));
+    if (!history.length) history = [g.dataset.start];
+    graphs.set(g.dataset.graph, history);
+    const here = history[history.length - 1];
+    g.querySelectorAll('[data-view]').forEach(v => { v.hidden = v.dataset.view !== here; });
+    g.querySelectorAll('.sg-map [data-sg-to]').forEach(b => {
+      if (b.dataset.sgTo === here) b.setAttribute('aria-current', 'step');
+      else b.removeAttribute('aria-current');
+    });
+    g.querySelector('[data-sg-back]').disabled = history.length < 2;
+    const active = Array.from(g.querySelectorAll('[data-view]')).find(v => v.dataset.view === here);
+    g.querySelector('.sg-position').textContent = active.querySelector('h4').textContent;
+    if (focus) active.querySelector('h4').focus({ preventScroll: true });
+  }
+  const paintGraphs = () => document.querySelectorAll('.screen-graph').forEach(g => paintGraph(g));
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-sg-to],[data-sg-back],[data-sg-reset]');
+    if (!b) return;
+    const g = b.closest('.screen-graph');
+    if (!g) return;
+    const history = graphs.get(g.dataset.graph) || [g.dataset.start];
+    if (b.hasAttribute('data-sg-reset')) graphs.set(g.dataset.graph, [g.dataset.start]);
+    else if (b.hasAttribute('data-sg-back')) { if (history.length > 1) history.pop(); graphs.set(g.dataset.graph, history); }
+    else if (history[history.length - 1] !== b.dataset.sgTo) graphs.set(g.dataset.graph, [...history, b.dataset.sgTo]);
+    paintGraph(g, true);
+  });
+
   async function refresh(force) {
     try {
       const r = await (await fetch('rev', { cache: 'no-store' })).json();
@@ -16,7 +49,7 @@
       if (r.rev === rev && !force) return;
       if (busy || editing()) return;
       const d = await (await fetch('doc', { cache: 'no-store' })).json();
-      const y = scrollY; $('#doc').innerHTML = d.html; rev = d.rev; show(current); scrollTo(0, y);
+      const y = scrollY; $('#doc').innerHTML = d.html; rev = d.rev; show(current); paintGraphs(); scrollTo(0, y);
     } catch (e) { stamp('offline · ' + e.message); }
   }
 
@@ -76,12 +109,13 @@
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
-    if (current === 'all' || e.target.closest('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph') || e.metaKey || e.ctrlKey || e.altKey) return;
     const list = secs(), i = list.findIndex(s => s.id === current);
     if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
     if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;
   });
   route(true);
+  paintGraphs();
 
   refresh(false); setInterval(() => refresh(false), 4000);
 })();

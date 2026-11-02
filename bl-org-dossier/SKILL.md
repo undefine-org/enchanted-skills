@@ -76,6 +76,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `decision :id :title :status proposed\|decided` | `- [x] chosen`, `- [ ] rejected`, then rationale | decision card + Agree/Rework/Disagree |
 | `ask :id :title :options "A\|B\|C"` | context | question card + options |
 | `screen :id :title :job :caption [:theme dark]` | screen language (below) | phone mock + reaction; consecutive screens form a swipeable strip |
+| `screen_graph :id :title [:start VIEW] :caption` | `view ID \| title \| context`, ordinary screen lines, `go TARGET \| action label`; repeat for each view | walkable prototype with a screen map, branching actions, Back and Start again; navigation stays local, feedback writes into the block header |
 | `desk :id :title :job :caption [:url]` | desk language (below) | a desktop app frame + reaction; same answer buttons as screens |
 | `sequence :title` | `lanes a · sub \| b · sub`, `a -> b : label` (call), `a --> b : label` (reply), `a => b : label` (the key moment), `note a, b : text`, `== divider` | SVG on wide screens, numbered steps on phones |
 | `graph :title` | `node id \| label \| sub \| col,row \| tone` (`you door station builder foreign`), `edge a -> b \| label \| style` (`baton solid dash none`; `<->`, `--` too) | SVG topology |
@@ -116,7 +117,36 @@ Icons: `@name` anywhere in a screen or desk line draws a line icon — `home mat
 search plus send file word check x alert clock user bot chat comment link seal eye edit version diff filter more back next
 down up bell wait calendar scale flag play undo lock attach grid list board split spark`. Prefer an icon to a word for kinds of things.
 
-Answerable blocks: `ask decision screen run desk job schema procedure film`. Each needs a unique `:id`.
+Answerable blocks: `ask decision screen screen_graph run desk job schema procedure film horizons`. Each needs a unique `:id`.
+
+### Screen graphs
+
+Use a `screen_graph` when the reader needs to experience transitions rather than
+compare static mockups. Every `view` has a unique, stable ID; every `go` points to
+a declared view. The renderer reports broken targets, duplicate IDs and missing
+start views. The graph inherits the document's design language. Its buttons are
+keyboard accessible; navigation survives live document refreshes. Changing a
+view does not write product data or make the depicted action real: label future
+events as rehearsals. Keep real seeds separate from invented examples.
+
+```org
+#+begin_screen_graph :id handoff :title "A request becomes work" :start request
+view request | Read the request | Example, awaiting a real exchange
+bar Your turn
+msg you | Can you read the proposal?
+go committed | I will read it
+go later | Ask about timing
+view committed | A commitment
+bar Work in context
+go request | Return to the source
+view later | Clarify first
+bar When do you need it?
+go request | Return to the request
+#+end_screen_graph
+```
+
+Inspect the branch choices, Back, reset and a file-refresh while inside a view at
+phone and desktop widths. The feedback is separate from prototype navigation.
 
 Plain Org works too: headings with TODO keywords and tags, `:PROPERTIES:` drawers (chips),
 tables, lists, `[ ]`/`[X]` checkboxes, `=code=`, `*bold*`, `/italic/`, `[[url][label]]`, `[[#screen-ID][label]]`.

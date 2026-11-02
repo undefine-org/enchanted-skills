@@ -397,6 +397,68 @@
   [blocks]
   [:div.screens (map screen-h blocks)])
 
+; A walkable screen graph. Views reuse the screen language; `go` declares
+; every transition explicitly. No product code or state is executed.
+(defn screen-graph
+  "Compile view/go lines, retaining bad references as authoring errors."
+  [body]
+  (let [views (reduce
+                (fn [vs line]
+                  (let [t (trim line) c (vec (map trim (String/split t "|")))]
+                    (cond
+                      (starts-with? t "view ")
+                      (conj vs {:id (trim (subs (first c) 5)) :title (nth c 1 "")
+                                :cue (nth c 2 "") :body [] :edges []})
+                      (empty? vs) vs
+                      (starts-with? t "go ")
+                      (conj (pop vs) (update (last vs) :edges conj
+                        {:to (trim (subs (first c) 3)) :label (nth c 1 "Open")}))
+                      :else (conj (pop vs) (update (last vs) :body conj line)))))
+                [] body)
+        ids (map :id views)
+        errors (vec (concat
+                 (when (empty? views) ["No views declared"])
+                 (for [[id n] (frequencies ids) :when (> n 1)] (str "Duplicate view: " id))
+                 (for [v views e (:edges v) :when (not (contains? (set ids) (:to e)))]
+                   (str (:id v) " points to missing view: " (:to e)))))]
+    {:views views :errors errors}))
+
+(defn- screen-graph-h [b]
+  (let [a (:attrs b) g (screen-graph (:body b)) vs (:views g)
+        start (or (:start a) (:id (first vs)))
+        errors (concat (:errors g) (when (and (seq vs) (not (some (fn [v] (= start (:id v))) vs)))
+                                    [(str "Missing start view: " start)]))]
+    [:figure {:class (str "screen-graph" (design-class a)) :id (str "screen-graph-" (:id a))
+              :data-graph (:id a) :data-start start}
+     [:figcaption [:b (md (:title a))]
+      [:p (md (or (:caption a) "Walk the screens. Changes stay inside this prototype."))]]
+     (if (seq errors)
+       [:div.warning {:role "alert"} (for [e errors] [:p e])]
+       (list
+         [:nav.sg-map {:aria-label "Screen graph"}
+          (for [v vs]
+            [:button {:type "button" :data-sg-to (:id v)} (:title v)])]
+         [:div.sg-layout
+          [:div.sg-stage
+           (for [v vs]
+             [:section {:class "sg-view" :data-view (:id v) :hidden (not= start (:id v))}
+              [:h4 {:tabindex "-1"} (:title v)]
+              [:div.device [:div.screen (screen-body (:body v))]]
+              [:div.sg-actions
+               (for [e (:edges v)]
+                 [:button {:type "button" :data-sg-to (:to e)} (mdi (:label e))])]
+              (when (not (blank? (:cue v))) [:p.sg-cue (md (:cue v))])])]
+          [:details.sg-edges [:summary "Connections between screens"]
+           (for [v vs e (:edges v)]
+             [:p [:span (:title v)] " → "
+              [:button {:type "button" :data-sg-to (:to e)} (mdi (:label e))]])]]
+         [:div.sg-tools
+          [:button {:type "button" :data-sg-back "true" :disabled true} "Back"]
+          [:button {:type "button" :data-sg-reset "true"} "Start again"]
+          [:span.sg-position {:aria-live "polite"}]]))
+     (when (:id a)
+       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this flow fit how you work?"))]))
+
 ; ─── sequence: who says what to whom, in order ─────────────────────────────
 
 (defn- sequence-steps
@@ -767,6 +829,7 @@
     "decision" (decision-h b)
     "ask" (ask-h b)
     "screen" (screens-h [b])
+    "screen_graph" (screen-graph-h b)
     "desk" (desk-h b)
     "sequence" (sequence-h b)
     "graph" (graph-h b)

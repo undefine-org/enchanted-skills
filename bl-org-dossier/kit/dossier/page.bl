@@ -8,7 +8,7 @@
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
             [dossier.runview :as rv] [dossier.horizon :as hz]))
 
-(def answerable #{"ask" "decision" "screen" "desk" "job" "schema" "procedure" "film" "run" "horizons"})
+(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen, run and desk without its own :design in that language."
@@ -16,7 +16,7 @@
   (if (blank? (str d))
     nodes
     (vec (for [nd nodes]
-           (if (and (= :block (:t nd)) (contains? #{"screen" "desk" "run" "horizons"} (:lang nd)) (nil? (:design (:attrs nd))))
+           (if (and (= :block (:t nd)) (contains? #{"screen" "screen_graph" "desk" "run" "horizons"} (:lang nd)) (nil? (:design (:attrs nd))))
              (assoc-in nd [:attrs :design] (trim d))
              nd)))))
 

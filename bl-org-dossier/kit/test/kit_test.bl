@@ -7,7 +7,39 @@
 
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
-            [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]))
+            [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]
+            [dossier.ui :as ui]))
+
+(deftest a-screen-graph-can-branch-and-take-feedback
+  (let [lines ["#+design: forest" "* Walk"
+               "#+begin_screen_graph :id walk :title Try :start request"
+               "view request | A request | Not a promise"
+               "msg you | Please read <script>"
+               "go accepted | I will" "go deferred | Later"
+               "view accepted | Committed" "bar Working"
+               "go request | Ask a change"
+               "view deferred | Waiting" "bar Later"
+               "#+end_screen_graph"]
+        doc (o/read-doc (join "\n" lines))
+        html (h/hiccup->html (pg/page-h doc "" ""))
+        answered (ans/answer-lines lines "walk" "rework" "Missing context" "t" "reader")]
+    (doseq [needle ["screen-graph design-forest" "data-sg-to=\"accepted\"" "data-sg-to=\"deferred\""
+                    "data-view=\"accepted\"" "data-sg-back" "data-sg-reset" "&lt;script&gt;" "data-id=\"walk\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (= ["walk"] (map :id (pg/feedback-items doc))))
+    (is (includes? (first (Regex/run (Regex/compile! "<section[^>]*data-view=\"accepted\"[^>]*>") html)) "hidden"))
+    (is (not (:error answered)))
+    (is (= 1 (count (filter (fn [i] (not= (nth lines i) (nth (:lines answered) i))) (range (count lines))))))))
+
+(deftest broken-screen-graphs-explain-their-authoring-errors
+  (is (= ["No views declared"] (:errors (ui/screen-graph []))))
+  (let [g (ui/screen-graph ["view a | A" "go absent | Lost" "view a | Again"])]
+    (is (some (fn [s] (= s "Duplicate view: a")) (:errors g)))
+    (is (some (fn [s] (= s "a points to missing view: absent")) (:errors g))))
+  (let [doc (o/read-doc "* G\n#+begin_screen_graph :id g :start absent\nview a | A\n#+end_screen_graph")
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (is (includes? html "Missing start view: absent"))
+    (is (not (includes? html "data-sg-to")))))
 
 (deftest a-run-draws-a-persons-screen-from-the-procedure
   (let [doc (o/read-doc (join "\n" ["* R"
