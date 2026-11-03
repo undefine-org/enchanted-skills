@@ -192,6 +192,9 @@ Inspect the actual app controls, link highlighting, graph selection, Back,
 reset, full screen, Escape and a live file refresh at phone and desktop widths.
 Verify that modal focus stays inside the full-screen prototype, shortcuts do
 not fire while typing, graph previews are inert, and external links stay external.
+Custom interactive previews must also isolate form controls: inert clones still
+share native radio groups unless their names are removed. Check selection after
+creating thumbnails, not only before.
 
 Plain Org works too: headings with TODO keywords and tags, `:PROPERTIES:` drawers (chips),
 tables, lists, `[ ]`/`[X]` checkboxes, `=code=`, `*bold*`, `/italic/`, `[[url][label]]`, `[[#screen-ID][label]]`.
@@ -252,6 +255,11 @@ for deliberate roles. A one-face language can assign the first three to the
 same face and reserve the data role for code and machine values. Inspect
 computed fonts and weights on the report, forms and explorer at phone and
 desktop widths; looking only at a mockup misses report-level drift.
+Palette parity matters too: switching the report theme should change app
+backgrounds, cards, navigation, diagrams and controls. Avoid a fixed dark
+palette inside an otherwise themed report. For task flows, keep navigation and
+the primary next action reachable on a small phone; let supporting detail
+scroll behind them rather than making a diagram or explanation the navigation.
 
 A language is a literate module, `kit/dossier/design/NAME.bl.org`, whose cells *are* the
 namespace `dossier.design.NAME`: tokens (light and dark), type scale, radii, shadows,
