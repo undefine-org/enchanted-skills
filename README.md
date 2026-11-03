@@ -7,6 +7,7 @@ Claude Code and usable by any harness that reads a `SKILL.md`.
 |---|---|
 | [`bl-org-dossier`](bl-org-dossier/SKILL.md) | Turns one `.bl.org` file into a live, mobile-first design dossier: semantic blocks (jobs, phone screens, desks, schemas, procedures, decisions, questions), executable Beam Lisp cells, and answers written back into the file. Mockups render in real design languages (`bl-org-dossier/kit/lang/`). |
 | [`ux-from-use`](ux-from-use/SKILL.md) | Turns what someone met while using an app into the experience to establish: the structural cause, the fix, a manual session in a real browser with Beam Lisp's browser namespace, and a filmed scenario with model turns on tape (`ux-from-use/templates/`). |
+| [`codebase-review`](codebase-review/SKILL.md) | Uses Codebase and system analysis to map concepts, settings and behavior to source evidence, with connected detail cards and a graph viewer for `.bl.org` reviews. |
 
 ## Install
 

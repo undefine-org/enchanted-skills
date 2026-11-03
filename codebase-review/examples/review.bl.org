@@ -1,0 +1,99 @@
+#+title: A source review you can walk
+#+subtitle: Three connected review blocks: concepts, policy and the code that enforces it.
+#+status: Illustrative fixture · source paths and examples below are synthetic
+
+* Concepts
+#+begin_ontology_graph :id concepts :title "Work and reply permission are independent" :start workspace
+node workspace | concept | Workspace | proposed
+summary The boundary whose default policy applies to every conversation.
+current Rules are split between process configuration and conversation state.
+proposed One durable policy, with a visible source for every effective value.
+field Owns | Default settings and conversations
+rule A policy belongs to one workspace; a conversation cannot borrow another workspace's exception.
+example The default lets the assistant keep helping while a colleague works on an answer.
+node conversation | concept | Conversation | existing
+summary The place where a deliberate exception belongs.
+current A generic handoff can stop the whole thread.
+proposed Show the inherited mode and an explicit override beside the thread.
+field Scope | One guest thread
+field Undo | Remove override to inherit again
+node work | concept | Pending work | existing
+summary A decision, answer or action a colleague owes.
+current Request category can decide whether the assistant stops.
+proposed One work lifecycle; descriptive categories do not control reply permission.
+rule Assigning work never changes the conversation's reply mode.
+example A discount awaits a decision while parking information is answered.
+node policy | setting | Reply policy | proposed
+summary Whether the assistant may reply to this conversation.
+field Type | continue or staff-only
+field Resolution | Conversation override → workspace value → product default
+rule Missing, false and zero are different values.
+edge workspace -> conversation | contains
+edge workspace -> policy | sets the default
+edge conversation -> work | contains pending needs
+edge conversation -> policy | may override
+#+end_ontology_graph
+
+* Settings
+#+begin_settings_graph :id settings :title "A policy with a traceable source" :start mode
+node mode | setting | May the assistant keep replying? | proposed
+summary A single policy applies to every category of internal request.
+current Asking a colleague can switch the entire conversation to staff control.
+proposed Continue by default. Only an explicit conversation exception selects staff-only.
+field Key | conversation.reply-mode
+field Type | continue or staff-only
+field Scope | Workspace → conversation exception
+field Editor | Manager globally; reception in the conversation
+field UI home | Existing Settings and conversation context views
+rule Work completion and assignment never silently change this setting.
+source src/app/conversation.bl:40 | app.conversation/handoff! | Illustrative source location, not an imported finding.
+check Coverage | Pure design model only; app integration still needs a real journey.
+node exception | setting | Conversation exception | proposed
+summary A deliberate departure from the workspace's current value.
+current A copied default can become stale when workspace policy changes.
+proposed Store only explicit exceptions; removing one restores inheritance immediately.
+field Expiry | Optional; effective resolution checks the clock
+field Audit | Author, reason, timestamp and previous value
+example Staff choose to reply alone for one sensitive conversation.
+node constraint | constraint | Delivery consent | existing
+summary Whether a prepared reply may actually be delivered.
+current The channel can refuse a send even when the assistant is enabled.
+proposed Keep consent and provider windows separate from reply policy.
+rule A conversation exception cannot bypass a guest's opt-out.
+edge mode -> exception | may be specialised by
+edge mode -> constraint | delivery remains bounded by
+#+end_settings_graph
+
+* Code
+#+begin_code_graph :id code :title "Trace the actual gate" :start responder
+node responder | code | Responder | existing
+summary The runtime boundary that decides whether an inbound message reaches the model.
+current It consults conversation control before starting a turn.
+proposed Read one effective policy and recheck its revision before sending.
+source src/app/pipeline.bl:28 | app.pipeline/respond! | Synthetic call site used to demonstrate the block.
+field Calls | app.policy/effective
+check Static evidence | A call edge identifies dependency, not proof of runtime behavior.
+node resolver | code | Effective policy | proposed
+summary A pure projection over a snapshot and the current time.
+current Callers can each invent a fallback.
+proposed Return value, source, revision and expiry from one resolver.
+source src/app/policy.bl:12 | app.policy/effective | Proposed seam, not existing implementation.
+rule An expired override is ignored before any cleanup task runs.
+node sender | code | Delivery boundary | existing
+summary The final check before a message leaves the application.
+current A reply prepared before takeover might still be queued.
+proposed Invalidate stale AI output when the explicit policy changes.
+rule Staff replies and external-system receipts keep their own authorship.
+edge responder -> resolver | reads
+edge sender -> resolver | rechecks
+#+end_code_graph
+
+* What this proves
+This example demonstrates the block vocabulary, navigation and feedback. Its
+application facts are deliberately synthetic. Use Codebase source facts and
+honestly scoped system analysis before making real claims in a project dossier.
+EOF
+cat > codebase-review/test/blocks_test.bl <<'EOF'
+(ns codebase-review.test
+ (:require [codebase-review.blocks :as review] [dossier.org :as org] [dossier.page :as page]
+           [dossier.answer :as answer] [live.hiccup :as h]))

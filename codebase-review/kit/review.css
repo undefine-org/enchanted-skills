@@ -1,0 +1,24 @@
+/* Review content inside the established connected graph viewer. */
+.review-app{grid-template-columns:200px minmax(0,1fr);font:14px/1.55 var(--sans);height:100%;min-height:0}
+.review-index{display:flex;flex-direction:column;gap:6px;padding:20px 12px;overflow:auto;border-right:1px solid var(--line);background:var(--card);min-width:0}
+.review-index-label{padding:0 10px 14px;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.review-index .review-link{display:flex;flex-direction:column;gap:2px;align-items:start;text-align:left;border:0;border-radius:9px;padding:10px;background:transparent;color:var(--ink)}
+.review-index .review-link:has(.review-here){background:var(--line)}
+.review-index-kind,.review-here{font-size:10px;letter-spacing:.04em;color:var(--muted)}.review-here{color:var(--clay)}
+.review-detail{min-width:0;overflow:auto;padding:24px 28px 80px;scrollbar-gutter:stable;overflow-wrap:anywhere}
+.review-heading{margin-bottom:24px}.review-heading h3{font:600 29px/1.15 var(--sans);letter-spacing:-.04em;margin:12px 0}.review-summary{color:var(--muted);max-width:65ch;font-size:15px}
+.review-meta{display:flex;gap:8px;align-items:center}.review-kind{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.review-status{border:1px solid var(--line);padding:2px 8px;border-radius:99px;font-size:11px}.review-status.observed{color:var(--sage,#698466)}.review-status.proposed{color:var(--clay)}.review-status.missing{color:var(--clay);border-style:dashed}
+.review-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.review-app h4{font:600 11px/1.4 var(--sans);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 10px}
+.review-app p{margin:0 0 10px}.review-comparison>section{padding:16px;border:1px solid var(--line);border-radius:11px;background:var(--card)}.review-comparison .review-proposed{border-top:3px solid var(--clay)}
+.review-columns{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px}.review-columns section{margin-bottom:22px}.review-facts dl{display:grid;grid-template-columns:minmax(70px,.8fr) minmax(0,1.4fr);gap:9px 10px;margin:0}.review-facts dt{color:var(--muted);font-size:12px}.review-facts dd{margin:0;font-size:13px}.review-facts a{display:block;margin:10px 0;color:var(--clay)}
+.review-source{padding:12px 0;border-bottom:1px solid var(--line)}.review-source code{display:block;font-size:11px;white-space:normal;overflow-wrap:anywhere;color:var(--clay)}.review-source b{display:block;font-size:12px;margin:4px 0}.review-source p,.review-checks p{font-size:12px;color:var(--muted)}
+.review-rules p{padding-left:12px;border-left:2px solid var(--line)}.review-example{padding:14px;background:var(--card);border-radius:10px}
+.review-related{border-top:1px solid var(--line);padding-top:18px}.review-related .review-link{margin:4px 6px 4px 0;border:1px solid var(--line);border-radius:8px;padding:9px 12px;text-align:left;background:var(--card);color:var(--ink);font-size:12px;overflow-wrap:anywhere;max-width:100%}
+.review-link:hover,.review-link:focus-visible{outline:1px solid var(--clay);outline-offset:1px}
+.sg-node-preview>.review-app{grid-template-columns:minmax(0,1fr)}.sg-node-preview .review-index{display:none}.sg-node-preview .review-detail{padding:20px}.sg-node-preview .review-heading{margin-bottom:16px}.sg-node-preview .review-heading h3{font-size:36px}.sg-node-preview .review-summary{font-size:22px}.sg-node-preview .review-comparison{font-size:19px}.sg-node-preview .review-columns,.sg-node-preview .review-related{display:none}
+@media(max-width:719px){.review-app{display:flex;flex-direction:column}.review-index{flex:none;flex-direction:row;padding:10px;gap:5px;border-right:0;border-bottom:1px solid var(--line);max-height:74px}.review-index-label,.review-index-kind,.review-here{display:none}.review-index .review-link{flex:none;max-width:190px;justify-content:center;font-size:11px;padding:7px 10px}.review-detail{flex:1;padding:18px 16px 90px}.review-heading h3{font-size:25px}.review-comparison,.review-columns{grid-template-columns:minmax(0,1fr)}.review-comparison{gap:10px}.review-columns{gap:0}.review-summary{font-size:14px}.sg-node-preview>.review-app{display:grid;grid-template-columns:minmax(0,1fr)}}
+.review-graph .sg-toolbar{opacity:1;transform:none;pointer-events:auto}
+.review-graph [data-sg-inspect]{display:none}
+.review-app .review-heading{display:block;align-items:initial;justify-content:initial;gap:0}

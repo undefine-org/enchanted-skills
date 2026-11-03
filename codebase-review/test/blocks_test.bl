@@ -1,0 +1,51 @@
+(ns codebase-review.test
+ (:require [codebase-review.blocks :as review] [dossier.org :as org] [dossier.page :as page]
+           [dossier.answer :as answer] [live.hiccup :as h]))
+
+(def fixture ["node a | setting | Reply <mode> | proposed"
+              "summary Pending work does not pause the conversation."
+              "current Two paths." "proposed One policy."
+              "source src/example.bl:8 | app/mode | A static finding."
+              "node b | concept | Work | existing" "summary Staff owe an answer."
+              "edge a -> b | independent of"])
+(defn render [kind body]
+ (h/hiccup->html (page/page-h (review/enrich (org/read-doc
+  (join "\n" (concat ["* Map" (str "#+begin_" kind " :id example :title Review :start a")] body [(str "#+end_" kind)])))) "" "")))
+(deftest all-review-kinds-show-evidence-and-preserve-feedback
+ (doseq [kind ["ontology_graph" "settings_graph" "code_graph"]]
+  (let [html (render kind fixture)
+        lines (vec (concat [(str "#+begin_" kind " :id example :title Review")] fixture [(str "#+end_" kind)]))
+        changed (answer/answer-lines lines "example" "rework" "Needs a concrete case" "now" "reader")]
+   (is (includes? html "What exists"))
+   (is (includes? html "What changes"))
+   (is (includes? html "src/example.bl:8"))
+   (is (includes? html "Reply &lt;mode&gt;"))
+   (is (not (includes? html "Reply <mode>")))
+   (is (includes? html "data-sg-navigation"))
+   (is (not (:error changed)))
+   (is (= (rest lines) (rest (:lines changed)))))))
+(deftest invalid-authoring-is-visible-and-not-partially-rendered
+ (doseq [body [["node a | wrong-kind | A | existing"]
+              ["node a | concept | A | existing" "edge a -> missing | reads"]
+              ["node a | concept | A | existing" "node a | concept | Again | proposed"]
+              ["node a | concept | A | existing" "mystery ignored"]
+              ["summary orphan"]
+              ["node a | concept | A | existing" "source incomplete | app/fn"]]]
+  (is (seq (:errors (review/parse-body body)))))
+ (let [html (render "settings_graph" ["node a | concept | A | existing" "edge a -> absent | reads"])]
+  (is (includes? html "Missing relationship endpoint: absent"))
+  (is (not (includes? html "data-graph=\"example\"")))))
+(deftest unsafe-links-cannot-become-review-actions
+ (doseq [url ["javascript:alert(1)" "//outside.example" "/\\outside.example" "https://good.example/\nheader"]]
+  (is (not (review/safe-url? url))))
+ (doseq [url ["/views?view=inbox" "#source-audit" "https://example.org/source"]]
+  (is (review/safe-url? url)))
+ (is (seq (:errors (review/parse-body ["node a | concept | A | existing" "open javascript:alert(1) | No"])))))
+(deftest examples-have-valid-starts-and-connected-relationships
+ (let [doc (org/read-doc (File/read! "codebase-review/examples/review.bl.org"))
+       blocks (filter (fn [n] (contains? review/kinds (:lang n))) (:nodes doc))
+       enriched (review/enrich doc)]
+  (is (= 3 (count blocks)))
+  (doseq [block blocks] (is (empty? (:errors (review/parse-body (:body block))))))
+  (is (= 3 (count (filter (fn [n] (:render-view n)) (:nodes enriched)))))
+  (is (= 3 (count (page/feedback-items enriched))))))

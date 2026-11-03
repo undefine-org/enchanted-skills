@@ -1,0 +1,127 @@
+; Connected review cards. Pure parsing/rendering; no application code is loaded.
+(ns codebase-review.blocks (:require [dossier.ui :as ui]))
+(def kinds #{"ontology_graph" "settings_graph" "code_graph"})
+(def node-kinds #{"concept" "setting" "code" "view" "constraint"})
+(def text-fields #{"summary" "current" "proposed" "rule" "example"})
+(def row-fields #{"field" "source" "check" "open"})
+(defn pieces [s] (mapv trim (split s "|")))
+(defn valid-id? [s] (boolean (Regex/match? (Regex/compile! "^[a-zA-Z][a-zA-Z0-9_-]*$") (str s))))
+(defn safe-url? [s]
+ (and (string? s) (not (includes? s "\\"))
+      (not (Regex/run (Regex/compile! "[\\s\\x00-\\x1f]") s))
+      (or (starts-with? s "https://") (starts-with? s "http://")
+          (starts-with? s "#") (and (starts-with? s "/") (not (starts-with? s "//"))))))
+(defn- issue [state line text] (update state :errors conj (str "Line " line ": " text)))
+(defn- append-row [state key value]
+ (update state :nodes (fn [nodes] (conj (pop nodes) (update (last nodes) (keyword key) conj value)))))
+(defn parse-body [body]
+ (let [parsed
+  (reduce (fn [state [index raw]]
+   (let [line (trim raw) at (inc index) verb (first (split line " "))
+         payload (trim (subs line (min (count line) (inc (count (str verb)))))) p (pieces payload)]
+    (cond
+     (or (blank? line) (starts-with? line "#")) state
+     (= verb "node")
+      (if (and (= 4 (count p)) (every? (fn [s] (not (blank? s))) p)
+               (valid-id? (first p)) (contains? node-kinds (second p)))
+       (update state :nodes conj {:id (first p) :kind (second p) :title (nth p 2) :status (nth p 3)
+                                 :summary [] :current [] :proposed [] :rule [] :example [] :field [] :source [] :check [] :open []})
+       (issue state at "Expected node ID | concept/setting/code/view/constraint | title | status"))
+     (= verb "edge")
+      (let [m (Regex/run (Regex/compile! "^([A-Za-z][A-Za-z0-9_-]*)\\s+->\\s+([A-Za-z][A-Za-z0-9_-]*)$") (first p))]
+       (if (and m (> (count p) 1) (not (blank? (join " | " (rest p)))))
+        (update state :edges conj {:from (nth m 1) :to (nth m 2) :label (join " | " (rest p))})
+        (issue state at "Expected edge FROM -> TO | relationship")))
+     (or (contains? text-fields verb) (contains? row-fields verb))
+      (cond
+       (empty? (:nodes state)) (issue state at (str verb " requires a preceding node"))
+       (blank? payload) (issue state at (str verb " requires text"))
+       (contains? text-fields verb) (append-row state verb payload)
+       (< (count p) (if (= verb "source") 3 2)) (issue state at (str "Incomplete " verb " row"))
+       (some blank? p) (issue state at (str "Empty " verb " field"))
+       (and (= verb "open") (not (safe-url? (first p)))) (issue state at "Unsafe or unsupported view URL")
+       :else (append-row state verb p))
+     :else (issue state at (str "Unknown review verb: " verb)))))
+   {:nodes [] :edges [] :errors []} (map-indexed (fn [i row] [i row]) body))
+       ids (map :id (:nodes parsed)) known (set ids)]
+  (update parsed :errors into
+   (concat (when (empty? ids) ["No review nodes declared"])
+    (for [[id n] (frequencies ids) :when (> n 1)] (str "Duplicate node: " id))
+    (for [edge (:edges parsed) endpoint [(:from edge) (:to edge)] :when (not (contains? known endpoint))]
+      (str "Missing relationship endpoint: " endpoint))))))
+
+(defn- link-to [id label navigation?]
+ [:button (cond-> {:type "button" :class "review-link sg-link" :data-sg-to id}
+            navigation? (assoc :data-sg-navigation "true")) label])
+(defn- paragraphs [xs] (map (fn [text] [:p text]) xs))
+(defn- section [class title xs]
+ (when (seq xs) [:section {:class class} [:h4 title] (paragraphs xs)]))
+(defn- status-class [s] (case s "existing" "observed" "partial" "partial" "missing" "missing" "proposed"))
+(defn card-h [model item]
+ (let [by-id (into {} (map (fn [n] [(:id n) n]) (:nodes model)))
+       outgoing (filter (fn [e] (= (:id item) (:from e))) (:edges model))
+       incoming (filter (fn [e] (= (:id item) (:to e))) (:edges model))]
+  [:div.sg-app.review-app
+   [:nav.review-index {:aria-label "Review topics"}
+    [:span.review-index-label "Explore the model"]
+    (for [n (:nodes model)]
+     (link-to (:id n) (list [:span.review-index-kind (:kind n)] [:span (:title n)]
+                            (when (= (:id n) (:id item)) [:span.review-here "Selected"])) true))]
+   [:article.review-detail
+    [:header.review-heading
+     [:div.review-meta [:span.review-kind (:kind item)]
+      [:span {:class (str "review-status " (status-class (:status item)))} (:status item)]]
+     [:h3.d-title (:title item)]
+     [:div.review-summary (paragraphs (:summary item))]]
+    [:div.review-comparison
+     (section "review-current" "What exists" (:current item))
+     (section "review-proposed" "What changes" (:proposed item))]
+    [:div.review-columns
+     [:div.review-reasoning
+      (section "review-rules" "Rules and boundaries" (:rule item))
+      (section "review-example" "A concrete case" (:example item))
+      (when (seq (:source item))
+       [:section.review-evidence [:h4 "Source evidence"]
+        (for [source (:source item)]
+         [:div.review-source [:code (first source)] [:b (second source)] [:p (join " | " (drop 2 source))]])])
+      (when (seq (:check item))
+       [:section.review-checks [:h4 "Verification"]
+        (for [check (:check item)] [:p [:b (first check)] " · " (join " | " (rest check))])])]
+     [:aside.review-facts
+      (when (seq (:field item))
+       [:section [:h4 "At a glance"]
+        [:dl (for [field (:field item)] (list [:dt (first field)] [:dd (join " | " (rest field))]))]])
+      (when (seq (:open item))
+       [:section [:h4 "Existing views and sources"]
+        (for [target (:open item)]
+         [:a (cond-> {:href (first target)}
+               (not (starts-with? (first target) "#")) (assoc :target "_blank" :rel "noopener"))
+          (join " | " (rest target)) " ↗"])])]]
+    [:footer.review-related
+     [:h4 "Follow the relationships"]
+     (when (and (empty? outgoing) (empty? incoming)) [:p "No relationships declared for this topic."])
+     (for [edge outgoing]
+      (link-to (:to edge) (str (:label edge) " → " (:title (get by-id (:to edge)))) false))
+     (for [edge incoming]
+      (link-to (:from edge) (str "← " (:title (get by-id (:from edge))) " · " (:label edge)) true))]]]))
+
+(defn enrich-node [node]
+ (if-not (and (= :block (:t node)) (contains? kinds (:lang node))) node
+  (let [model (parse-body (:body node))
+        start (or (get-in node [:attrs :start]) (:id (first (:nodes model))))
+        errors (concat (:errors model)
+                 (when (and (seq (:nodes model)) (not (some (fn [n] (= start (:id n))) (:nodes model))))
+                  [(str "Missing start node: " start)]))
+        label (case (:lang node) "ontology_graph" "Concept map" "settings_graph" "Settings map" "Code map")]
+   (if (seq errors)
+    (assoc node :lang "warning" :attrs {:title "Review authoring errors"} :body (vec errors))
+    (assoc node :lang "screen_graph"
+     :attrs (merge (:attrs node) {:start start :graph-label label :map-title "The model and its connections"
+       :caption (or (get-in node [:attrs :caption]) "Observed behavior, proposed changes and the evidence connecting them.")
+       :workbench-label "Connected codebase review" :help "Explore a topic, follow its evidence, or open the map. G opens the map · Esc exits full screen."})
+     :body (vec (mapcat (fn [n]
+        (concat [(str "view " (:id n) " | " (:title n) " | " (:kind n) " · " (:status n))]
+         (for [e (:edges model) :when (= (:id n) (:from e))]
+          (str "go " (:to e) " | " (:label e))))) (:nodes model)))
+     :render-view (fn [view] (card-h model (first (filter (fn [n] (= (:id n) (:id view))) (:nodes model))))))))))
+(defn enrich [doc] (update doc :nodes (fn [nodes] (mapv enrich-node nodes))))

@@ -14,7 +14,7 @@
   const svgNS = 'http://www.w3.org/2000/svg';
   const viewsOf = g => Array.from(g.querySelectorAll('.sg-stage > [data-view]'));
   function graphState(g) {
-    if (!graphs.has(g.dataset.graph)) graphs.set(g.dataset.graph, { history: [g.dataset.start], mode: 'screen', highlight: false, inspect: false, expanded: false, zoom: innerWidth < 720 ? .7 : .85 });
+    if (!graphs.has(g.dataset.graph)) graphs.set(g.dataset.graph, { history: [g.dataset.start], mode: g.dataset.initialMode === 'graph' ? 'graph' : 'screen', highlight: false, inspect: false, expanded: false, zoom: innerWidth < 720 ? .7 : .85 });
     return graphs.get(g.dataset.graph);
   }
   const svgEl = (name, attrs = {}) => {
@@ -29,6 +29,7 @@
     const links = [];
     views.forEach(v => {
       v.querySelectorAll('[data-sg-to]').forEach(b => {
+        if (b.hasAttribute('data-sg-navigation')) return; // index/backlinks navigate without inventing semantic edges
         const target = byId.get(b.dataset.sgTo);
         if (!target) return;
         b.dataset.destination = target.dataset.title;
@@ -139,9 +140,9 @@
     g.querySelector('.sg-overview').hidden = !overview;
     g.querySelector('[data-sg-back]').disabled = state.history.length < 2;
     [['highlight', state.highlight], ['mode', overview], ['inspect', !!state.inspect], ['expand', state.expanded]].forEach(([key, on]) => g.querySelector(`[data-sg-${key}]`).setAttribute('aria-pressed', String(on)));
-    g.querySelector('[data-sg-mode]').setAttribute('aria-label', overview ? 'Return to screen' : 'Show screen graph');
+    g.querySelector('[data-sg-mode]').setAttribute('aria-label', overview ? (g.dataset.graphLabel ? 'Return to detail' : 'Return to screen') : (g.dataset.graphLabel ? 'Show ' + g.dataset.graphLabel.toLowerCase() : 'Show screen graph'));
     g.querySelector('[data-sg-expand]').setAttribute('aria-label', state.expanded ? 'Exit full screen' : 'Expand prototype');
-    g.querySelector('[data-sg-mode]').dataset.tip = overview ? 'Return to screen · G' : 'Screen graph · G';
+    g.querySelector('[data-sg-mode]').dataset.tip = overview ? (g.dataset.graphLabel ? 'Return to detail · G' : 'Return to screen · G') : (g.dataset.graphLabel || 'Screen graph') + ' · G';
     g.querySelector('[data-sg-expand]').dataset.tip = state.expanded ? 'Exit full screen · Esc' : 'Full screen · Esc to exit';
     g.querySelector('.sg-announcement').textContent = (overview ? 'Screen graph · ' : '') + active.dataset.title;
     buildOverview(g); zoomGraph(g); markOverview(g, here);

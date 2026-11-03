@@ -1,0 +1,35 @@
+; Review host: the shared dossier page and feedback, plus connected review blocks.
+(ns codebase-review.serve
+ (:require [web] [live.hiccup :as h] [bl.json :as json] [codebase-review.blocks :as review]
+           [dossier.org :as org] [dossier.page :as page] [dossier.answer :as answer]
+           [dossier.feedback :as feedback] [dossier.film :as film]))
+(def path (Path/expand (or (first (BeamLisp/argv)) "codebase-review/examples/review.bl.org")))
+(def base (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/projects/enchanted-skills/bl-org-dossier/kit")))
+(def kit (or (System/get_env "REVIEW_KIT_DIR") (Path/expand "~/projects/enchanted-skills/codebase-review/kit")))
+(defn document [text] (review/enrich (film/enrich (org/read-doc text) (Path/dirname path))))
+(defn revision [text] (str (erlang/phash2 text)))
+(defn owner? [request]
+ (let [owner (System/get_env "DOSSIER_OWNER")]
+  (and (not (blank? owner)) (= owner (web/req-header request "tailscale-user-login")))))
+(defn handler [request]
+ (let [route (web/path request) text (File/read! path)]
+  (cond
+   (and (= route "/answer") (= "post" (web/method request)))
+    (if (owner? request)
+     (let [[body req] (web/read-body* request)
+           result (feedback/submit! path (or (System/get_env "DOSSIER_HANDLE")
+                       (answer/handle (web/req-header request "tailscale-user-login") nil)) body)]
+      (web/json req (:status result) (:body result)))
+     (web/json request 403 {:error "Only the configured dossier owner may answer"}))
+   (= route "/") (web/html request (str "<!doctype html>"
+     (h/hiccup->html (page/page-h (document text)
+       (str (File/read! (str base "/style.css")) (File/read! (str kit "/review.css")))
+       (File/read! (str base "/live.js"))))))
+   (= route "/rev") (web/json request {:rev (revision text)})
+   (= route "/doc") (web/json request {:rev (revision text) :html (join "" (map h/hiccup->html (page/doc-h (document text))))})
+   (= route "/src") (web/text request text)
+   (= route "/answers") (web/json request (vec (page/feedback-items (document text))))
+   :else (web/text request 404 "Not found"))))
+(def port (erlang/binary_to_integer (or (System/get_env "PORT") "4072")))
+(web/serve {:port port :ip (tuple 127 0 0 1) :plug handler :log :off})
+(println "Connected review" path "on" port)

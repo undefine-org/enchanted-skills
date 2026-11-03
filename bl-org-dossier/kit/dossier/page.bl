@@ -8,7 +8,8 @@
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
             [dossier.runview :as rv] [dossier.horizon :as hz]))
 
-(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons"})
+(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons"
+                  "ontology_graph" "settings_graph" "code_graph"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen, run and desk without its own :design in that language."

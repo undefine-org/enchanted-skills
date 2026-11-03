@@ -559,25 +559,25 @@
         start (or (:start a) (:id (first vs)))
         errors (concat (:errors g) (when (and (seq vs) (not (some (fn [v] (= start (:id v))) vs)))
                                     [(str "Missing start view: " start)]))]
-    [:figure {:class (str "screen-graph" (design-class a)) :id (str "screen-graph-" (:id a))
-              :data-graph (:id a) :data-start start}
+    [:figure {:class (str "screen-graph" (when (:render-view b) " review-graph") (design-class a)) :id (str "screen-graph-" (:id a))
+              :data-graph (:id a) :data-start start :data-graph-label (:graph-label a) :data-initial-mode (:mode a)}
      [:figcaption [:b (md (:title a))]
       [:p (md (or (:caption a) "Walk the screens. Changes stay inside this prototype."))]]
      (if (seq errors)
        [:div.warning {:role "alert"} (for [e errors] [:p e])]
-       [:div.sg-workbench {:tabindex "0" :aria-label "Interactive prototype"}
+       [:div.sg-workbench {:tabindex "0" :aria-label (or (:workbench-label a) "Interactive prototype")}
         [:div.sg-stage
          (for [v vs]
            [:section {:class "sg-view" :data-view (:id v) :data-title (:title v)
                       :data-cue (:cue v) :hidden (not= start (:id v))}
-            (prototype-body (:body v))
-            (when (some :legacy? (:edges v))
+            (if-let [render (:render-view b)] (render v) (prototype-body (:body v)))
+            (when (and (nil? (:render-view b)) (some :legacy? (:edges v)))
               [:div.sg-legacy-actions
                (for [e (:edges v) :when (:legacy? e)]
                  [:button {:type "button" :class "btn sg-link" :data-sg-to (:to e)} (mdi (:label e))])])])]
         [:div.sg-overview {:hidden true}
-         [:header.sg-overview-head [:div [:span "SCREEN GRAPH"] [:h4 "Every screen. Every way through."]]
-          [:div.sg-overview-actions [:p "Choose a screen to return. Connections follow the app's own controls."]
+         [:header.sg-overview-head [:div [:span (or (:graph-label a) "SCREEN GRAPH")] [:h4 (or (:map-title a) "Every screen. Every way through.")]]
+          [:div.sg-overview-actions [:p (if (:render-view b) "Choose a topic. Arrows name the relationships declared in this review." "Choose a screen to return. Connections follow the app's own controls.")]
            [:div.sg-zoom {:aria-label "Graph zoom"}
             [:button {:type "button" :data-sg-zoom "out" :aria-label "Zoom out"} "−"]
             [:button {:type "button" :data-sg-zoom "fit"} "Fit"]
@@ -587,9 +587,10 @@
         (screen-tools-h "sg")
         [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]
         [:span.sg-announcement {:aria-live "polite"}]])
-     [:p.sg-footnote "Click the screen's own controls. " [:span "Hover for tools · H highlights links · G shows the graph."]]
+     [:p.sg-footnote (or (:help a) "Click the screen's own controls. Hover for tools · H highlights links · G shows the graph.")]
      (when (:id a)
-       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this flow fit how you work?"))])))
+       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]]
+        (if (:render-view b) "Is this mapping faithful and useful?" "Does this flow fit how you work?")))])))
 
 ; ─── sequence: who says what to whom, in order ─────────────────────────────
 
