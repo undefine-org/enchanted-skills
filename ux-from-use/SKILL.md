@@ -33,6 +33,25 @@ allowed the symptom, then prove the sentence by using the product.
 6. **Report the experience, not the patch.** In the summary, lead with what the
    person will now find, then the cause, then the film and how to replay it.
 
+## When the use report is about a redesign
+
+Read the accepted rounds and answers before restoring features. Later explicit
+answers override earlier assumptions. Trace each changed interaction through
+its source, durable identity, command, projection and actual destination screen.
+A feature inventory is not proof of the redesign: a restored old task model
+beside a new work model can pass isolated journeys while failing the experience.
+Prove the crossing in one multi-person journey. If the agreed scope is a hard
+cutover, carry out that cutover with preserved originals; do not quietly make
+coexistence the new product decision.
+
+Wait for the visible result of an action before taking the next action. After
+Reply, wait for the reply target; after Save, wait for the other person's saved
+state. Browser automation can outrun a live patch. If the UI can also lose a
+quick person's intent, fix that race at the input boundary. Distinguish a delayed
+patch from a rejected or misrouted command before claiming to have fixed it.
+A scripted draft fixture must be labelled as such, never described as a captured
+live model answer.
+
 ## House taste (what Othman has asked for, repeatedly)
 
 - **Less copy.** State is drawn: tone, weight, placement, a ring, a mark. A
