@@ -349,6 +349,7 @@
     const url=safeURL(g.dataset.sourceStart);url.searchParams.set('view',id);return url;
   }
   function destination(g,a) {
+    if((a.getAttribute('href')||'').startsWith('#'))return null; // local evidence/context anchors do not change screens
     const base=safeURL(g.dataset.sourceStart),url=safeURL(a.href);
     if(url.pathname!==base.pathname)return null;
     return url.searchParams.get('view');
