@@ -227,3 +227,10 @@
   (is (includes? html "source-overview"))
   (is (includes? html "data-source-view-id=\"guest\""))
   (is (not (includes? html "<select")) "a dropdown must not replace the navigation graph")))
+
+(deftest screen-backends-share-the-six-floating-tools
+ (doseq [backend ["source" "sg"]]
+  (let [html (h/hiccup->html (ui/screen-tools-h backend))]
+   (is (includes? html "class=\"sg-toolbar\""))
+   (doseq [action ["back" "highlight" "mode" "inspect" "expand" "reset"]]
+    (is (includes? html (str "data-" backend "-" action "=\"true\"")))))))

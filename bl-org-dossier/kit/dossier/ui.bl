@@ -507,6 +507,21 @@
                    (str (:id v) " points to missing view: " (:to e)))))]
     {:views views :errors errors}))
 
+(defn screen-tools-h
+ "The same floating six-tool bar for native and source-hosted screen graphs."
+ [backend]
+ (into [:div.sg-toolbar {:role "toolbar" :aria-label "Prototype controls" :data-screen-tools backend}]
+  (for [[key label tip icon toggle?] [["back" "Back" "Back" "back" false]
+                                    ["highlight" "Highlight links" "Highlight links · H" "link" true]
+                                    ["mode" "Explore graph" "Explore graph · G" "graph" true]
+                                    ["inspect" "Inspect components" "Inspect components · I" "cursor" true]
+                                    ["expand" "Expand prototype" "Full screen · Esc to exit" "expand" true]
+                                    ["reset" "Reset preview" "Reset preview" "undo" false]]]
+   [:button (merge {:type "button" :aria-label label :data-tip tip :title tip
+                    (keyword (str "data-" backend "-" key)) "true"}
+                   (when (= key "back") {:disabled true})
+                   (when toggle? {:aria-pressed "false"})) (ico icon)])))
+
 (defn- source-screens-h
  "A same-origin screen host renders its production views; component metadata belongs to its catalog."
  [b]
@@ -521,14 +536,6 @@
              :data-source-id (:id a) :data-source-start url :data-component-catalog (:catalog a) :data-component-explorer (:explorer a)}
     [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components."))]]
     [:div.source-workbench {:tabindex "0" :aria-label "Shared screen preview"}
-     [:div.source-controls {:role "toolbar" :aria-label "Screen tools"}
-      [:button {:type "button" :data-source-back "true" :disabled true :aria-label "Previous screen" :title "Previous screen"} (ico "back")]
-      [:span.source-current {:role "status" :aria-live "polite"} (or (:title (first (filter (fn [v] (= start (:id v))) views))) start)]
-      [:button {:type "button" :data-source-highlight "true" :aria-pressed "false" :aria-label "Highlight links" :title "Highlight links · H"} (ico "link")]
-      [:button {:type "button" :data-source-mode "true" :aria-pressed "false" :aria-label "Explore graph" :title "Explore graph · G"} (ico "graph")]
-      [:button {:type "button" :data-source-inspect "true" :aria-pressed "false" :aria-label "Inspect components" :title "Inspect components · I"} (ico "cursor")]
-      [:button {:type "button" :data-source-expand "true" :aria-pressed "false" :aria-label "Expand screen" :title "Expand screen"} (ico "expand")]
-      [:button {:type "button" :data-source-reset "true" :aria-label "Reset preview" :title "Reset preview"} (ico "undo")]]
      [:iframe {:class "source-frame" :src url :title (or (:title a) "Shared product screen") :loading "lazy"}]
      [:div.source-overview {:hidden true :aria-label "Screen graph"}
       [:header.sg-overview-head [:div [:span "SCREEN GRAPH"] [:h4 "Every screen. Every way through."]]
@@ -541,6 +548,8 @@
       [:div.sg-graph-inspector {:aria-label "Connections from this screen"}]]
      [:div.source-view-index {:hidden true}
       (for [v views] [:span {:data-source-view-id (:id v) :data-source-view-title (:title v)}])]
+     (screen-tools-h "source")
+     [:span.sg-announcement.source-current {:aria-live "polite"} (or (:title (first (filter (fn [v] (= start (:id v))) views))) start)]
      [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]]
     (when (:id a) (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this composition fit the work?"))])))
 
@@ -575,12 +584,8 @@
             [:button {:type "button" :data-sg-zoom "in" :aria-label "Zoom in"} "+"]]]]
          [:div.sg-graph-scroll [:div.sg-graph-sizer [:div.sg-canvas [:svg.sg-wires {:aria-hidden "true"}] [:div.sg-nodes]]]]
          [:div.sg-graph-inspector {:aria-label "Connections from this screen"}]]
-        [:div.sg-toolbar {:role "toolbar" :aria-label "Prototype controls"}
-         [:button {:type "button" :data-sg-back "true" :disabled true :aria-label "Back" :data-tip "Back"} (ico "back")]
-         [:button {:type "button" :data-sg-highlight "true" :aria-pressed "false" :aria-label "Highlight links" :data-tip "Highlight links · H"} (ico "cursor")]
-         [:button {:type "button" :data-sg-mode "true" :aria-pressed "false" :aria-label "Show screen graph" :data-tip "Screen graph · G"} (ico "graph")]
-         [:button {:type "button" :data-sg-expand "true" :aria-pressed "false" :aria-label "Expand prototype" :data-tip "Full screen · Esc to exit"} (ico "expand")]
-         [:button {:type "button" :data-sg-reset "true" :aria-label "Start again" :data-tip "Start again"} (ico "undo")]]
+        (screen-tools-h "sg")
+        [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]
         [:span.sg-announcement {:aria-live "polite"}]])
      [:p.sg-footnote "Click the screen's own controls. " [:span "Hover for tools · H highlights links · G shows the graph."]]
      (when (:id a)
@@ -825,13 +830,21 @@
       (when (:caption a) [:p (md (:caption a))])
       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
 
+(defn- identify-part-h [kind line rendered]
+ (if (and (vector? rendered) (keyword? (first rendered)))
+  (let [attrs (when (map? (second rendered)) (second rendered))
+        children (if attrs (drop 2 rendered) (rest rendered))]
+   (into [(first rendered) (merge attrs {:data-ui-component (str "kit-" kind) :data-ui-title kind
+                                       :data-ui-function "dossier.ui/prototype-line" :data-ui-declaration line})] children)) rendered))
+
 (defn- prototype-line [line]
+ (identify-part-h (first (split (trim line) " ")) line
   (if (starts-with? (trim line) "compose ")
     (let [c (cols (subs (trim line) 8))]
       [:div.sg-compose
        [:input {:type "text" :placeholder (first c) :aria-label (first c)}]
        (mdi (nth c 1 ""))])
-    (desk-line line)))
+    (desk-line line))))
 
 (defn- prototype-body
   "A real app layout inside a prototype, using the existing desk language."
@@ -842,7 +855,7 @@
         who (if who (trim (subs (trim who) 9)) "You")
         parts (desk-parts (remove (fn [l] (or (starts-with? (trim l) "brand ")
                                               (starts-with? (trim l) "identity "))) lines))]
-    [:div {:class (str "sg-app" (when (empty? (:nav parts)) " sg-bare"))}
+    [:div {:class (str "sg-app" (when (empty? (:nav parts)) " sg-bare")) :data-ui-component "kit-app" :data-ui-title "Application frame" :data-ui-function "dossier.ui/prototype-body"}
      (when (seq (:nav parts))
        [:aside.sg-app-nav
         [:div.sg-brand [:span.sg-mark (ico "spark")] [:div [:b (first brand)] [:small (nth brand 1 "")]]]

@@ -398,3 +398,11 @@ Keep persistent navigation available in the connection inspector; draw the
 content transitions as wires. Preserve node and route selection, hover,
 fit/zoom, panning, keyboard shortcuts and component inspection together.
 Test capability parity after replacing a renderer, not just the new feature.
+
+Both native and source-hosted screen graphs use `screen-tools-h`, the same
+floating bottom-right icon bar: Back, Highlight links (H), Explore graph (G),
+Inspect components (I), Full screen, and Reset. Reveal it on hover or keyboard
+focus; keep it visible on touch devices. Extend this shared renderer and skin
+rather than introducing a separate top bar or replacing tools with a dropdown.
+Native inspection reads the rendered declaration; source inspection reads the
+host's annotated component catalog and links to its UI Explorer.
