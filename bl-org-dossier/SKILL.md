@@ -123,6 +123,22 @@ Screen language, one verb per line: `bar Title | right` (`< Title` adds back), `
 `choices A | B* | C` (a multiple-choice ask, `*` = picked), `reply placeholder` (a free-text answer with mic and send).
 Side facts on `pick` and `machine` flow into the text; card actions sit under the words.
 
+Monitoring mockups also support these native lines in screens, desks and the
+connected explorer. They use real same-origin screenshot assets and ordinary
+`[[view:...][...]]` actions, so navigation stays inspectable in the screen graph:
+
+- `service state | id | qualified name | port / machine | /media/image.png | metadata | actions`
+- `deployment state | id | title | static/live | environment | domain | picture (optional) | actions`
+- `storage state | id | title | datom/files | bound path | retention / observation | actions`
+- `environment state | id | title | live/simulation | detail | actions` (`future` suppresses actions)
+- `binding matched/unmatched/ambiguous | env.bl | endpoint | .foundry.bl`
+
+The public `dossier.ui/{service,deployment,storage,environment,binding}-h`
+functions accept the same facts as maps for model-driven hosts. Reuse them in
+the prototype and component specimens. Captured images are not live health;
+unknown measurements omit the meter. Preserve owner authorization when
+selecting screenshots, and keep internal aliases distinct from public domains.
+
 Desk language — every screen verb, plus desktop regions and a document:
 `nav @home Accueil* | @matter Affaires` (sidebar, `*` = here), `crumb a › b`,
 `head Title | tone · Status | Action! | Other?` (the action slot, top right), `meta a | b`, `tabs`,

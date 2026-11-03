@@ -1,0 +1,48 @@
+(ns dossier.monitor.test
+  (:require [dossier.ui :as ui] [dossier.org :as org] [dossier.page :as page]
+            [live.hiccup :as h]))
+
+(deftest screenshot-cards-keep-images-actions-and-escaped-metadata
+  (let [html (h/hiccup->html (ui/service-h {:id "web" :state "captured" :title "Site <draft>"
+                      :port ":4321" :picture "/media/site.png" :meta "Work · own account"
+                      :open "https://work.example/go/site.othman"
+                      :actions "[[view:detail][@eye Inspect]]"}))]
+    (doseq [needle ["s-service captured" "data-record=\"web\"" "Site &lt;draft&gt;" "/media/site.png"
+                   "Captured screenshot" "noopener" ":4321" "data-sg-to=\"detail\""]]
+      (is (includes? html needle))))
+  (let [html (h/hiccup->html (ui/service-h {:id "x" :title "Unknown" :picture "javascript:alert(1)" :open "javascript:alert(2)"}))]
+    (is (includes? html "unknown"))
+    (is (includes? html "No captured picture"))
+    (is (not (includes? html "javascript:")))))
+
+(deftest persistent-data-is-not-a-measured-health-claim
+  (let [html (h/hiccup->html (ui/storage-h {:id "db" :title "Database" :kind "datom" :path "/var/lib/app/db"
+                                           :detail "Retained across releases" :state "declared"}))]
+    (is (includes? html "data-resource=\"db\""))
+    (is (includes? html "s-storage declared"))
+    (is (includes? html "/var/lib/app/db"))
+    (is (not (includes? html "<progress"))))
+  (let [html (h/hiccup->html (ui/storage-h {:id "files" :title "Files" :kind "files" :used 30 :capacity 10}))]
+    (is (includes? html "value=\"10\""))))
+
+(deftest future-environments-have-no-operational-control
+  (let [html (h/hiccup->html (ui/environment-h {:id "production" :title "Production" :state "future"
+                         :kind "live" :detail "Later" :actions "[[view:ship][Ship]]"}))]
+    (is (includes? html "aria-disabled=\"true\""))
+    (is (not (includes? html "data-sg-to")))))
+
+(deftest monitoring-vocabulary-renders-inside-the-native-explorer
+  (let [source (join "\n" ["* App" "#+begin_screen_graph :id m :start ports"
+              "view ports | Ports" "col main"
+              "service captured | web | web.othman | :4321 · Work | /media/site.png | Snapshot | [[view:site][Inspect]]"
+              "binding unmatched | env.bl? | :4321 | .foundry.bl?"
+              "view site | Site" "col main"
+              "deployment example | notes | Notes | static | small-web | notes.example.org | | [[view:data][Details]]"
+              "environment proposed | small-web | Small web | live | Hetzner | [[view:ports][Back]]"
+              "view data | Data" "col main"
+              "storage declared | db | Database | datom | /var/lib/app/db | Retained | [[view:ports][Back]]"
+              "#+end_screen_graph"])
+        html (h/hiccup->html (page/page-h (org/read-doc source) "" ""))]
+    (doseq [needle ["s-service captured" "s-deployment example" "s-environment proposed"
+                   "s-storage declared" "data-match=\"unmatched\"" "data-sg-to=\"data\""]]
+      (is (includes? html needle)))))

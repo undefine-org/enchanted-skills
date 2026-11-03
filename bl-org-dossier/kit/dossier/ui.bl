@@ -97,6 +97,7 @@
    "stop" ["M6 6h12v12H6z"]
    "terminal" ["M3 5h18v14H3z" "M7 10l3 2-3 2" "M12 15h5"]
    "server" ["M4 4h16v7H4z" "M4 13h16v7H4z" "M8 7.5h.01" "M8 16.5h.01"]
+   "box" ["M3 7l9-5 9 5v11l-9 5-9-5z" "M3 7l9 5 9-5" "M12 12v11"]
    "laptop" ["M5 5h14v10H5z" "M2 19h20"]
    "phone" ["M8 2h8v20H8z" "M11 18h2"]
    "branch" ["M6 3v12" "M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" "M18 9c0 6-12 3-12 6"]
@@ -289,6 +290,62 @@
       [:button {:type "button" :class (str "btn sg-link" kind) :data-sg-to (nth link 1)} (mdi (nth link 2))]
       [:span {:class (str "btn" kind)} (mdi text)])))
 
+; Semantic monitoring parts. These same public renderers accept prepared model
+; facts; the line language below is a compact authoring projection of them.
+(defn- monitor-picture [src title open]
+  (let [local? (and (string? src) (starts-with? src "/")
+                    (not (starts-with? src "//")) (not (includes? src "..")))
+        open? (and (string? open) (starts-with? open "https://"))
+        attrs (if open? {:class "s-service-shot" :href open :target "_blank" :rel "noopener"
+                         :aria-label (str "Open " title)} {:class "s-service-shot"})]
+    [(if open? :a :div) attrs
+     (if local?
+       [:img {:src src :alt (str "Captured screenshot of " title) :loading "lazy" :decoding "async"}]
+       [:span.s-shot-empty (ico "eye") "No captured picture"])]))
+
+(defn service-h [{:keys [id state title port picture meta actions open]}]
+  [:article {:class (str "s-service " (or state "unknown")) :data-record id :aria-label title}
+   (monitor-picture picture title open)
+   [:div.s-service-info
+    [:div.s-service-name [:b (mdi title)] [:span.s-service-state (or state "unknown")]]
+    [:strong.s-service-port (mdi port)]
+    (when meta [:small (mdi meta)])]
+   (when actions [:div.s-service-actions (mdi actions)])])
+
+(defn deployment-h [{:keys [id state title mode environment domain picture actions]}]
+  [:article {:class (str "s-deployment " (or state "unknown")) :data-record id :aria-label title}
+   (when picture (monitor-picture picture title nil))
+   [:div.s-deployment-head
+    [:span.s-deployment-kind (ico (if (= mode "static") "file" "server"))]
+    [:div [:b (mdi title)] [:small (mdi (str mode " · " environment))]]
+    [:span.s-deployment-state (or state "unknown")]]
+   [:div.s-deployment-domain (mdi domain)]
+   (when actions [:div.s-service-actions (mdi actions)])])
+
+(defn storage-h [{:keys [id state title kind path detail actions used capacity]}]
+  [:article {:class (str "s-storage " (or state "unknown")) :data-resource id :aria-label title}
+   [:span.s-storage-kind (ico (if (contains? #{"database" "datom"} kind) "library" "folder"))]
+   [:div.s-storage-info [:b (mdi title)] [:code path]
+    (when detail [:small (mdi detail)])
+    (when (and (number? used) (number? capacity) (> capacity 0))
+      [:progress {:max capacity :value (min capacity (max 0 used)) :aria-label (str title " measured usage")}])]
+   [:span.s-storage-retention (ico "lock") (or state "unknown")]
+   (when actions [:div.s-service-actions (mdi actions)])])
+
+(defn environment-h [{:keys [id state title kind detail actions]}]
+  [:article {:class (str "s-environment " (or state "unknown")) :data-environment id :aria-label title
+             :aria-disabled (when (= state "future") "true")}
+   [:span.s-environment-kind (ico (if (= kind "simulation") "box" "server"))]
+   [:div [:b (mdi title)] [:small (mdi detail)]]
+   [:span.s-environment-state (or state "unknown")]
+   (when (and actions (not= state "future")) [:div.s-service-actions (mdi actions)])])
+
+(defn binding-h [{:keys [state declaration endpoint definition]}]
+  [:div {:class (str "s-binding " (or state "unknown")) :data-match (or state "unknown")}
+   [:span (ico "file") (mdi declaration)] [:i (ico "link")]
+   [:span (ico "server") (mdi endpoint)] [:i (ico "link")]
+   [:span (ico "file") (mdi definition)]])
+
 (defn- screen-line
   "One `verb rest` line of a screen body as hiccup."
   [line]
@@ -304,6 +361,17 @@
       "sub" [:div.s-sub (mdi rest-text)]
       "chips" [:div.s-chips (for [x c] (if (ends-with? x "*") [:span.chip.on (mdi (subs x 0 (dec (count x))))] [:span.chip (mdi x)]))]
       "section" [:div.s-sec [:span (mdi (first c))] (when (> (count c) 1) [:em (nth c 1)])]
+      "service" (let [[state id title port picture meta actions] c]
+                  (service-h {:state state :id id :title title :port port :picture picture :meta meta :actions actions}))
+      "deployment" (let [[state id title mode environment domain picture actions] c]
+                     (deployment-h {:state state :id id :title title :mode mode :environment environment
+                                    :domain domain :picture (when-not (blank? picture) picture) :actions actions}))
+      "storage" (let [[state id title kind path detail actions] c]
+                  (storage-h {:state state :id id :title title :kind kind :path path :detail detail :actions actions}))
+      "environment" (let [[state id title kind detail actions] c]
+                      (environment-h {:state state :id id :title title :kind kind :detail detail :actions actions}))
+      "binding" (let [[state declaration endpoint definition] c]
+                  (binding-h {:state state :declaration declaration :endpoint endpoint :definition definition}))
       "card" (let [[tone title meta body acts] c]
                [:div {:class (str "s-card " tone (if acts " has-acts" ""))}
                 [:i.s-dot]
