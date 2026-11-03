@@ -58,6 +58,16 @@ Open with the thesis, end with what he must decide. In between, earn each sectio
 - **Decisions** (`decision`, with the rejected options visible) → **Questions** (`ask`) → **Roster** (`* TODO`/`DONE` headings with `:PROPERTIES:` `:JOBS: :AREA: :PROTO:`).
 - Copy is short. Placement and weight carry state. No marketing adjectives. Say what is unverified.
 
+For system and deployment reviews, make relationships visible before explaining
+them: machine boundaries, dependency connectors, artifact shapes, release
+markers and freshness can carry information that otherwise becomes rows of
+prose. Prefer projecting these views from the declaration or executable model
+already used by the design; keep observed facts separate from simulated state.
+An interactive control should reveal a consequence (for example, which public
+path survives a development machine going offline), with its result visible
+near the control on a phone. Put supporting explanations in details. Retain
+short labels and accessible names; color or an icon alone is not enough.
+
 ## Components
 
 For Knowledger work, register every proposed new product component in a catalog
