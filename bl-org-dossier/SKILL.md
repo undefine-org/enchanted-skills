@@ -138,6 +138,9 @@ functions accept the same facts as maps for model-driven hosts. Reuse them in
 the prototype and component specimens. Captured images are not live health;
 unknown measurements omit the meter. Preserve owner authorization when
 selecting screenshots, and keep internal aliases distinct from public domains.
+After a model-driven host changes available controls, dispatch a bubbling
+`dossier:prototype-updated` event from its `.screen-graph`. The explorer rebuilds
+routes/thumbnails from those actual controls while retaining navigation state.
 
 Desk language — every screen verb, plus desktop regions and a document:
 `nav @home Accueil* | @matter Affaires` (sidebar, `*` = here), `crumb a › b`,

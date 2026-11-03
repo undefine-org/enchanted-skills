@@ -85,6 +85,7 @@
       const clone = v.querySelector('.sg-app').cloneNode(true); clone.inert = true;
       clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
       clone.querySelectorAll('[data-sg-to]').forEach(el => el.removeAttribute('data-sg-to'));
+      clone.querySelectorAll('input,textarea,select').forEach(el => { el.removeAttribute('name'); el.disabled = true; });
       preview.append(clone);
       const count = document.createElement('span'); count.className = 'sg-node-count'; count.textContent = links.filter(e => e.from === id).length + ' connections';
       node.append(label, preview, count);
@@ -95,6 +96,8 @@
     });
     g._routes = links; g._graphSize = { width, height, positions };
     const scroller = g.querySelector('.sg-graph-scroll');
+    if (scroller.dataset.dragBound) return;
+    scroller.dataset.dragBound = 'true';
     let drag = null;
     scroller.addEventListener('pointerdown', e => {
       if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('button,.sg-wire-hit')) return;
@@ -159,6 +162,13 @@
     }
   }
   const paintGraphs = () => document.querySelectorAll('.screen-graph').forEach(g => paintGraph(g));
+  // Hosts that project record-dependent controls can refresh the actual graph
+  // after rendering. History/mode/focus state stays with the existing graph.
+  document.addEventListener('dossier:prototype-updated', e => {
+    const g = e.target.closest?.('.screen-graph'); if (!g) return;
+    g.querySelector('.sg-nodes').replaceChildren(); g.querySelector('.sg-wires').replaceChildren();
+    delete g.dataset.built; paintGraph(g);
+  });
   function expandGraph(g, on) {
     const state = graphState(g); state.expanded = on;
     if (on) { state.returnFocus = document.activeElement; state.scroll = scrollY; }
