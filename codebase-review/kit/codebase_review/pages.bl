@@ -1,0 +1,67 @@
+; A settings ontology is a containment map: pages contain settings; scope says who they affect.
+(ns codebase-review.pages (:require [dossier.ui :as ui]))
+(defn- parts [s] (mapv trim (split s "|")))
+(defn parse [body]
+ (reduce (fn [model raw]
+  (let [line (trim raw) verb (first (split line " "))
+        p (parts (subs line (min (count line) (inc (count (str verb))))))]
+   (cond
+    (or (blank? line) (starts-with? line "#")) model
+    (= verb "page")
+     (do (assert (and (= 4 (count p)) (Regex/match? (Regex/compile! "^[a-z][a-z0-9-]*$") (first p))) "page id | title | purpose | icon")
+      (update model :pages conj {:id (first p) :title (second p) :purpose (nth p 2) :icon (nth p 3) :groups [] :sources []}))
+    (= verb "group")
+     (update model :pages (fn [pages] (conj (pop pages) (update (last pages) :groups conj {:title (first p) :settings []}))))
+    (= verb "setting")
+     (do (assert (>= (count p) 2) "setting label | proposed value or behavior")
+      (update model :pages (fn [pages]
+       (let [page (last pages) groups (:groups page)]
+        (assert (seq groups) "A setting needs a group")
+        (conj (pop pages) (assoc page :groups (conj (pop groups) (update (last groups) :settings conj p))))))))
+    (= verb "source")
+     (update model :pages (fn [pages] (conj (pop pages) (update (last pages) :sources conj (join " | " p)))))
+    (= verb "local") (assoc model :local p)
+    (= verb "personal") (assoc model :personal p)
+    :else (throw (ex-info (str "Unknown settings-page verb: " verb) {})))))
+  {:pages []} body))
+(defn block-h [block]
+ (let [a (:attrs block) model (parse (:body block)) pages (:pages model) id (ui/slug (:id a))
+       pid (fn [page] (str "sp-" id "-" (:id page)))
+       selectors (join "\n" (map (fn [page]
+        (str "#" (pid page) ":checked~.sp-panels #" (pid page) "-panel{display:block}"
+             "#" (pid page) ":checked~.sp-tabs label[for='" (pid page) "']{background:var(--ink);color:var(--bg);border-color:var(--ink)}"
+             "#" (pid page) ":focus-visible~.sp-tabs label[for='" (pid page) "']{outline:3px solid var(--clay);outline-offset:3px}")) pages))]
+  (assert (seq pages) "Declare at least one settings page")
+  (assert (= (count pages) (count (set (map :id pages)))) "Settings page IDs must be unique")
+  [:figure.settings-pages {:id (str "settings-pages-" id)}
+   [:style selectors]
+   [:header.sp-heading [:div [:span.sp-eyebrow "FOR THE WHOLE HOTEL"] [:h2 (or (:title a) "Settings")]]
+    [:span.sp-count (str (count pages) " pages")]]
+   [:p.sp-intro (or (:caption a) "Choose a page to see what belongs inside.")]
+   (for [[index page] (map-indexed (fn [i p] [i p]) pages)]
+    [:input.sp-choice {:type "radio" :id (pid page) :name (str "sp-" id) :checked (= index 0)
+                       :aria-label (:title page)}])
+   [:nav.sp-tabs {:aria-label "Settings pages"}
+    (for [page pages]
+     [:label {:for (pid page)} (ui/ico (:icon page)) [:strong (:title page)]])]
+   [:div.sp-panels
+    (for [page pages]
+     [:section.sp-panel {:id (str (pid page) "-panel") :aria-label (:title page)}
+      [:header.sp-panel-heading [:h3 (:title page)] [:p (:purpose page)]]
+      [:div.sp-groups
+       (for [group (:groups page)]
+        [:section.sp-group [:h4 (:title group)]
+         [:dl (for [setting (:settings group)]
+          (list [:dt (first setting)] [:dd (join " | " (rest setting))]))]])]
+      (when (seq (:sources page))
+       [:details.sp-sources [:summary "Where this fits today"]
+        (for [source (:sources page)] [:p source])])])]
+   [:div.sp-boundaries
+    (for [[kind icon label data] [["conversation" "chat" "ONE CONVERSATION" (:local model)]
+                                  ["personal" "user" "JUST YOU" (:personal model)]] :when (seq data)]
+     [:section {:class (str "sp-boundary " kind)}
+      [:span.sp-eyebrow (ui/ico icon) label] [:h3 (first data)] [:p (join " | " (rest data))]])]
+   [:p.sp-rule "The hotel sets the default. A conversation can make an exception. Your account only changes your own experience."]
+   (ui/feedback-h a [["accept" "Makes sense"] ["rework" "Change this"]] "Is this the right place for each setting?")]))
+(defn enrich-node [node]
+ (if (= "settings_pages" (:lang node)) (assoc node :render-block block-h) node))

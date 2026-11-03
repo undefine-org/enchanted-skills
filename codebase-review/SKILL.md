@@ -28,6 +28,12 @@ default, scope, edit role, consumers, source and proposed UI home. Derive the
 simplest scope model from the actual product; don't add policy precedence layers
 just because the framework could support them.
 
+Match the experience to the question. For **where settings belong**, use
+`settings_pages`: a handful of page destinations, their contents, and separate
+conversation/account scopes. Lead with that answer; keep the code audit in an
+appendix. Do not make someone navigate implementation entities to review page
+organisation. Use a graph only when the relationships themselves need review.
+
 Use the included **`ontology_graph`, `settings_graph`, `code_graph`** blocks for
 review: overview → connected detail → source evidence → consequence. Each card
 says what exists, what changes and why. These are review surfaces, not invented

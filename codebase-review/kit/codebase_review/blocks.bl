@@ -1,5 +1,5 @@
 ; Connected review cards. Pure parsing/rendering; no application code is loaded.
-(ns codebase-review.blocks (:require [dossier.ui :as ui]))
+(ns codebase-review.blocks (:require [dossier.ui :as ui] [codebase-review.pages :as pages]))
 (def kinds #{"ontology_graph" "settings_graph" "code_graph"})
 (def node-kinds #{"concept" "setting" "code" "view" "constraint"})
 (def text-fields #{"summary" "current" "proposed" "rule" "example"})
@@ -124,4 +124,4 @@
          (for [e (:edges model) :when (= (:id n) (:from e))]
           (str "go " (:to e) " | " (:label e))))) (:nodes model)))
      :render-view (fn [view] (card-h model (first (filter (fn [n] (= (:id n) (:id view))) (:nodes model))))))))))
-(defn enrich [doc] (update doc :nodes (fn [nodes] (mapv enrich-node nodes))))
+(defn enrich [doc] (update doc :nodes (fn [nodes] (mapv (fn [node] (pages/enrich-node (enrich-node node))) nodes))))

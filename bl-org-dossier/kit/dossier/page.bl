@@ -9,7 +9,7 @@
             [dossier.runview :as rv] [dossier.horizon :as hz]))
 
 (def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons"
-                  "ontology_graph" "settings_graph" "code_graph"})
+                  "ontology_graph" "settings_graph" "code_graph" "settings_pages"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen, run and desk without its own :design in that language."
@@ -67,11 +67,11 @@
              (when (seq (:head nd)) [:thead (for [r (:head nd)] [:tr (for [c r] [:th (ui/md c)])])])
              [:tbody (for [r (:rows nd)] [:tr (for [c r] [:td (ui/md c)])])]]]
     :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
-    :block (case (:lang nd)
+    :block (if-let [render (:render-block nd)] (render nd) (case (:lang nd)
              "film" (film/film-h nd)
              "run" (phone-h nd)
              "horizons" (hz/horizons-h nd)
-             (or (design/block-h nd) (ui/block->h nd)))
+             (or (design/block-h nd) (ui/block->h nd))))
     :screens [:div.screens (map phone-h (:blocks nd))]
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
            [:div.cell-head
@@ -161,7 +161,7 @@
   (let [meta (:meta doc) secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
         n (count secs)]
     (list
-      [:div {:class "app2" :data-design (:design meta)}
+      [:div {:class "app2" :data-design (:design meta) :data-layout (:layout meta)}
        (side-h meta secs)
        [:div.content
         [:header.doc

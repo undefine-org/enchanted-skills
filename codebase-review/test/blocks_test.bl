@@ -49,3 +49,19 @@
   (doseq [block blocks] (is (empty? (:errors (review/parse-body (:body block))))))
   (is (= 3 (count (filter (fn [n] (:render-view n)) (:nodes enriched)))))
   (is (= 3 (count (page/feedback-items enriched))))))
+
+(deftest settings-organisation-is-a-page-map-with-native-selection
+ (let [text "#+layout: settings\n#+begin_settings_pages :id places :title Settings\npage ai | AI <help> | Conversations | bot\ngroup Behavior\nsetting Reply | Continue while staff work\npage people | People | Roles | people\ngroup Members\nsetting Access | Owner-managed\nlocal Conversation | One guest exception\npersonal My account | Own language\n#+end_settings_pages"
+       doc (review/enrich (org/read-doc text))
+       html (h/hiccup->html (page/page-h doc "" ""))
+       lines (vec (split text "\n"))
+       saved (answer/answer-lines lines "places" "accept" "Clear places" "now" "reader")]
+  (is (includes? html "data-layout=\"settings\""))
+  (is (includes? html "AI &lt;help&gt;"))
+  (is (includes? html "type=\"radio\""))
+  (is (includes? html "for=\"sp-places-ai\""))
+  (is (includes? html "id=\"sp-places-ai\""))
+  (is (includes? html "One guest exception"))
+  (is (includes? html "Own language"))
+  (is (not (includes? html "data-sg-mode")))
+  (is (not (:error saved)))))

@@ -1,5 +1,31 @@
 # Connected review blocks
 
+## Organising settings pages
+
+Use `settings_pages` when the question is “what goes on each page?” It shows
+the page destinations together, a selected page's contents below, then the
+separate conversation and personal scopes. Native radio controls select a page;
+there is no simulated product action, graph toolbar or entity explorer.
+
+```org
+#+begin_settings_pages :id pages :title "Hotel settings"
+page assistant | AI & reception | How guests get help. | bot
+group Conversations
+setting Keep helping while staff work | On, for every request category.
+source Existing Hotel area; agent and conversation commands.
+local In the conversation | Pause AI for this guest; reset to inherit the hotel default.
+personal My account | Own interface language and notifications.
+#+end_settings_pages
+```
+
+`page ID | TITLE | PURPOSE | ICON` starts a page. `group TITLE` groups its
+`setting LABEL | VALUE-OR-BEHAVIOR` rows. `source TEXT` is optional, collapsed
+evidence. One `local TITLE | DESCRIPTION` and one `personal TITLE | DESCRIPTION`
+explain the smaller scopes. Use a small, concrete page set. The source audit
+can remain a separate artifact; it should not occupy the main review.
+
+## Reviewing relationships
+
 Three real `.bl.org` block types share a grammar and the dossier's graph viewer:
 
 | Block | Focus | Card information |

@@ -22,3 +22,21 @@
 .review-graph .sg-toolbar{opacity:1;transform:none;pointer-events:auto}
 .review-graph [data-sg-inspect]{display:none}
 .review-app .review-heading{display:block;align-items:initial;justify-content:initial;gap:0}
+/* Page containment and scope, rather than a graph of implementation entities. */
+.settings-pages{margin:0;position:relative;color:var(--ink);font:15px/1.5 var(--sans)}
+.settings-pages .sp-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0}
+.sp-eyebrow{display:flex;align-items:center;gap:8px;font:600 10px/1.5 var(--sans);letter-spacing:.12em;color:var(--muted)}
+.sp-eyebrow svg{width:16px;height:16px}.settings-pages .sp-heading h2{font:650 clamp(30px,4vw,44px)/1.05 var(--sans);letter-spacing:-.05em;margin:8px 0}
+.sp-count{font:600 13px var(--sans);padding:8px 12px;border:1px solid var(--line);border-radius:99px;white-space:nowrap}.settings-pages .sp-intro{font-size:14px;color:var(--muted);margin:8px 0 22px}
+.sp-choice{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip-path:inset(50%)}
+.sp-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0 0 16px}
+.sp-tabs label{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:20px;min-height:116px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--card);cursor:pointer;transition:background .15s,color .15s;min-width:0}
+.sp-tabs svg{width:23px;height:23px}.sp-tabs strong{font:600 14px/1.25 var(--sans);letter-spacing:-.02em}.sp-tabs label:hover{border-color:var(--clay)}
+.sp-panels{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:26px;margin-bottom:24px}.sp-panel{display:none}
+.settings-pages .sp-panel-heading{display:block;margin:0 0 24px}.settings-pages .sp-panel-heading h3{font:600 26px/1.1 var(--sans);letter-spacing:-.04em;margin:0 0 7px}.settings-pages .sp-panel-heading p{color:var(--muted);font-size:14px;margin:0}
+.sp-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.sp-group{min-width:0}.settings-pages .sp-group h4{font:600 11px/1.5 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}.sp-group dl{margin:0}.sp-group dt{font:550 15px/1.4 var(--sans);margin:14px 0 3px}.sp-group dd{margin:0;font-size:13px;color:var(--muted);max-width:45ch}
+.sp-sources{margin:24px 0 0;border-top:1px solid var(--line);padding-top:14px;font-size:12px;color:var(--muted)}.sp-sources summary{cursor:pointer}.sp-sources p{overflow-wrap:anywhere;font-size:12px}
+.sp-boundaries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.sp-boundary{padding:20px;border-radius:14px;border:1px dashed var(--line)}.settings-pages .sp-boundary h3{font:600 21px/1.2 var(--sans);letter-spacing:-.03em;margin:12px 0 6px}.sp-boundary p{font-size:13px;color:var(--muted);margin:0}.settings-pages .sp-rule{font-size:13px;color:var(--muted);margin:20px 0 0;max-width:65ch}
+@media(max-width:719px){.sp-tabs{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.sp-tabs label{padding:12px;min-height:94px;gap:12px}.sp-tabs strong{font-size:12px}.sp-tabs svg{width:20px;height:20px}.sp-panels{padding:20px 16px}.sp-groups{grid-template-columns:minmax(0,1fr);gap:22px}.sp-boundaries{grid-template-columns:minmax(0,1fr)}.sp-count{font-size:11px;padding:6px 9px}.settings-pages .sp-heading h2{font-size:31px}}
+@media(prefers-reduced-motion:reduce){.sp-tabs label{transition:none}}
+.app2[data-layout=settings]{display:block;max-width:1120px;margin:0 auto;padding-top:16px}.app2[data-layout=settings]>.side,.app2[data-layout=settings] header.doc,.app2[data-layout=settings] nav.chips,.app2[data-layout=settings] .pager{display:none}.app2[data-layout=settings] .part{padding-top:0}
