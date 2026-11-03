@@ -934,8 +934,33 @@
      (paras prose)
      (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Is this the right shape of work?"))]))
 
+(defn explorer-h
+  "A same-origin, executable component catalog. Views are data queries, not copied specimens.
+   view ID | Label | family:State state:waiting — query interpretation belongs to the product host."
+  [b]
+  (let [a (:attrs b) src (str (:src a)) id (str "explorer-" (slug (or (:id a) "components")))
+        safe? (and (starts-with? src "/") (not (starts-with? src "//"))
+                   (not (includes? src "\\")) (not (includes? src "?")) (not (includes? src "#")))
+        views (keep (fn [line]
+                      (when (starts-with? (trim line) "view ")
+                        (let [xs (mapv trim (split (subs (trim line) 5) "|"))]
+                          (when (>= (count xs) 3) {:id (first xs) :label (nth xs 1) :query (join "|" (drop 2 xs))})))) (:body b))]
+    (if-not safe?
+      [:p.warning "Explorer requires an absolute same-origin path without a query or fragment."]
+      [:section {:class "component-explorer" :id id}
+       [:div {:class "explorer-head"}
+        [:h3 (or (:title a) "Component Explorer")]
+        [:a {:href src :target "_blank" :rel "noopener"} "Open Explorer ↗"]]
+       (when (seq views)
+         [:nav {:class "explorer-views" :aria-label "Explorer views"}
+          (for [v views]
+            [:a {:href (str src "?q=" (URI/encode_www_form (:query v))) :target id} (mdi (:label v))])])
+       [:iframe {:name id :src src :title (or (:title a) "Component Explorer")
+                 :loading "lazy" :height "800" :style "width:100%;border:0;background:transparent"}]])))
+
 (defn block->h [b]
   (case (:lang b)
+    "explorer" (explorer-h b)
     "schema" (schema-h b)
     "procedure" (procedure-h b)
     "lede" (lede-h b)

@@ -93,6 +93,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `job :id :title :codex :claude :decision :screen` | the JTBD sentence | job card + answer |
 | `decision :id :title :status proposed\|decided` | `- [x] chosen`, `- [ ] rejected`, then rationale | decision card + Agree/Rework/Disagree |
 | `ask :id :title :options "A\|B\|C"` | context | question card + options |
+| `explorer :id :title :src "/explorer"` | `view ID \| Label \| family:State state:waiting` | same-origin live component Explorer, named query views and full-page link; host discovers and invokes production functions from annotations, no copied specimens |
 | `screen :id :title :job :caption [:theme dark]` | screen language (below) | phone mock + reaction; consecutive screens form a swipeable strip |
 | `screen_graph :id :title [:start VIEW] :caption` | `view ID \| title \| context`, desk/screen lines with `[[view:TARGET][@icon Label]]` in the actual controls | full app prototype; hover tools reveal links, expand to full screen, or switch to a connected graph of screen thumbnails; feedback writes into the block header |
 | `desk :id :title :job :caption [:url]` | desk language (below) | a desktop app frame + reaction; same answer buttons as screens |
@@ -322,3 +323,20 @@ It is shared by every session that uses this skill. Commit as you go, one idea p
 commit, and stage only your own files (`git status` first: another session may be mid-edit). A
 `work restart` of a dossier service loads whatever is on disk, uncommitted edits included.
 Keep a reader's answers in their own commit in the dossier's repo, so `git diff` shows what they said.
+
+## Component Explorers from the codebase
+
+Prefer code discovery to a parallel catalog manifest. Annotate the public renderer
+with stable id, family, purpose, usage and literal specimen arguments. Read the
+function through `codebase/defn-form`, `name-annotation` and `node-data`; resolve
+that definition through `BeamLisp.Env/fetch`, then apply the specimen arguments.
+For literate modules, `bl.doc/cells-source` is the source to inspect. Never eval
+browser-supplied code or expose arbitrary function invocation.
+
+The `explorer` block embeds the product's same-origin `/explorer` route. Its
+`view ID | Label | query` rows are projections over the same functions. Implement
+queries as data selectors (for example `family:State state:waiting`, with AND
+between terms and OR via `|`), show parse errors, preserve accessible names, and
+label specimens and future states honestly. Query views must narrow examples,
+not merely cards, when selecting states. Keep the host's product fonts and theme
+inside the frame; review its actual renderers at phone and desktop widths.

@@ -200,3 +200,11 @@
         html (h/hiccup->html (pg/page-h doc2 "" ""))]
     (doseq [needle ["film-f1" "<video" "fs missing" "Pas encore filmé : Signer" "Geste non prouvé : click" "Non vérifié (refuted)" "Pas encore filmé" "Pas encore rendu" "data-id=\"f1\""]]
       (is (includes? html needle) (str "missing " needle)))))
+
+(deftest an-explorer-projects-host-queries-without-copying-components
+ (let [h (h/hiccup->html (ui/explorer-h {:attrs {:id "ui" :src "/explorer" :title "Real components"}
+             :body ["view waiting | Waiting | family:State state:waiting"]}))]
+  (is (includes? h "<iframe"))
+  (is (includes? h "family%3AState"))
+  (is (includes? h "target=\"explorer-ui\""))
+  (is (not (includes? (h/hiccup->html (ui/explorer-h {:attrs {:src "//other.example/"}})) "<iframe")))))
