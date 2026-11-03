@@ -519,16 +519,28 @@
   (if-not safe? [:p.warning "Screen hosts must use a same-origin path."]
    [:figure {:class (str "screen-graph screen-source" (design-class a)) :id (str "screen-graph-" (:id a))
              :data-source-id (:id a) :data-source-start url :data-component-catalog (:catalog a) :data-component-explorer (:explorer a)}
-    [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) "Shared product views · illustrative records. Inspect a part to open its component."))]]
+    [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components."))]]
     [:div.source-workbench {:tabindex "0" :aria-label "Shared screen preview"}
      [:div.source-controls {:role "toolbar" :aria-label "Screen tools"}
       [:button {:type "button" :data-source-back "true" :disabled true :aria-label "Previous screen" :title "Previous screen"} (ico "back")]
-      [:label [:select {:data-source-view "true" :aria-label "Choose a screen"}
-       (for [v views] [:option {:value (:id v) :selected (= start (:id v))} (:title v)])]]
+      [:span.source-current {:role "status" :aria-live "polite"} (or (:title (first (filter (fn [v] (= start (:id v))) views))) start)]
+      [:button {:type "button" :data-source-highlight "true" :aria-pressed "false" :aria-label "Highlight links" :title "Highlight links · H"} (ico "link")]
+      [:button {:type "button" :data-source-mode "true" :aria-pressed "false" :aria-label "Explore graph" :title "Explore graph · G"} (ico "graph")]
       [:button {:type "button" :data-source-inspect "true" :aria-pressed "false" :aria-label "Inspect components" :title "Inspect components · I"} (ico "cursor")]
       [:button {:type "button" :data-source-expand "true" :aria-pressed "false" :aria-label "Expand screen" :title "Expand screen"} (ico "expand")]
       [:button {:type "button" :data-source-reset "true" :aria-label "Reset preview" :title "Reset preview"} (ico "undo")]]
      [:iframe {:class "source-frame" :src url :title (or (:title a) "Shared product screen") :loading "lazy"}]
+     [:div.source-overview {:hidden true :aria-label "Screen graph"}
+      [:header.sg-overview-head [:div [:span "SCREEN GRAPH"] [:h4 "Every screen. Every way through."]]
+       [:div.sg-overview-actions [:p {:data-source-progress "true" :role "status"} "Connections come from the screens’ own controls."]
+        [:div.sg-zoom {:aria-label "Graph zoom"}
+         [:button {:type "button" :data-source-zoom "out" :aria-label "Zoom out"} "−"]
+         [:button {:type "button" :data-source-zoom "fit"} "Fit"]
+         [:button {:type "button" :data-source-zoom "in" :aria-label "Zoom in"} "+"]]]]
+      [:div.sg-graph-scroll [:div.sg-graph-sizer [:div.sg-canvas [:svg.sg-wires {:aria-hidden "true"}] [:div.sg-nodes]]]]
+      [:div.sg-graph-inspector {:aria-label "Connections from this screen"}]]
+     [:div.source-view-index {:hidden true}
+      (for [v views] [:span {:data-source-view-id (:id v) :data-source-view-title (:title v)}])]
      [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]]
     (when (:id a) (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this composition fit the work?"))])))
 

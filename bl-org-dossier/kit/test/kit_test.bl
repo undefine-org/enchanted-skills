@@ -217,3 +217,13 @@
   (is (includes? html "/views?view=inbox"))
   (is (includes? html "data-component-catalog=\"/explorer.json\""))
   (is (not (includes? html "sg-app-nav")) "the kit must not redraw a source-hosted app")))
+
+(deftest source-hosted-screens-keep-navigation-tools-alongside-inspection
+ (let [text "#+title: Views\n* Walk\n#+begin_screen_graph :id real :title Desk :src \"/views\" :catalog \"/explorer.json\" :explorer \"/explorer\" :start inbox\nview inbox | Conversations\nview guest | Guest\n#+end_screen_graph\n"
+       html (h/hiccup->html (pg/page-h (o/read-doc text) "" ""))]
+  (is (includes? html "data-source-highlight"))
+  (is (includes? html "data-source-mode"))
+  (is (includes? html "data-source-inspect"))
+  (is (includes? html "source-overview"))
+  (is (includes? html "data-source-view-id=\"guest\""))
+  (is (not (includes? html "<select")) "a dropdown must not replace the navigation graph")))

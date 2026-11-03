@@ -368,8 +368,10 @@ component roots with `data-ui-component="stable-id"`; use
 The catalog endpoint receives `?q=id:ID` and returns discovered annotations with
 `id`, `title`, `qualified`, `family`, `use`, `source`, `line` and `examples`.
 
-The screen toolbar offers Inspect (I), Back, a view chooser, full screen and
-reset. Hover or keyboard focus reveals a component's identity, source, states
+The screen toolbar offers Highlight links (H), Explore graph (G), Inspect
+components (I), Back, full screen and reset. These capabilities are additive;
+never replace link highlighting or graph exploration with a dropdown when
+introducing component inspection. Hover or keyboard focus reveals a component's identity, source, states
 and composition ancestry. Click opens its exact UI Explorer entry; the box also
 has a link usable by keyboard or touch. Inspect mode intercepts product actions.
 Escape leaves inspect mode, then full screen. Themes propagate into source
@@ -388,3 +390,11 @@ set for the current projection. Browser selectors must never become callable
 code. Namespace specimen IDs and label/help references when multiple instances
 appear together. Content-version product stylesheet URLs so browser caching
 cannot conceal a changed palette or component implementation.
+
+Source-backed graphs read the preview host's actual normalized anchors (same
+preview pathname with a `view` query) or equivalent explicit route metadata.
+Their nodes contain inert, script-free snapshots of those rendered screens.
+Keep persistent navigation available in the connection inspector; draw the
+content transitions as wires. Preserve node and route selection, hover,
+fit/zoom, panning, keyboard shortcuts and component inspection together.
+Test capability parity after replacing a renderer, not just the new feature.
