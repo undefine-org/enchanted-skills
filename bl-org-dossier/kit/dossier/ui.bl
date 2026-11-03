@@ -507,7 +507,33 @@
                    (str (:id v) " points to missing view: " (:to e)))))]
     {:views views :errors errors}))
 
+(defn- source-screens-h
+ "A same-origin screen host renders its production views; component metadata belongs to its catalog."
+ [b]
+ (let [a (:attrs b) src (str (:src a))
+       safe? (and (starts-with? src "/") (not (starts-with? src "//")) (not (includes? src "\\")))
+       views (keep (fn [line] (when (starts-with? (trim line) "view ")
+         (let [xs (mapv trim (split (subs (trim line) 5) "|"))] {:id (first xs) :title (nth xs 1 (first xs))}))) (:body b))
+       start (or (:start a) (:id (first views)))
+       url (if (includes? src "?") src (str src "?view=" (URI/encode_www_form (or start ""))))]
+  (if-not safe? [:p.warning "Screen hosts must use a same-origin path."]
+   [:figure {:class (str "screen-graph screen-source" (design-class a)) :id (str "screen-graph-" (:id a))
+             :data-source-id (:id a) :data-source-start url :data-component-catalog (:catalog a) :data-component-explorer (:explorer a)}
+    [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) "Shared product views · illustrative records. Inspect a part to open its component."))]]
+    [:div.source-workbench {:tabindex "0" :aria-label "Shared screen preview"}
+     [:div.source-controls {:role "toolbar" :aria-label "Screen tools"}
+      [:button {:type "button" :data-source-back "true" :disabled true :aria-label "Previous screen" :title "Previous screen"} (ico "back")]
+      [:label [:select {:data-source-view "true" :aria-label "Choose a screen"}
+       (for [v views] [:option {:value (:id v) :selected (= start (:id v))} (:title v)])]]
+      [:button {:type "button" :data-source-inspect "true" :aria-pressed "false" :aria-label "Inspect components" :title "Inspect components · I"} (ico "cursor")]
+      [:button {:type "button" :data-source-expand "true" :aria-pressed "false" :aria-label "Expand screen" :title "Expand screen"} (ico "expand")]
+      [:button {:type "button" :data-source-reset "true" :aria-label "Reset preview" :title "Reset preview"} (ico "undo")]]
+     [:iframe {:class "source-frame" :src url :title (or (:title a) "Shared product screen") :loading "lazy"}]
+     [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]]
+    (when (:id a) (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this composition fit the work?"))])))
+
 (defn- screen-graph-h [b]
+ (if (:src (:attrs b)) (source-screens-h b)
   (let [a (:attrs b) g (screen-graph (:body b)) vs (:views g)
         start (or (:start a) (:id (first vs)))
         errors (concat (:errors g) (when (and (seq vs) (not (some (fn [v] (= start (:id v))) vs)))
@@ -546,7 +572,7 @@
         [:span.sg-announcement {:aria-live "polite"}]])
      [:p.sg-footnote "Click the screen's own controls. " [:span "Hover for tools · H highlights links · G shows the graph."]]
      (when (:id a)
-       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this flow fit how you work?"))]))
+       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this flow fit how you work?"))])))
 
 ; ─── sequence: who says what to whom, in order ─────────────────────────────
 
@@ -956,7 +982,7 @@
           (for [v views]
             [:a {:href (str src "?q=" (URI/encode_www_form (:query v))) :target id} (mdi (:label v))])])
        [:iframe {:name id :src src :title (or (:title a) "Component Explorer")
-                 :loading "lazy" :height "800" :style "width:100%;border:0;background:transparent"}]])))
+                 :loading "lazy" :height (or (:height a) "1000") :style "width:100%;border:0;background:transparent"}]])))
 
 (defn block->h [b]
   (case (:lang b)

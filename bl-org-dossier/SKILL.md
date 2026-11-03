@@ -340,3 +340,51 @@ between terms and OR via `|`), show parse errors, preserve accessible names, and
 label specimens and future states honestly. Query views must narrow examples,
 not merely cards, when selecting states. Keep the host's product fonts and theme
 inside the frame; review its actual renderers at phone and desktop widths.
+
+## Shared view libraries and component inspection
+
+When reviewing a product with a component library, use three levels: tokens,
+components, and views. A view composes components into a meaningful workspace
+(collection, selected entity, context and next action). The actual app and the
+screen preview must call those same functions. Do not draw a second sidebar or
+navigation system in the dossier's mini-language after a production renderer
+exists. Keep breadcrumbs, collection navigation and local destinations visible;
+a single entity by itself is not a navigable product.
+
+For source-backed screens use:
+
+```org
+#+begin_screen_graph :id desk :title "Shared product views" :src "/views" :catalog "/explorer.json" :explorer "/explorer" :start inbox
+view inbox | Conversations
+view guest | Guest conversation
+#+end_screen_graph
+```
+
+The same-origin host receives `?view=ID` and returns the product's actual frame,
+composed views and components using explicitly illustrative records. Its links
+stay within preview routes and its forms cannot invoke real procedures. Render
+component roots with `data-ui-component="stable-id"`; use
+`data-ui-composition="view-id"` when the same DOM root represents a composition.
+The catalog endpoint receives `?q=id:ID` and returns discovered annotations with
+`id`, `title`, `qualified`, `family`, `use`, `source`, `line` and `examples`.
+
+The screen toolbar offers Inspect (I), Back, a view chooser, full screen and
+reset. Hover or keyboard focus reveals a component's identity, source, states
+and composition ancestry. Click opens its exact UI Explorer entry; the box also
+has a link usable by keyboard or touch. Inspect mode intercepts product actions.
+Escape leaves inspect mode, then full screen. Themes propagate into source
+frames. Preserve navigation and inspect state over dossier live refreshes.
+Verify real pointer hit-testing, nested metadata, click-through, touch selection,
+keyboard focus, full-screen focus boundaries, theme changes and source-backed
+navigation in a browser. Include the shared view specimens in the component
+catalog at a useful width. Palette accessibility includes distinguishable
+surfaces, not just passing foreground/background text pairs.
+
+For composed catalog specimens, prefer authored data slots such as
+`{:ui/call "product.ui/status" :args ["success" "Confirmed"]}` and
+`{:ui/join [...]}` to copied HTML. Resolve calls only against the discovered
+public renderer set, recursively compose their values, and cache the discovered
+set for the current projection. Browser selectors must never become callable
+code. Namespace specimen IDs and label/help references when multiple instances
+appear together. Content-version product stylesheet URLs so browser caching
+cannot conceal a changed palette or component implementation.
