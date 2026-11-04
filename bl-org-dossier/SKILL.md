@@ -343,6 +343,29 @@ label specimens and future states honestly. Query views must narrow examples,
 not merely cards, when selecting states. Keep the host's product fonts and theme
 inside the frame; review its actual renderers at phone and desktop widths.
 
+## Exploring a Datom schema
+
+`kit/schema-graph.js` and `kit/schema-graph.css` provide `SchemaGraph.mount`:
+the relationship-oriented counterpart to the screen explorer. Use HTML entity
+cards and SVG connections, with focused neighbourhoods, a whole-domain lens,
+search, labelled cardinality, reverse navigation, Back, fit/zoom, panning,
+fullscreen and keyboard controls. Computed dependencies and compound tuples
+are selectable hyperedges: all input attributes converge on one junction,
+then its result. A wildcard ref is one domain-scope node, not invented edges
+to every type. Keep the existing field view as an alternative.
+
+Read the data contract and integration recipe in
+[`references/schema-graph.md`](references/schema-graph.md). The host should
+project installed `datom/schema` definitions and registered relation `:reads`;
+label domain annotations such as target types and requiredness separately.
+Do not imply a native ref attribute enforces a particular target namespace.
+The component reads schema data only; no arbitrary evaluation or record writes.
+Embed the product's same renderer with a source-backed `screen_graph`, rather
+than maintaining a second diagram in the dossier. Review References, Computed
+and Identity at desktop/phone widths and in both themes. Prove graph navigation,
+deep links, history, scope isolation, focus trapping and missing-relationship
+states. Product example: `~/projects/umriden-workspace`, `/founder?view=model`.
+
 ## Shared view libraries and component inspection
 
 When reviewing a product with a component library, use three levels: tokens,
