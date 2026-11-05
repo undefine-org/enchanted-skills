@@ -167,6 +167,50 @@ for a phone).
   starts (`persistent_term`) and read it from there. If you must touch live
   data, snapshot the file, act, diff to confirm only your change, restore.
 
+## Reviewing a whole UI you used
+
+When the ask is « use the app and tell me what is wrong with its UI », the
+review is a dossier the person can walk, not a list. The process that worked
+for Pocket Harness (`~/projects/tiny-tools/mobile-app/ui-review/`):
+
+1. **Use it, on its real renderer, with synthetic data.** A phone app runs on an
+   emulator against a fake backend on loopback; a web app against a reflink
+   copy. Go through first launch, every error you can provoke, the main loop,
+   system dark mode, large text, losing the network. Keep each screenshot in
+   order with what it showed (`spikes/proof/…`). Measure before you guess: a
+   pixel read (`#616161`) settled which theme token drew a widget.
+2. **Draw the product's own view functions in a browser.** A small host on the
+   dossier's origin calls the pure `view` functions with illustrative states
+   and projects their trees to HTML with the platform's layout rules restated
+   in CSS (`/views?view=ID`), plus the screenshots as their own graph
+   (`/shots?view=ID`). Taps become links when the host can name the
+   destination, so `screen_graph :src` blocks get real graphs. Keep the old
+   view functions (`ph.was.*`) when the screens change, so before and after
+   stay side by side.
+3. **Annotate the components and serve a UI Explorer** (`/explorer`,
+   `/explorer.json`), discovered from `^{:ui …}` annotations with the codebase
+   reader; specimens are literals or named fixtures, never browser code.
+4. **Name causes, not symptoms**, in a rosetta (what you see · where it comes
+   from · the fix), and keep the bugs that are not taste apart.
+5. **Hold the proposal with cells**: contrast of every text pair in both
+   themes, no machine words on screen, reading order, every icon drawable,
+   every icon-only control 48 dp and labelled.
+6. **Review the page with `templates/screen-review.bl`**, not by hand. It reads
+   the page's source-backed graphs and explorers and, at phone and desktop
+   width in light and dark, loads every view, checks it fits, screenshots it,
+   builds each graph (one node per view), inspects a component, and runs every
+   explorer query. `OUT/report.json` and the exit status say what failed;
+   then look at the screenshots.
+
+   ```sh
+   bl run -p ~/projects/beam-lisp/optional/browser-port/bl \
+     ~/.claude/skills/ux-from-use/templates/screen-review.bl -- http://127.0.0.1:PORT/ /tmp/review
+   ```
+
+When the answers come back and the proposal ships, the review becomes the
+record: the proposal's graph is redrawn by the shipped screens, the cells hold
+the shipped code, and the roster says what each answer became.
+
 ## From probe to film
 
 For Knowledger remediation, put any new product component in the review
