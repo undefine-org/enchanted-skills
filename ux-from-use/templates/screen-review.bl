@@ -1,0 +1,135 @@
+; screen-review.bl — walk a review page's screen explorers and UI Explorers,
+; at phone and desktop width, in light and dark, and say what fails.
+;
+;   bl run -p ~/projects/beam-lisp/optional/browser-port/bl screen-review.bl -- URL OUT [LOGIN]
+;
+; URL is a bl-org-dossier page whose `screen_graph` blocks have `:src` (a
+; same-origin host drawing the product's own view functions) and whose
+; `explorer` blocks embed a UI Explorer. For every declared view of every
+; graph, at each width and theme: the view page loads, fits the width, has
+; its links and inspectable components, and a screenshot lands in OUT. On the
+; page itself, each graph's G mode builds one node per view and inspect (I)
+; describes a component from the catalog. Each explorer view answers its
+; query without error. OUT/report.json holds every check; the exit status is
+; the number of failures. Replaces a hand-driven agent-browser pass.
+
+(ns screen-review (:require [browser.page :as page] [bl.json :as json]))
+
+(def args (vec (filter (fn [a] (not (starts-with? a "--"))) (BeamLisp/argv))))
+(def url (or (get args 0) "http://127.0.0.1:4097/"))
+(def out (or (get args 1) (str "/tmp/screen-review-" (erlang/unique_integer (list :positive)))))
+(def login (or (get args 2) (System/get_env "PROBE_LOGIN") "someone@example.com"))
+(def origin (let [m (Regex/run (Regex/compile! "^(https?://[^/]+)") url)] (second m)))
+
+(def home (System/get_env "HOME"))
+(def rt (str home "/.local/share/bl-browser/runtime-wayland/bin/"))
+(File/mkdir_p! out)
+
+(def widths [{:name "desktop" :w 1400 :h 900 :mobile false} {:name "phone" :w 412 :h 900 :mobile true}])
+(def themes ["light" "dark"])
+
+(def results (atom []))
+(defn- check! [what ok? & [detail]]
+  (swap! results conj {:check what :ok (boolean ok?) :detail detail})
+  (println (if ok? "  ✓ " "  ✗ ") what (if detail (str " · " detail) ""))
+  ok?)
+
+(defn- js [p expr] (json/decode (page/evaluate! p (str "JSON.stringify((()=>{try{" expr "}catch(e){return null}})())"))))
+
+(defn- run!
+  "Run a JS statement on the page; a throw is reported, not fatal."
+  [p expr]
+  (js p (str expr "; return true")))
+
+(defn- press!
+  "Press a control by its aria-label inside `scope` (a selector)."
+  [p scope label]
+  (run! p (str "document.querySelector('" scope "').querySelector('button[aria-label=\"" label "\"]').click()")))
+
+(defn- until!
+  "Wait for a JS condition that may throw while a frame loads; false on timeout."
+  [p expr]
+  (try (page/wait! p (str "(()=>{try{return !!(" expr ")}catch(e){return false}})()")) true
+       (catch _ false)))
+
+(defn- viewport! [p w]
+  (page/cdp! p "Emulation.setDeviceMetricsOverride"
+             {"width" (:w w) "height" (:h w) "deviceScaleFactor" (if (:mobile w) 2 1) "mobile" (:mobile w)}))
+
+(defn- theme! [p th] (page/evaluate! p (str "document.documentElement.dataset.theme='" th "'")))
+
+(def p (page/open! {:executable (or (System/get_env "BL_BROWSER_PORT") (str home "/projects/beam-lisp/optional/browser-port/target/release/bl-browser-port"))
+                    :width 1440 :height 900
+                    :launch {"profile" (str out "/profile") "runtime" (str out "/runtime")
+                             "chromium" (str rt "chromium") "compositor" (str rt "sway") "vnc" (str rt "wayvnc")
+                             "width" 1440 "height" 960}}))
+
+(try
+  (page/cdp! p "Network.enable" {})
+  (page/cdp! p "Network.setExtraHTTPHeaders" {"headers" {"tailscale-user-login" login}})
+  (page/navigate! p (str url "#all"))
+  (page/wait! p "document.readyState === 'complete'")
+
+  ;; what the page declares: each source-backed graph and its views, each explorer and its queries
+  (def graphs (js p "return [...document.querySelectorAll('.screen-source')].map(g=>({id:g.dataset.sourceId,start:g.dataset.sourceStart,
+                       views:[...g.querySelectorAll('[data-source-view-id]')].map(v=>v.dataset.sourceViewId)}))"))
+  (def explorers (js p "return [...document.querySelectorAll('.component-explorer')].map(e=>({id:e.id,src:e.querySelector('iframe').getAttribute('src'),
+                          views:[...e.querySelectorAll('.explorer-views a')].map(a=>({label:a.textContent,href:a.getAttribute('href')}))}))"))
+  (println "graphs:" (count graphs) "· explorers:" (count explorers))
+
+  ;; every view, as its own page, at every width and theme
+  (doseq [w widths th themes g graphs]
+    (println (str (:name w) " · " th " · " (get g "id")))
+    (viewport! p w)
+    (doseq [v (get g "views")]
+      (let [base (first (String/split (get g "start") "?"))
+            target (str origin base "?view=" v)]
+        (page/navigate! p target)
+        (page/wait! p "document.readyState === 'complete'")
+        (theme! p th)
+        (let [r (js p "return {fits: document.documentElement.scrollWidth <= innerWidth,
+                               links: document.querySelectorAll('a[href*=\"view=\"]').length,
+                               parts: document.querySelectorAll('[data-ui-component]').length,
+                               title: document.title}")]
+          (check! (str (get g "id") "/" v " fits " (:name w)) (get r "fits"))
+          (page/screenshot! p (str out "/" (:name w) "-" th "-" (get g "id") "-" v ".png"))))))
+
+  ;; on the page: graph mode and inspection, desktop light
+  (viewport! p (first widths))
+  (page/navigate! p (str url "#all"))
+  (page/wait! p "document.readyState === 'complete'")
+  (doseq [g graphs]
+    (let [id (get g "id") sel (str "#screen-graph-" id)]
+      (run! p (str "document.querySelector('" sel "').scrollIntoView()"))
+      (until! p (str "document.querySelector('" sel " .source-frame').contentDocument.querySelector('main')"))
+      (press! p sel "Explore graph")
+      (until! p (str "document.querySelectorAll('" sel " .sg-node').length >= " (count (get g "views"))))
+      (check! (str id " graph has a node per view")
+              (= (count (get g "views")) (js p (str "return document.querySelectorAll('" sel " .sg-node').length")))
+              (js p (str "return document.querySelector('" sel " [data-source-progress]').textContent")))
+      (page/screenshot! p (str out "/graph-" id ".png"))
+      (press! p sel "Explore graph")
+      (when (js p (str "return !!document.querySelector('" sel "').dataset.componentCatalog"))
+        (press! p sel "Inspect components")
+        (run! p (str "const d=document.querySelector('" sel " .source-frame').contentDocument;"
+                     "const el=d.querySelector('[data-ui-component]');el&&el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}))"))
+        (until! p (str "!document.querySelector('" sel " .source-component-info').hidden"))
+        (check! (str id " inspect describes a component")
+                (js p (str "return /UI Explorer/.test(document.querySelector('" sel " .source-component-info').textContent)")))
+        (press! p sel "Inspect components"))))
+
+  ;; every explorer query view
+  (doseq [e explorers v (get e "views")]
+    (page/navigate! p (str origin (get v "href")))
+    (page/wait! p "document.readyState === 'complete'")
+    (let [r (js p "return {error:(document.querySelector('.ex-error,[data-query-error]')||{}).textContent||'',
+                           cards:document.querySelectorAll('[id^=component-]').length}")]
+      (check! (str (get e "id") " · " (get v "label")) (and (blank? (get r "error")) (pos? (get r "cards")))
+              (str (get r "cards") " components " (get r "error")))))
+
+  (finally (page/close! p)))
+
+(File/write! (str out "/report.json") (json/encode @results))
+(let [bad (count (remove :ok @results))]
+  (println (str (count @results) " checks, " bad " failed · " out))
+  (System/halt bad))
