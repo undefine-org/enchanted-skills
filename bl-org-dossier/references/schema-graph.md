@@ -107,4 +107,6 @@ Desktop keeps the graph beside three inspector tabs. Phone gives each tab one
 surface: Model returns to the graph; Examples and Review focus the selected
 object. Drafts survive navigation and failed requests in local browser storage.
 Same-owner polling updates note badges and saved notes while preserving a
-focused draft. This is not a multiuser authorization model.
+focused draft. Read responses started before a save or export are discarded;
+a delayed background request cannot undo the confirmed result in the UI.
+This is not a multiuser authorization model.
