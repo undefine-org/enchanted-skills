@@ -369,7 +369,7 @@ Embed the product's same renderer with a source-backed `screen_graph`, rather
 than maintaining a second diagram in the dossier. Review References, Computed
 and Identity at desktop/phone widths and in both themes. Prove graph navigation,
 deep links, history, scope isolation, focus trapping and missing-relationship
-states. Product example: `~/projects/umriden-workspace`, `/founder?view=model`.
+states. Product example: `~/projects/umriden/awnad`, `/founder?view=model`.
 
 ## Shared view libraries and component inspection
 
