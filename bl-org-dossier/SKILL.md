@@ -359,7 +359,12 @@ Read the data contract and integration recipe in
 project installed `datom/schema` definitions and registered relation `:reads`;
 label domain annotations such as target types and requiredness separately.
 Do not imply a native ref attribute enforces a particular target namespace.
-The component reads schema data only; no arbitrary evaluation or record writes.
+The graph draws schema definitions only; no arbitrary evaluation or business record writes.
+For source examples and durable feedback, optionally compose `kit/schema-review`
+through the inspector contract in the same reference. Keep owner feedback in a
+separate store, identify its model basis and context sources, and distinguish
+local saves from verified provider delivery. The host owns every authority and
+provider boundary; the graph kit never edits a schema or operating record.
 Embed the product's same renderer with a source-backed `screen_graph`, rather
 than maintaining a second diagram in the dossier. Review References, Computed
 and Identity at desktop/phone widths and in both themes. Prove graph navigation,

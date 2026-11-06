@@ -18,7 +18,7 @@
     identity:'<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM8 12h8m-4-4v8"/>', arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>'
   };
   const icon = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${glyphs[id] || glyphs.graph}</svg>`;
-  const key = item => `${item.selected}|${item.layer}|${item.lens}|${item.edge || ''}`;
+  const key = item => `${item.selected}|${item.layer}|${item.lens}|${item.edge || ''}|${item.panel || 'model'}`;
 
   function validate(graph) {
     if (!graph || !Array.isArray(graph.nodes) || !graph.nodes.length) throw Error('A schema needs its entity definitions.');
@@ -91,7 +91,7 @@
 
   function mount(root, graph, options={}) {
     validate(graph);
-    const initial={selected:graph.nodes.some(n=>n.id===options.selected)?options.selected:graph.nodes[0].id,layer:['derived','identity'].includes(options.layer)?options.layer:'links',lens:options.lens==='domain'?'domain':'neighbors',edge:options.edge==='$scope'||[...graph.refs,...graph.hyperedges].some(e=>e.id===options.edge)?options.edge:''};
+    const initial={panel:['examples','review'].includes(options.panel)?options.panel:'model',selected:graph.nodes.some(n=>n.id===options.selected)?options.selected:graph.nodes[0].id,layer:['derived','identity'].includes(options.layer)?options.layer:'links',lens:options.lens==='domain'?'domain':'neighbors',edge:options.edge==='$scope'||[...graph.refs,...graph.hyperedges].some(e=>e.id===options.edge)?options.edge:''};
     let state={...initial},history=[],current,zoom=1,drag=null,observer,expanded=false,opener=null,details=true,hover=null,paintEpoch=0,zoomVersion=0,abort=new AbortController();
     const byId=new Map(graph.nodes.map(n=>[n.id,n])), signal=abort.signal;
     root.className='sgm';root.dataset.schema=graph.id;root.dataset.component='schema-graph';
@@ -114,7 +114,9 @@
         const incoming=graph.refs.filter(r=>r.to===n.id),outgoing=graph.refs.filter(r=>r.from===n.id),hyper=graph.hyperedges.filter(h=>h.owner===n.id);
         body+=`<div class="sgm-relation-groups">${incoming.length?`<section><h3>Referenced by <small>${incoming.length}</small></h3>${incoming.map(r=>referenceRow(r,true)).join('')}</section>`:''}${outgoing.length?`<section><h3>References <small>${outgoing.length}</small></h3>${outgoing.map(r=>referenceRow(r,false)).join('')}</section>`:''}${!incoming.length&&!outgoing.length?'<p class="sgm-note">No type-specific reference declared.</p>':''}</div>${hyper.length?`<section class="sgm-derived-list"><h3>Derived & identified</h3>${hyper.map(h=>`<button data-open-hyper="${esc(h.id)}">${icon(h.kind==='computed'?'computed':'identity')}<span>${esc(h.title)}<small>${h.inputs.length} inputs · ${h.kind==='computed'?'computed':'unique tuple'}</small></span>${icon('arrow')}</button>`).join('')}</section>`:''}<details class="sgm-fields" ${current.edges.length?'':'open'}><summary>${n.fields.length} native fields</summary>${n.fields.map(showField).join('')}</details>${graph.refs.some(r=>r.to==='*')&&n.id!=='measurement'?'<button class="sgm-domain-wide" data-select="measurement">Measurements can refer to this domain '+icon('arrow')+'</button>':''}<details class="sgm-provenance"><summary>Schema provenance</summary><p>Fields, types, cardinality, uniqueness and tuple components come from <code>datom/schema</code>. Labels and reference targets come from the domain declaration. Computed dependencies come from <code>datom.query.relation</code>.</p></details>`;
       }
+      if(options.inspector)body=options.inspector.render({graph,state:{...state},node:n,reference:r,hyperedge:h,modelHTML:body});
       inspector.innerHTML=body;
+      options.inspector?.afterRender?.(inspector,{root,graph,state:{...state},node:n,reference:r,hyperedge:h});
       inspector.hidden=!details;
       root.classList.toggle('sgm-no-details',!details);
       root.querySelector('[data-tool=details]').setAttribute('aria-pressed',String(details));
@@ -236,7 +238,7 @@
     viewport.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();setZoom(e.deltaY<0?'in':'out');}},{passive:false,signal});
     observer=new ResizeObserver(()=>{if(!current)return;const axis=viewport.clientWidth<500?'vertical':'horizontal';if(state.layer==='links'&&state.lens==='neighbors'&&current.orientation!==axis&&!(axis==='horizontal'&&!current.orientation)){render();return;}});observer.observe(viewport);
     render();
-    return {destroy(){abort.abort();observer.disconnect();if(expanded)expand(false);},select(id){choose(id);},state(){return {...state};},fit(){setZoom('fit');}};
+    return {destroy(){abort.abort();observer.disconnect();options.inspector?.destroy?.();if(expanded)expand(false);},refreshInspector(){renderInspector();},inspect(panel){if(!['model','examples','review'].includes(panel))return;state.panel=panel;renderInspector();emit();},select(id){choose(id);},state(){return {...state};},fit(){setZoom('fit');}};
   }
   globalThis.SchemaGraph=Object.freeze({mount,scene,validate,cardinality});
 })();
