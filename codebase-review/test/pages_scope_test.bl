@@ -1,0 +1,19 @@
+(ns codebase-review.pages-scope-test
+ (:require [codebase-review.pages :as pages] [live.hiccup :as h]))
+(def body ["page model | Models | Inspect effective configuration. | bot"
+           "group Connection" "setting Provider | Selected server connection."
+           "local Workspace | Its own business settings." "personal Account | Personal preferences."])
+(deftest platform-scopes-do-not-inherit-hotel-terminology
+ (let [node {:attrs {:id "platform" :title "Administration" :scope "PLATFORM ADMINISTRATOR"
+                     :local-label "TENANT WORKSPACE" :personal-label "PERSONAL ACCOUNT"
+                     :rule "The platform and tenant have separate authority."} :body body}
+       html (h/hiccup->html (pages/block-h node))]
+  (doseq [text ["PLATFORM ADMINISTRATOR" "TENANT WORKSPACE" "PERSONAL ACCOUNT" "separate authority"]]
+   (is (includes? html text)))
+  (is (not (includes? html "WHOLE HOTEL")))
+  (is (not (includes? html "hotel sets the default")))))
+(deftest existing-settings-reviews-keep-their-default-language
+ (let [html (h/hiccup->html (pages/block-h {:attrs {:id "hotel"} :body body}))]
+  (is (includes? html "FOR THE WHOLE HOTEL"))
+  (is (includes? html "ONE CONVERSATION"))
+  (is (includes? html "JUST YOU"))))

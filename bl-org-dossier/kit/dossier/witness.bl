@@ -1,0 +1,89 @@
+; Recorded Scenario Runner claims and their actual browser frames, inline in Org.
+; Reading is confined to enrich/media-path; rendering receives projected data.
+(ns dossier.witness (:require [bl.json :as json] [dossier.ui :as ui]))
+
+(defn- token? [value]
+ (and (string? value) (some? (Regex/run (Regex/compile! "^[A-Za-z0-9_-]+$") value))))
+(defn- local-prefix [value]
+ (when (and (string? value) (starts-with? value "/") (not (starts-with? value "//"))
+            (not (includes? value "\\")) (not (includes? value "?")) (not (includes? value "#")))
+  (String/trim_trailing value "/")))
+
+(defn- read-record [path]
+ (if-not (File/regular? path) {:state "missing"}
+  (try
+   (let [record (json/decode (File/read! path)) claims (get record "verdicts")]
+    (if (and (map? record) (vector? claims)
+             (every? (fn [claim] (and (map? claim) (integer? (get claim "step"))
+                                      (pos? (get claim "step")) (string? (get claim "msg")))) claims))
+     {:record record} {:state "invalid"}))
+   (catch _ {:state "invalid"}))))
+
+(defn- enrich-node [node directory]
+ (let [a (:attrs node) id (:id a) run (:run a)
+       prefix (local-prefix (or (:src a) "/witness-media"))
+       root (when (:frames a) (Path/expand (Path/join directory (:frames a))))
+       loaded (when run (read-record (Path/expand (Path/join directory run))))
+       record (:record loaded) claims (get record "verdicts") world (get record "world")
+       state (cond (not (and (token? id) prefix run)) "invalid"
+                   (:state loaded) (:state loaded)
+                   (or (= false (get record "ok")) (some (fn [c] (= "refuted" (get c "verdict"))) claims)) "refuted"
+                   (or (empty? claims) (some (fn [c] (not (contains? #{"witnessed" "proven"} (get c "verdict")))) claims)) "unknown"
+                   (= world "browser") "witnessed"
+                   (= world "model") "proven"
+                   :else "unknown")]
+  (assoc node :data
+   {:state state :world world :recorded-at (get record "recorded-at") :frame-root root
+    :claims (mapv (fn [claim]
+              (let [step (get claim "step") file (str "frame-" step ".png")
+                    available? (and (= world "browser") root (File/regular? (Path/join root file)))]
+               {:step step :message (get claim "msg") :verdict (get claim "verdict")
+                :available? (boolean available?)
+                :src (when available? (str prefix "/" id "/" file "?v=" (or (get record "recorded-at") "recorded")))}))
+             (if record claims []))})))
+
+(defn enrich [doc directory]
+ (update doc :nodes (fn [nodes] (mapv (fn [node]
+   (if (and (= :block (:t node)) (= "witness" (:lang node))) (enrich-node node directory) node)) nodes))))
+
+(defn media-path
+ "Resolve only a declared block's recorded claim frame. HTTP input never names
+  a directory or arbitrary file, and model claims cannot expose browser frames."
+ [doc directory id file]
+ (when (and (token? id) (some? (Regex/run (Regex/compile! "^frame-[1-9][0-9]*\\.png$") (str file))))
+  (when-let [node (first (filter (fn [n] (and (= "witness" (:lang n)) (= id (:id (:attrs n))))) (:nodes doc)))]
+   (let [data (:data (enrich-node node directory))]
+    (when (some (fn [claim] (and (:available? claim) (= file (str "frame-" (:step claim) ".png")))) (:claims data))
+     (Path/join (:frame-root data) file))))))
+
+(def labels {"witnessed" "Browser witnessed" "proven" "Model proven" "refuted" "Refuted"
+             "unknown" "Unverified" "missing" "No recorded run" "invalid" "Invalid run declaration"})
+(defn witness-h [node]
+ (let [a (:attrs node) d (:data node) claims (:claims d) state (or (:state d) "missing")]
+  [:figure.witness {:id (str "witness-" (:id a)) :data-witness (:id a)}
+   [:header.witness-head [:h4 (ui/md (or (:title a) "Recorded scenario"))]
+    [:span {:class (str "witness-state " state)} (get labels state "Unverified")]]
+   (when (:scope a) [:p.witness-scope (ui/md (:scope a))])
+   (when (:recorded-at d) [:p.witness-time "Recorded " [:time {:data-epoch (:recorded-at d)} (str (:recorded-at d))]])
+   (if (seq claims)
+    [:div
+     [:nav.witness-steps {:aria-label "Recorded claims"}
+      (map-indexed (fn [i claim]
+       [:button {:type "button" :data-witness-step (str (:step claim)) :aria-pressed (= i 0)
+                 :aria-label (str (inc i) ". " (:message claim) " · " (get labels (:verdict claim) "Unverified"))}
+        (str (inc i))]) claims)]
+     (map-indexed (fn [i claim]
+      [:section.witness-stage {:data-witness-stage (str (:step claim)) :hidden (pos? i)}
+       (if (:available? claim)
+        [:a {:href (:src claim) :target "_blank" :rel "noopener" :aria-label "Open the full-size recorded frame"}
+         [:img {:src (:src claim) :alt (:message claim) :loading "lazy" :data-witness-image true}]]
+        [:div.witness-no-frame (if (= "model" (:world d)) "Model proof has no browser frame." "Recorded frame unavailable.")])
+       [:p.witness-caption [:span {:class (str "witness-state " (:verdict claim))} (get labels (:verdict claim) "Unverified")]
+        [:span (:message claim)]]]) claims)
+     [:nav.witness-controls {:aria-label "Browse evidence"}
+      [:button {:type "button" :data-witness-move "-1" :disabled true} "← Previous"]
+      [:span {:data-witness-position true :aria-live "polite"} (str "1 / " (count claims))]
+      [:button {:type "button" :data-witness-move "1" :disabled (= 1 (count claims))} "Next →"]]
+     [:p.witness-footnote "Recorded evidence · open a frame at full size. These controls do not operate the application."]]
+    [:p.witness-no-frame (if (= state "invalid") "Check the run, frames and block declaration." "The scenario has no recorded claims yet.")])
+   (ui/feedback-h a [["love" "Clear"] ["rework" "Needs another scenario"]] "What should the next run show?")]))

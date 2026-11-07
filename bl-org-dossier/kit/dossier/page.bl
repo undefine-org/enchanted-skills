@@ -6,9 +6,10 @@
 
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
-            [dossier.runview :as rv] [dossier.horizon :as hz]))
+            [dossier.runview :as rv] [dossier.horizon :as hz] [dossier.witness :as witness]
+            [dossier.milestones :as milestones]))
 
-(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons"
+(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones"
                   "ontology_graph" "settings_graph" "code_graph" "settings_pages"})
 
 (defn- with-design
@@ -69,6 +70,8 @@
     :props [:div.props (for [[k v] (:pairs nd)] [:span [:b k] (ui/md v)])]
     :block (if-let [render (:render-block nd)] (render nd) (case (:lang nd)
              "film" (film/film-h nd)
+             "witness" (witness/witness-h nd)
+             "milestones" (milestones/milestones-h nd)
              "run" (phone-h nd)
              "horizons" (hz/horizons-h nd)
              (or (design/block-h nd) (ui/block->h nd))))

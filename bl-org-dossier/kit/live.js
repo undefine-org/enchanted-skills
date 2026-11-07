@@ -293,7 +293,7 @@
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
-    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,[data-witness],[data-milestones]') || e.metaKey || e.ctrlKey || e.altKey) return;
     const list = secs(), i = list.findIndex(s => s.id === current);
     if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
     if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;
@@ -537,4 +537,125 @@
   document.addEventListener('focusin',e=>{const part=nativePart(e);if(part)describe(part.g,part.el,e)});
   document.addEventListener('click',e=>{const part=nativePart(e);if(!part)return;e.preventDefault();e.stopImmediatePropagation();describe(part.g,part.el,e)},true);
   new MutationObserver(init).observe(document.body,{childList:true,subtree:true});init();
+})();
+
+// Native Scenario Runner witnesses retain their selected claim over live refresh.
+(() => {
+  const selections = new Map();
+  function select(root, step, focus = false) {
+    const buttons = [...root.querySelectorAll('[data-witness-step]')];
+    const picked = buttons.find(b => b.dataset.witnessStep === step) || buttons[0];
+    if (!picked) return;
+    const index = buttons.indexOf(picked);
+    selections.set(root.dataset.witness, picked.dataset.witnessStep);
+    buttons.forEach(b => b.setAttribute('aria-pressed', String(b === picked)));
+    root.querySelectorAll('[data-witness-stage]').forEach(s => s.hidden = s.dataset.witnessStage !== picked.dataset.witnessStep);
+    root.querySelector('[data-witness-position]').textContent = `${index + 1} / ${buttons.length}`;
+    root.querySelector('[data-witness-move="-1"]').disabled = index === 0;
+    root.querySelector('[data-witness-move="1"]').disabled = index === buttons.length - 1;
+    if (focus) picked.focus({preventScroll:true});
+  }
+  function init() {
+    document.querySelectorAll('[data-witness]').forEach(root => {
+      if (root._witnessReady) return;
+      root._witnessReady = true;
+      select(root, selections.get(root.dataset.witness));
+      root.querySelectorAll('[data-epoch]').forEach(t => {
+        const d = new Date(Number(t.dataset.epoch));
+        if (!Number.isNaN(d.getTime())) { t.dateTime = d.toISOString(); t.textContent = d.toLocaleString(); }
+      });
+    });
+  }
+  document.addEventListener('click', e => {
+    const control = e.target.closest('[data-witness-step],[data-witness-move]');
+    if (!control) return;
+    const root = control.closest('[data-witness]');
+    if (control.hasAttribute('data-witness-step')) select(root, control.dataset.witnessStep);
+    else {
+      const buttons = [...root.querySelectorAll('[data-witness-step]')];
+      const i = buttons.findIndex(b => b.getAttribute('aria-pressed') === 'true');
+      const next = buttons[i + Number(control.dataset.witnessMove)];
+      if (next) select(root, next.dataset.witnessStep);
+    }
+  });
+  document.addEventListener('keydown', e => {
+    const root = e.target.closest('[data-witness]');
+    if (!root || e.target.closest('input,textarea,select,[contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    const buttons = [...root.querySelectorAll('[data-witness-step]')];
+    const i = buttons.findIndex(b => b.getAttribute('aria-pressed') === 'true');
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : Math.max(0,Math.min(buttons.length - 1,i + (e.key === 'ArrowRight' ? 1 : -1)));
+    if (buttons[n]) { e.preventDefault(); select(root, buttons[n].dataset.witnessStep, true); }
+  });
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!img.matches?.('[data-witness-image]')) return;
+    const note = document.createElement('p'); note.className = 'witness-no-frame'; note.textContent = 'Recorded frame unavailable.';
+    img.closest('a').replaceWith(note);
+  }, true);
+  new MutationObserver(init).observe(document.body,{childList:true,subtree:true});
+  init();
+})();
+
+// Milestones are an authored map; selecting one never approves or starts work.
+(() => {
+  const selections = new Map();
+  function select(root, id, focus = false) {
+    const details = [...root.querySelectorAll('[data-milestone-detail]')];
+    const picked = details.find(d => d.dataset.milestoneDetail === id) || details[0];
+    if (!picked) return;
+    const key = picked.dataset.milestoneDetail, i = details.indexOf(picked);
+    selections.set(root.dataset.milestones, key);
+    details.forEach(d => d.hidden = d !== picked);
+    root.querySelectorAll('.ms-map [data-milestone-to]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.milestoneTo === key)));
+    root.querySelector('[data-milestone-move="-1"]').disabled = i === 0;
+    root.querySelector('[data-milestone-move="1"]').disabled = i === details.length - 1;
+    if (focus) { picked.focus({preventScroll:true}); if (innerWidth < 701) picked.scrollIntoView({block:'start'}); }
+  }
+  function init() {
+    document.querySelectorAll('[data-milestones]').forEach(root => {
+      if (root._milestonesReady) return;
+      root._milestonesReady = true;
+      select(root, selections.get(root.dataset.milestones) || root.dataset.milestoneStart);
+    });
+  }
+  document.addEventListener('click', e => {
+    const control = e.target.closest('[data-milestone-to],[data-milestone-move],[data-milestone-map]');
+    if (!control) return;
+    const root = control.closest('[data-milestones]'); if (!root) return;
+    if (control.hasAttribute('data-milestone-to')) select(root, control.dataset.milestoneTo, true);
+    else if (control.hasAttribute('data-milestone-map')) root.querySelector('.ms-map button[aria-pressed=true]')?.focus();
+    else {
+      const details = [...root.querySelectorAll('[data-milestone-detail]')];
+      const i = details.findIndex(d => !d.hidden), next = details[i + Number(control.dataset.milestoneMove)];
+      if (next) select(root, next.dataset.milestoneDetail, true);
+    }
+  });
+  document.addEventListener('keydown', e => {
+    const root = e.target.closest('[data-milestones]');
+    if (!root || e.target.closest('input,textarea,select,[contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    const details = [...root.querySelectorAll('[data-milestone-detail]')], i = details.findIndex(d => !d.hidden);
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? details.length - 1 : Math.max(0,Math.min(details.length-1,i+(e.key==='ArrowRight'?1:-1)));
+    if (details[n]) { e.preventDefault(); select(root, details[n].dataset.milestoneDetail, true); }
+  });
+  new MutationObserver(init).observe(document.body,{childList:true,subtree:true}); init();
+})();
+
+// A settings review keeps the page the reader selected when evidence refreshes.
+(() => {
+  const selected = new Map();
+  function init() {
+    document.querySelectorAll('.settings-pages').forEach(root => {
+      if (root._settingsPageReady) return;
+      root._settingsPageReady = true;
+      const id = selected.get(root.id), input = [...root.querySelectorAll('input.sp-choice')].find(i => i.id === id);
+      if (input) input.checked = true;
+    });
+  }
+  document.addEventListener('change', e => {
+    if (!e.target.matches('input.sp-choice')) return;
+    const root = e.target.closest('.settings-pages'); if (root) selected.set(root.id,e.target.id);
+  });
+  new MutationObserver(init).observe(document.body,{childList:true,subtree:true}); init();
 })();

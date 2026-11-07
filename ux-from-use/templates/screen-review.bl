@@ -12,6 +12,9 @@
 ; describes a component from the catalog. Each explorer view answers its
 ; query without error. OUT/report.json holds every check; the exit status is
 ; the number of failures. Replaces a hand-driven agent-browser pass.
+; BL_BROWSER_RUNTIME selects the native runtime bin directory; CHROMIUM may
+; override its browser. Runtime sockets use a short owned /tmp directory even
+; when OUT is a deeply nested project folder.
 
 (ns screen-review (:require [browser.page :as page] [bl.json :as json]))
 
@@ -22,7 +25,8 @@
 (def origin (let [m (Regex/run (Regex/compile! "^(https?://[^/]+)") url)] (second m)))
 
 (def home (System/get_env "HOME"))
-(def rt (str home "/.local/share/bl-browser/runtime-wayland/bin/"))
+(def rt (str (or (System/get_env "BL_BROWSER_RUNTIME") (str home "/.local/share/bl-browser/runtime-wayland/bin")) "/"))
+(def scratch (str "/tmp/screen-review-" (erlang/unique_integer (list :positive))))
 (File/mkdir_p! out)
 
 (def widths [{:name "desktop" :w 1400 :h 900 :mobile false} {:name "phone" :w 412 :h 900 :mobile true}])
@@ -60,8 +64,8 @@
 
 (def p (page/open! {:executable (or (System/get_env "BL_BROWSER_PORT") (str home "/projects/beam-lisp/optional/browser-port/target/release/bl-browser-port"))
                     :width 1440 :height 900
-                    :launch {"profile" (str out "/profile") "runtime" (str out "/runtime")
-                             "chromium" (str rt "chromium") "compositor" (str rt "sway") "vnc" (str rt "wayvnc")
+                    :launch {"profile" (str scratch "/profile") "runtime" (str scratch "/runtime")
+                             "chromium" (or (System/get_env "CHROMIUM") (str rt "chromium")) "compositor" (str rt "sway") "vnc" (str rt "wayvnc")
                              "width" 1440 "height" 960}}))
 
 (try
@@ -104,8 +108,10 @@
       (until! p (str "document.querySelector('" sel " .source-frame').contentDocument.querySelector('main')"))
       (press! p sel "Explore graph")
       (until! p (str "document.querySelectorAll('" sel " .sg-node').length >= " (count (get g "views"))))
-      (check! (str id " graph has a node per view")
-              (= (count (get g "views")) (js p (str "return document.querySelectorAll('" sel " .sg-node').length")))
+      ;; A source host may discover further linked views. Every authored view
+      ;; must have a node; additional discovered views remain legitimate.
+      (check! (str id " graph contains every declared view")
+              (js p (str "const ids=" (json/encode (get g "views")) "; return ids.every(id=>[...document.querySelectorAll('" sel " .sg-node')].some(n=>n.dataset.sourceTo===id||n.dataset.sgTo===id))"))
               (js p (str "return document.querySelector('" sel " [data-source-progress]').textContent")))
       (page/screenshot! p (str out "/graph-" id ".png"))
       (press! p sel "Explore graph")
@@ -123,11 +129,11 @@
     (page/navigate! p (str origin (get v "href")))
     (page/wait! p "document.readyState === 'complete'")
     (let [r (js p "return {error:(document.querySelector('.ex-error,[data-query-error]')||{}).textContent||'',
-                           cards:document.querySelectorAll('[id^=component-]').length}")]
+                           cards:document.querySelectorAll('[id^=component-]:not([hidden]):not(input):not(select):not(label)').length}")]
       (check! (str (get e "id") " · " (get v "label")) (and (blank? (get r "error")) (pos? (get r "cards")))
               (str (get r "cards") " components " (get r "error")))))
 
-  (finally (page/close! p)))
+  (finally (page/close! p) (File/rm_rf! scratch)))
 
 (File/write! (str out "/report.json") (json/encode @results))
 (let [bad (count (remove :ok @results))]

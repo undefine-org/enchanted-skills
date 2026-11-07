@@ -107,3 +107,9 @@ installed elsewhere. Add both library roots with `-p`. Other dossier hosts can
 call `codebase-review.blocks/enrich` before `dossier.page/page-h` and append
 `review.css` to their stylesheet. The three review block names are registered
 with the shared feedback parser.
+
+Settings page scope labels can be supplied explicitly for a different product
+boundary: `:scope "PLATFORM ADMINISTRATOR"`, `:local-label "TENANT WORKSPACE"`,
+`:personal-label "PERSONAL ACCOUNT"`, and `:rule "..."`. Existing hotel labels
+remain the default. These labels describe the reviewed boundary; they grant no
+application authority. Selecting a settings page survives live dossier refreshes.

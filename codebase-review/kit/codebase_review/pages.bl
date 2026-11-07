@@ -35,7 +35,7 @@
   (assert (= (count pages) (count (set (map :id pages)))) "Settings page IDs must be unique")
   [:figure.settings-pages {:id (str "settings-pages-" id)}
    [:style selectors]
-   [:header.sp-heading [:div [:span.sp-eyebrow "FOR THE WHOLE HOTEL"] [:h2 (or (:title a) "Settings")]]
+   [:header.sp-heading [:div [:span.sp-eyebrow (or (:scope a) "FOR THE WHOLE HOTEL")] [:h2 (or (:title a) "Settings")]]
     [:span.sp-count (str (count pages) " pages")]]
    [:p.sp-intro (or (:caption a) "Choose a page to see what belongs inside.")]
    (for [[index page] (map-indexed (fn [i p] [i p]) pages)]
@@ -57,11 +57,11 @@
        [:details.sp-sources [:summary "Where this fits today"]
         (for [source (:sources page)] [:p source])])])]
    [:div.sp-boundaries
-    (for [[kind icon label data] [["conversation" "chat" "ONE CONVERSATION" (:local model)]
-                                  ["personal" "user" "JUST YOU" (:personal model)]] :when (seq data)]
+    (for [[kind icon label data] [["conversation" "chat" (or (:local-label a) "ONE CONVERSATION") (:local model)]
+                                  ["personal" "user" (or (:personal-label a) "JUST YOU") (:personal model)]] :when (seq data)]
      [:section {:class (str "sp-boundary " kind)}
       [:span.sp-eyebrow (ui/ico icon) label] [:h3 (first data)] [:p (join " | " (rest data))]])]
-   [:p.sp-rule "The hotel sets the default. A conversation can make an exception. Your account only changes your own experience."]
+   [:p.sp-rule (or (:rule a) "The hotel sets the default. A conversation can make an exception. Your account only changes your own experience.")]
    (ui/feedback-h a [["accept" "Makes sense"] ["rework" "Change this"]] "Is this the right place for each setting?")]))
 (defn enrich-node [node]
  (if (= "settings_pages" (:lang node)) (assoc node :render-block block-h) node))

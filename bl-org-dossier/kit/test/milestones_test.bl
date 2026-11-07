@@ -1,0 +1,28 @@
+(ns dossier.milestones-test
+ (:require [dossier.milestones :as milestones] [dossier.org :as org] [dossier.page :as page] [live.hiccup :as h]))
+(def body ["milestone M0 | done | Existing foundation | Delivery"
+           "check Real proof is retained"
+           "milestone M1 | proposed | Configuration | Delivery" "needs M0"
+           "step Separate administration from customer work"
+           "check Customer owners cannot administer the platform"
+           "gate Agree on the sequence"
+           "milestone M2 | optional | Another channel | Expansion" "needs M1"])
+(deftest a-milestone-map-draws-the-same-steps-and-dependencies-as-its-source
+ (let [model (milestones/parse body)
+       doc (org/read-doc (join "\n" (concat ["* Plan" "#+begin_milestones :id plan :start M1"] body ["#+end_milestones"])))
+       html (h/hiccup->html (page/page-h doc "" ""))]
+  (is (empty? (:errors model)))
+  (is (= ["M0"] (:needs (nth (:items model) 1))))
+  (doseq [needle ["data-milestones=\"plan\"" "data-milestone-detail=\"M1\"" "1 / 3 delivered"
+                   "Customer owners cannot administer" "Agree on the sequence" "data-milestone-to=\"M0\"" "Browsing a milestone"]]
+   (is (includes? html needle)))
+  (is (= "plan" (:id (first (page/feedback-items doc)))))))
+
+(deftest invalid-dependencies-cannot-draw-an-apparently-complete-plan
+ (doseq [lines [["milestone A | proposed | A" "needs B"]
+                ["milestone A | proposed | A" "needs B" "milestone B | proposed | B" "needs A"]
+                ["milestone A | done | A" "milestone A | proposed | Duplicate"]
+                ["step No milestone yet"] ["milestone A | invented | Unknown state"]]]
+  (is (seq (:errors (milestones/parse lines)))))
+ (let [node {:attrs {:id "bad"} :body ["milestone A | proposed | A" "needs missing"]}]
+  (is (includes? (h/hiccup->html (milestones/milestones-h node)) "needs attention"))))

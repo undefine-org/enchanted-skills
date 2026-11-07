@@ -106,6 +106,8 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `run :id :procedure :as :title` | `team role person … \| role person …`, optional `load person n \| …`, then `fact KIND \| target \| by \| verdict-or-note \| says` lines (`drafted shared handed-over asked-change checked called routed`) | **a person's phone screen generated from the procedure and its facts**: step rail, asks, harness chips, the next gate; joins screen strips; answerable. Prefer it to a hand-drawn `screen` whenever a procedure exists (ensemble's `format`/`run` are vendored in `kit/ensemble/`) |
 | `horizons :id :now :title` | `horizon NAME \| start \| end` (the team's own horizons, widest first), `goal HORIZON \| title \| date \| a/b` (date and progress optional) | a telescope: each band is the magnified now of the one above, joined by a funnel; goals on their band, progress as an arc, undated goals on the dashed someday edge; answerable |
 | `film :id :title :run :src` | prose (the experience it establishes); `missing @icon Beat \| why` lines for beats not filmed yet | a filmed `scenario.demo` run read from `:run` (its output folder, relative to the dossier): the movie (`:src`) with a chapter per scene, each scene's narration, steps and claims with their verdicts, and the gaps computed from the run (a scene that proves nothing, a gesture after its scene's last claim, a claim not witnessed, no movie yet) plus the declared ones; answerable. The server reads the run (`dossier.film/enrich`); the page stays pure |
+| `milestones :id :title :start` | `milestone ID \| state \| title \| lane`, then `needs`, `step`, `check`, `gate` | clickable map and one milestone's steps, dependencies, completion criteria and access gates; selection survives live refresh; feedback remains explicit |
+| `witness :id :title :run :frames` | optional `:scope` describes what was exercised | actual Scenario Runner claims paired with their recorded browser frames, one at a time; timestamp, verdicts, full-size frame link and feedback; no fabricated movie |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
 passes the file in `(BeamLisp/argv)`, so a cell can read its own block and turn it into
@@ -436,3 +438,55 @@ focus; keep it visible on touch devices. Extend this shared renderer and skin
 rather than introducing a separate top bar or replacing tools with a dropdown.
 Native inspection reads the rendered declaration; source inspection reads the
 host's annotated component catalog and links to its UI Explorer.
+
+## Browsable milestones and native scenario evidence
+
+Use `milestones` for a delivery sequence someone should review one milestone
+at a time. Its map and detail pane share one declaration; selecting a tile,
+dependency or Next changes only the local view. Approval stays in the explicit
+feedback form or decision block. The selection survives a live document update.
+
+```org
+#+begin_milestones :id delivery :title "Delivery sequence" :start M1
+milestone M0 | done | Existing foundation | Foundation
+check Its behavioral evidence is retained.
+milestone M1 | proposed | Configuration | Core delivery
+needs M0
+step Establish the appropriate administration boundary.
+check The intended operator can change a setting and verify its effect.
+gate Agree on the next delivery scope.
+#+end_milestones
+```
+
+The line verbs are `milestone ID | STATE | TITLE | LANE`, `needs ID ID`, `step`,
+`check` and `gate`. States are `done`, `active`, `proposed`, `waiting`, `optional`.
+Duplicate IDs, unknown states, missing dependencies and cycles are authoring
+errors. A proposal is never marked delivered merely because its prototype exists.
+
+Use `witness` to browse **actual Scenario Runner browser frames** directly in
+the dossier, including runs that have no exported movie. It complements `film`.
+
+```org
+#+begin_witness :id recovery :title "A colleague sees the result" :run "../evidence/recovery.json" :frames "../evidence/recovery" :scope "Isolated customer data; simulated write providers"
+#+end_witness
+```
+
+The run JSON is the serialized projection of `scenario/run-world`:
+`{"name":"recovery","world":"browser","ok":true,"recorded-at":1794057600000,
+"verdicts":[{"step":7,"msg":"A colleague sees the result","verdict":"witnessed"}]}`.
+`browser.film/world` saves each step's actual `frame-N.png`. The gallery uses the
+claim's recorded step number; it never creates a screenshot or substitutes a
+mockup. `model` runs are labelled model proofs and expose no browser image.
+Missing, invalid, unknown and refuted evidence remain visible.
+
+The kit server resolves `/witness-media/ID/frame-N.png` only for a declared
+claim frame. Custom hosts call `dossier.witness/enrich` before rendering and
+`dossier.witness/media-path` to authorize frame paths; `:src` may set another
+same-origin media prefix. Include the projected witness data in the document
+revision so a new run refreshes the page without editing prose. Keep frames in
+private application artifacts, validate their scope and credentials, and retain
+recorded timestamps. A frame is recorded evidence, never live service health.
+
+Inspect milestone selection, dependency navigation, frame stepping, keyboard
+arrows, live-refresh continuity, phone overflow and both themes in a real
+browser. Save a reaction on a disposable dossier to verify the authorized path.

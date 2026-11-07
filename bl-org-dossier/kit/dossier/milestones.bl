@@ -1,0 +1,68 @@
+; A source-declared milestone map. Selection is local; approval remains explicit.
+(ns dossier.milestones (:require [dossier.org :as org] [dossier.ui :as ui]))
+(def states {"done" "Delivered" "active" "In progress" "proposed" "Proposed" "waiting" "Waiting" "optional" "Optional"})
+(defn- token? [s] (and (string? s) (some? (Regex/run (Regex/compile! "^[A-Za-z0-9_-]+$") s))))
+(defn- cycle? [by-id id trail]
+ (or (contains? trail id) (some (fn [dep] (cycle? by-id dep (conj trail id))) (:needs (get by-id id)))))
+
+(defn parse [body]
+ (let [parsed
+  (reduce (fn [acc line]
+   (let [line (trim line)]
+    (if (or (blank? line) (starts-with? line "#")) acc
+     (let [match (Regex/run (Regex/compile! "^([a-z]+)\\s+(.+)$") line)
+           verb (nth match 1 nil) text (nth match 2 "")]
+      (cond
+       (= verb "milestone")
+        (let [[id state title lane] (first (org/rows-of [text]))]
+         (update acc :items conj {:id id :state state :title title :lane (or lane "Delivery") :needs [] :steps [] :checks [] :gates []}))
+       (and (seq (:items acc)) (contains? #{"needs" "step" "check" "gate"} verb))
+        (update acc :items (fn [items]
+         (conj (pop items) (update (last items) (get {"needs" :needs "step" :steps "check" :checks "gate" :gates} verb)
+                            (fn [values] (into values (if (= verb "needs") (filter (fn [x] (not (blank? x))) (split text " ")) [text])))))))
+       :else (update acc :errors conj (str "Unknown or misplaced milestone line: " line)))))))
+   {:items [] :errors []} body)
+       items (:items parsed) ids (map :id items) by-id (into {} (map (fn [item] [(:id item) item]) items))
+       errors (vec (concat (:errors parsed)
+          (when (empty? items) ["Declare at least one milestone"])
+          (when (not= (count ids) (count (set ids))) ["Milestone IDs must be unique"])
+          (for [item items :when (not (and (token? (:id item)) (contains? states (:state item)) (not (blank? (:title item)))))]
+            (str "Invalid milestone: " (:id item)))
+          (for [item items dep (:needs item) :when (not (contains? by-id dep))]
+            (str (:id item) " needs missing milestone " dep))))]
+  {:items items :errors (if (seq errors) errors
+                         (if (some (fn [id] (cycle? by-id id #{})) ids) ["Milestone dependencies contain a cycle"] []))}))
+
+(defn milestones-h [node]
+ (let [a (:attrs node) model (parse (:body node)) items (:items model)
+       start (or (:start a) (:id (first (filter (fn [item] (not= "done" (:state item))) items))) (:id (first items)))
+       errors (cond-> (:errors model) (not (some (fn [item] (= start (:id item))) items)) (conj "Start milestone is missing"))]
+  [:section.milestones {:id (str "milestones-" (:id a)) :data-milestones (:id a) :data-milestone-start start}
+   [:header.ms-heading [:h4 (ui/md (or (:title a) "Milestones"))]
+    [:span.ms-count (str (count (filter (fn [item] (= "done" (:state item))) items)) " / " (count items) " delivered")]]
+   (if (seq errors)
+    [:div.ms-errors {:role "alert"} [:b "Milestone declaration needs attention"] [:ul (map (fn [error] [:li error]) errors)]]
+    [:div.ms-layout
+     [:nav.ms-map {:aria-label "Milestone map"}
+      (map (fn [item]
+       [:button {:type "button" :data-milestone-to (:id item) :aria-pressed (= start (:id item))
+                 :aria-label (str (:id item) " · " (:title item) " · " (get states (:state item)))}
+        [:span.ms-id (:id item)] [:span.ms-title (:title item)]
+        [:span {:class (str "ms-state " (:state item))} (get states (:state item))]]) items)]
+     [:div.ms-detail-region
+      (map (fn [item]
+       [:article.ms-detail {:data-milestone-detail (:id item) :hidden (not= start (:id item)) :tabindex "-1"}
+        [:header [:span.ms-id (:id item)] [:span.ms-lane (:lane item)]
+         [:h3 (ui/md (:title item))] [:span {:class (str "ms-state " (:state item))} (get states (:state item))]]
+        (when (seq (:needs item))
+         [:div.ms-needs [:b "Depends on "]
+          (map (fn [dep] [:button {:type "button" :data-milestone-to dep} dep]) (:needs item))])
+        (when (seq (:steps item)) [:div.ms-steps [:h5 "Steps"] [:ol (map (fn [step] [:li (ui/md step)]) (:steps item))]])
+        (when (seq (:checks item)) [:div.ms-checks [:h5 "Done when"] [:ul (map (fn [check] [:li (ui/md check)]) (:checks item))]])
+        (when (seq (:gates item)) [:div.ms-gates [:h5 "Needs a decision or access"] [:ul (map (fn [gate] [:li (ui/md gate)]) (:gates item))]])]) items)
+      [:nav.ms-controls {:aria-label "Step through milestones"}
+       [:button {:type "button" :data-milestone-move "-1"} "← Previous"]
+       [:button {:type "button" :data-milestone-map true} "Map"]
+       [:button {:type "button" :data-milestone-move "1"} "Next →"]]]])
+   [:p.ms-footnote "Browsing a milestone changes this view only. Acceptance and execution remain separate actions."]
+   (ui/feedback-h a [["agree" "Agree with the sequence"] ["rework" "Change the sequence"]] "Which milestones should change?")]))

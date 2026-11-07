@@ -1,0 +1,42 @@
+(ns dossier.witness-test
+ (:require [dossier.witness :as witness] [dossier.org :as org] [dossier.page :as page]
+           [live.hiccup :as h] [bl.json :as json]))
+(defn scratch [f]
+ (let [directory (str "/tmp/dossier-witness-" (erlang/unique_integer (list :positive)))]
+  (File/mkdir_p! (str directory "/frames"))
+  (try (f directory) (finally (File/rm_rf! directory)))))
+(defn document []
+ (org/read-doc "* Evidence\n#+begin_witness :id recovery :title Recovery :run run.json :frames frames\n#+end_witness\n"))
+(def record {"world" "browser" "ok" true "recorded-at" 1794057600000
+             "verdicts" [{"step" 2 "msg" "Another person sees the saved result" "verdict" "witnessed"}]} )
+
+(deftest recorded-claims-use-only-their-declared-browser-frames
+ (scratch (fn [directory]
+  (File/write! (str directory "/run.json") (json/encode record))
+  (File/write! (str directory "/frames/frame-2.png") "recorded fixture")
+  (File/write! (str directory "/frames/frame-3.png") "not a claim")
+  (let [doc (witness/enrich (document) directory)
+        node (first (filter (fn [n] (= "witness" (:lang n))) (:nodes doc)))
+        html (h/hiccup->html (page/page-h doc "" ""))]
+   (is (= "witnessed" (get-in node [:data :state])))
+   (is (get-in node [:data :claims 0 :available?]))
+   (is (includes? html "/witness-media/recovery/frame-2.png"))
+   (is (includes? html "Another person sees the saved result"))
+   (is (includes? html "Recorded evidence"))
+   (is (= (str directory "/frames/frame-2.png") (witness/media-path (document) directory "recovery" "frame-2.png")))
+   (doseq [file ["../run.json" "frame-3.png" "frame-02.png" "frame-2.svg"]]
+    (is (nil? (witness/media-path (document) directory "recovery" file))))
+   (is (nil? (witness/media-path (document) directory "missing" "frame-2.png")))
+   (is (= "recovery" (:id (first (page/feedback-items doc)))))))))
+
+(deftest a-model-proof-missing-run-or-failed-claim-cannot-be-labelled-as-a-browser-witness
+ (scratch (fn [directory]
+  (is (= "missing" (get-in (nth (:nodes (witness/enrich (document) directory)) 1) [:data :state])))
+  (File/write! (str directory "/run.json") "{")
+  (is (= "invalid" (get-in (nth (:nodes (witness/enrich (document) directory)) 1) [:data :state])))
+  (File/write! (str directory "/run.json") (json/encode (assoc record "world" "model")))
+  (let [node (nth (:nodes (witness/enrich (document) directory)) 1)]
+   (is (= "proven" (get-in node [:data :state])))
+   (is (not (get-in node [:data :claims 0 :available?]))))
+  (File/write! (str directory "/run.json") (json/encode (assoc-in record ["verdicts" 0 "verdict"] "refuted")))
+  (is (= "refuted" (get-in (nth (:nodes (witness/enrich (document) directory)) 1) [:data :state]))))))
