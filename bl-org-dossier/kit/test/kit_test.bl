@@ -8,7 +8,7 @@
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
             [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]
-            [dossier.ui :as ui]))
+            [dossier.ui :as ui] [dossier.tone]))
 
 (deftest a-screen-graph-can-branch-and-take-feedback
   (let [lines ["#+design: forest" "* Walk"
@@ -106,6 +106,34 @@
     (doseq [needle ["phone design-forest" "desk design-none" "--f-forest:#204e3d" "class=\"f-sw\""
                     "fm-hand-over" "Manrope" "@keyframes fm-draft"]]
       (is (includes? html needle) (str "missing " needle)))))
+
+(deftest forest-at-night-has-oomph-and-shows-it
+  (is (:ok? (dossier.tone/oomph forest/dark forest/night-roles)))
+  (let [doc (o/read-doc (join "\n" ["#+design: forest" "* N" "#+begin_night :design forest" "#+end_night"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["lang-show night" "Night, before" "Night, now" "every oomph floor met" "card card/paper"
+                    "--f-shadow-rest:inset 0 1px 0"]]
+      (is (includes? html needle) (str "missing " needle)))))
+
+(deftest the-kit-default-night-has-oomph
+  ;; style.css's dark :root block, read back and held to dossier.tone's floors
+  (let [css (File/read! (Path/expand "~/projects/enchanted-skills/bl-org-dossier/kit/style.css"))
+        block (second (Regex/run (Regex/compile! ":root\\[data-theme=\"dark\"\\]\\{([^}]*)\\}") css))
+        v (into {} (for [m (Regex/scan (Regex/compile! "--([a-z]+):(#[0-9a-f]{6})") block)] [(keyword (nth m 1)) (nth m 2)]))
+        r (dossier.tone/oomph v {:steps [:bg :paper :card] :card [:card :bg] :text [:ink :muted :mocha]
+                                 :accents [[:clay :mocha] [:sage :mocha]]})]
+    (is (= 13 (count v)) (pr-str (keys v)))
+    (is (:ok? r) (pr-str (:failures r)))
+    (is (empty? (dossier.tone/wcag v [[:mocha :card 4.5 "mocha on cards"] [:clay :card 4.5 "clay"] [:ink :card 7.0 "body"]])))))
+
+(deftest the-vendored-tone-matches-enchant
+  ;; dossier/tone.bl is loom/tone.bl until the installed SDK ships it; the
+  ;; files agree from the first section rule on
+  (let [upstream (Path/expand "~/projects/enchant/priv/lib/loom/tone.bl")
+        ours (Path/expand "~/projects/enchanted-skills/bl-org-dossier/kit/dossier/tone.bl")
+        strip (fn [path] (rest (split (File/read! path) "\n\n;; ════")))]
+    (when (and (File/exists? upstream) (File/exists? ours))
+      (is (= (vec (strip upstream)) (vec (strip ours))) "re-vendor loom/tone.bl into dossier/tone.bl"))))
 
 (deftest forest-matches-the-shipped-app
   (is (empty? forest/drift) (str "drift: " (pr-str forest/drift))))

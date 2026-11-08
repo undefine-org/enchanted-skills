@@ -15,7 +15,7 @@
 ;   #+begin_motion :design forest       every motion token, playing
 
 (ns dossier.design
-  (:require [dossier.design.forest :as forest]))
+  (:require [dossier.design.forest :as forest] [dossier.tone :as tone]))
 
 (def languages
   "name → the module's `language` map:
@@ -68,7 +68,17 @@
                ["https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght,SOFT@9..144,400..600,100&family=Literata:opsz,wght@7..72,400..600&display=swap"])
              (mapcat (fn [name] (:fonts (get languages name))) chosen))))))
 
-(defn- lang-of [nd] (get languages (or (:design (:attrs nd)) "forest")))
+(defn register!
+  "A product language that lives in its own repository registers its
+   `language` map at load (a host script calls this before serving), so the
+   showcase blocks can draw it. Its CSS still comes from DOSSIER_DESIGN_CSS."
+  [language]
+  (Application/put_env :beam_lisp :dossier-languages
+    (assoc (or (Application/get_env :beam_lisp :dossier-languages) {}) (:name language) language)))
+
+(defn- lang-of [nd]
+  (let [k (or (:design (:attrs nd)) "forest")]
+    (or (get languages k) (get (Application/get_env :beam_lisp :dossier-languages) k))))
 
 (defn- frame
   "A showcase block: drawn inside `design-NAME` so it wears the language."
@@ -123,6 +133,65 @@
           [:code (str (:ms m) "ms · " (:ease m))]
           [:p (:use m)]])])))
 
+(def night-keys
+  "The roles the comparison paints with; a language's :roles names its keys
+   through :steps, :text, :solids and :fields."
+  [:page :card :raised :field :line :ink :ink-2 :ink-3 :accent :solid :on-solid])
+
+(defn- night-colors
+  "Map a language's tokens onto the comparison's roles through its :roles:
+   :card [card page], the last of :steps is the raised surface, :text the
+   tiers, the first solid and the first accent, the first field."
+  [l theme]
+  (let [r (:roles l) [card page] (:card r) solid (first (:solids r))
+        [ink ink-2 ink-3] (:text r) [field _] (first (:fields r))]
+    {:page (get theme page) :card (get theme card) :raised (get theme (last (:steps r)))
+     :field (get theme field) :line (or (get theme :line) (get theme :line-subtle))
+     :ink (get theme ink) :ink-2 (get theme ink-2) :ink-3 (get theme ink-3)
+     :accent (get theme (first (first (:accents r)))) :solid (get theme solid)
+     :on-solid (or (get theme (keyword (str "on-" (name solid)))) (get theme :on-action))
+     :frame (when-let [[f _] (:frame r)] (get theme f))}))
+
+(defn- night-panel
+  "One mock surface: a page, a card with a title, two text tiers, a field
+   and a filled action, then a raised menu. Real tokens, inline, so the three
+   panels sit side by side regardless of the page's own theme."
+  [title c shadow note]
+  (let [card (:card c)]
+    [:div.n-panel {:class (when (:frame c) "n-framed") :style (str "background:" (:page c) ";color:" (:ink c))}
+     (when (:frame c) [:div.n-frame {:style (str "background:" (:frame c))} [:i] [:i] [:i]])
+     [:div.n-label {:style (str "color:" (:ink-3 c))} title]
+     [:div.n-card {:style (str "background:" card ";border:1px solid " (:line c) ";box-shadow:" (:rest shadow))}
+      [:div.n-title "Needs you"]
+      [:div.n-body {:style (str "color:" (:ink-2 c))} "The draft is ready for review."]
+      [:div.n-meta {:style (str "color:" (:ink-3 c))} "Othman · 2 min ago · "
+       [:span {:style (str "color:" (:accent c) ";font-weight:600")} "Open thread"]]
+      [:div.n-field {:style (str "background:" (:field c) ";border:1px solid " (:line c) ";color:" (:ink-3 c))} "Reply…"]
+      [:div.n-row
+       [:span.n-solid {:style (str "background:" (:solid c) ";color:" (:on-solid c))} "Approve"]
+       [:span.n-ghost {:style (str "border:1px solid " (:line c) ";color:" (:ink c))} "Later"]]]
+     [:div.n-raised {:style (str "background:" (:raised c) ";border:1px solid " (:line c) ";box-shadow:" (:raise shadow))}
+      [:span "Raised · a menu"] [:span {:style (str "color:" (:ink-3 c))} "⌘K"]]
+     (when note [:div.n-note {:style (str "color:" (:ink-3 c))} note])]))
+
+(defn- measures [l theme]
+  (let [r (tone/oomph theme (:roles l))]
+    (if (:ok? r) "every oomph floor met"
+        (join " · " (map (fn [f] (str (name (:check f)) " " (join "/" (map name (:pair f))) " " (:value f) " < " (:min f)))
+                         (:failures r))))))
+
+(def ^:private day-shadow {:rest "0 1px 2px rgb(0 0 0 / .06)" :raise "0 10px 30px rgb(0 0 0 / .12)"})
+(def ^:private flat-shadow {:rest "none" :raise "0 10px 30px rgb(0 0 0 / .12)"})
+
+(defn- night-h [nd]
+  (let [l (lang-of nd)]
+    (frame nd "night"
+      [:div.n-grid
+       (night-panel "Day" (night-colors l (:light l)) day-shadow nil)
+       (when (:night-was l)
+         (night-panel "Night, before" (night-colors l (:night-was l)) flat-shadow (measures l (:night-was l))))
+       (night-panel "Night, now" (night-colors l (:dark l)) tone/elevation (measures l (:dark l)))])))
+
 (defn block-h
   "Hiccup for a showcase block, or nil when `nd` is not one."
   [nd]
@@ -131,4 +200,5 @@
     "type" (type-h nd)
     "shape" (shape-h nd)
     "motion" (motion-h nd)
+    "night" (night-h nd)
     nil))
