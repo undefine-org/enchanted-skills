@@ -154,6 +154,26 @@
                 (conj acc w))))
           [] (String/split (trim s) " ")))
 
+; ─── language: `#+language: fr` translates the kit's own words ────────────
+
+(def ^:private fr
+  {"Anything Claude should know (optional)" "Ce que Claude doit savoir (facultatif)"
+   "Update" "Mettre à jour" "Send to Claude" "Envoyer à Claude" "✓ answered " "✓ répondu " "awaiting you" "attend votre avis"
+   "Agree" "D'accord" "Rework" "À revoir" "Disagree" "Pas d'accord" "Your call" "À vous de trancher"
+   "Love it" "J'adore" "Fine" "Ça va" "How does it feel?" "Qu'en pensez-vous ?"
+   "Does this composition fit the work?" "Cette composition sert-elle le travail ?"
+   "Does this shape hold?" "Cette forme tient-elle ?" "Is this the right shape of work?" "Est-ce la bonne forme du travail ?"
+   "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components."
+   "Vues réelles, données illustratives. H montre les liens · G le graphe · I les composants."
+   "Click the screen's own controls. Hover for tools · H highlights links · G shows the graph."
+   "Cliquez dans l'écran. Survolez pour les outils · H montre les liens · G le graphe."
+   "answered" "répondu" " questions wait for you →" " questions vous attendent →" "Whole document" "Tout le document"
+   "live" "en direct" "source .bl.org" "source .bl.org" "theme" "thème"})
+
+(defn tr
+  "The kit's own words in the document's language (set by the page for one render)."
+  [s] (if (= "fr" (erlang/get :dossier/language)) (get fr s s) s))
+
 ; ─── feedback: the reader answers, the file remembers ──────────────────────
 
 (defn feedback-h
@@ -166,10 +186,10 @@
      [:div.fb-opts
       (for [[v label] opts]
         [:button {:type "button" :class (if (= v ans) "opt on" "opt") :data-v v} label])]
-     [:textarea {:name "note" :rows "2" :placeholder (or (:note-placeholder a) "Anything Claude should know (optional)")} (or (:note a) "")]
+     [:textarea {:name "note" :rows "2" :placeholder (or (:note-placeholder a) (tr "Anything Claude should know (optional)"))} (or (:note a) "")]
      [:div.fb-row
-      [:button.send {:type "submit"} (or (:submit-label a) (if ans "Update" "Send to Claude"))]
-      [:span.fb-state (if ans (str "✓ answered " (or (:at a) "")) "awaiting you")]]]))
+      [:button.send {:type "submit"} (or (:submit-label a) (if ans (tr "Update") (tr "Send to Claude")))]
+      [:span.fb-state (if ans (str (tr "✓ answered ") (or (:at a) "")) (tr "awaiting you"))]]]))
 
 ; ─── prose components ──────────────────────────────────────────────────────
 
@@ -268,7 +288,7 @@
              [:div.opt-row.chosen [:i "✓"] [:span (md (trim (subs t 5)))]]
              [:div.opt-row.alt [:i "·"] [:span (md (trim (subs t 5)))]]))
          [:p (md (join " " (map trim run)))]))
-     (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Your call")]))
+     (feedback-h a [["accept" (tr "Agree")] ["rework" (tr "Rework")] ["reject" (tr "Disagree")]] (tr "Your call"))]))
 
 (defn ask-h [b]
   (let [a (:attrs b)
@@ -469,7 +489,7 @@
       [:div.cap-top [:span.chip (:id a)] [:b (md (:title a))]
        (when (:job a) [:a {:href (str "#job-" (:job a))} (str "job " (:job a))])]
       (when (:caption a) [:p (md (:caption a))])
-      (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
+      (feedback-h a [["love" (tr "Love it")] ["fine" (tr "Fine")] ["rework" (tr "Rework")]] (tr "How does it feel?"))]]))
 
 (defn screens-h
   "A `#+begin_screens` strip: consecutive screen blocks scroll sideways."
@@ -534,7 +554,7 @@
   (if-not safe? [:p.warning "Screen hosts must use a same-origin path."]
    [:figure {:class (str "screen-graph screen-source" (design-class a)) :id (str "screen-graph-" (:id a))
              :data-source-id (:id a) :data-source-start url :data-component-catalog (:catalog a) :data-component-explorer (:explorer a)}
-    [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components."))]]
+    [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) (tr "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components.")))]]
     [:div.source-workbench {:tabindex "0" :aria-label "Shared screen preview"}
      [:iframe {:class "source-frame" :src url :title (or (:title a) "Shared product screen") :loading "lazy"}]
      [:div.source-overview {:hidden true :aria-label "Screen graph"}
@@ -551,7 +571,7 @@
      (screen-tools-h "source")
      [:span.sg-announcement.source-current {:aria-live "polite"} (or (:title (first (filter (fn [v] (= start (:id v))) views))) start)]
      [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]]
-    (when (:id a) (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "Does this composition fit the work?"))])))
+    (when (:id a) (feedback-h a [["love" (tr "Love it")] ["fine" (tr "Fine")] ["rework" (tr "Rework")]] (tr "Does this composition fit the work?")))])))
 
 (defn- screen-graph-h [b]
  (if (:src (:attrs b)) (source-screens-h b)
@@ -587,9 +607,9 @@
         (screen-tools-h "sg")
         [:aside.source-component-info {:hidden true :aria-label "Component information" :aria-live "polite"}]
         [:span.sg-announcement {:aria-live "polite"}]])
-     [:p.sg-footnote (or (:help a) "Click the screen's own controls. Hover for tools · H highlights links · G shows the graph.")]
+     [:p.sg-footnote (or (:help a) (tr "Click the screen's own controls. Hover for tools · H highlights links · G shows the graph."))]
      (when (:id a)
-       (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]]
+       (feedback-h a [["love" (tr "Love it")] ["fine" (tr "Fine")] ["rework" (tr "Rework")]]
         (if (:render-view b) "Is this mapping faithful and useful?" "Does this flow fit how you work?")))])))
 
 ; ─── sequence: who says what to whom, in order ─────────────────────────────
@@ -829,7 +849,7 @@
       [:div.cap-top [:span.chip (:id a)] [:b (md (:title a))]
        (when (:job a) [:a {:href (str "#job-" (:job a))} (str "job " (:job a))])]
       (when (:caption a) [:p (md (:caption a))])
-      (feedback-h a [["love" "Love it"] ["fine" "Fine"] ["rework" "Rework"]] "How does it feel?")]]))
+      (feedback-h a [["love" (tr "Love it")] ["fine" (tr "Fine")] ["rework" (tr "Rework")]] (tr "How does it feel?"))]]))
 
 (defn- identify-part-h [kind line rendered]
  (if (and (vector? rendered) (keyword? (first rendered)))
@@ -934,7 +954,7 @@
                 (list [:dt (:name at)]
                       [:dd (schema-type-h (:type at)) (when (:note at) [:small (md (:note at))])]))]])]
      [:footer.s-count (str (count es) " entities · " n-attr " attributes · " n-state " states")]
-     (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Does this shape hold?"))]))
+     (when (:id a) (feedback-h a [["accept" (tr "Agree")] ["rework" (tr "Rework")] ["reject" (tr "Disagree")]] (tr "Does this shape hold?")))]))
 
 ; ─── procedure: a reusable shape of work, steps and sign-offs ──────────────
 ;
@@ -984,7 +1004,7 @@
               (case k "gate" "✓ " "check" "◎ " "→ ") (:name it) (when (:kind it) [:i (:kind it)])
               (when (:draft? it) [:em.p-draft "drafted"])])]]])]
      (paras prose)
-     (when (:id a) (feedback-h a [["accept" "Agree"] ["rework" "Rework"] ["reject" "Disagree"]] "Is this the right shape of work?"))]))
+     (when (:id a) (feedback-h a [["accept" (tr "Agree")] ["rework" (tr "Rework")] ["reject" (tr "Disagree")]] (tr "Is this the right shape of work?")))]))
 
 (defn explorer-h
   "A same-origin, executable component catalog. Views are data queries, not copied specimens.

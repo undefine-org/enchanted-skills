@@ -4,7 +4,12 @@
 ;   group Pilotage
 ;   claim C1 | p1 | direction, travaux | Un tableau de bord par affaire | P p. 8 | affaire-board
 ;   claim C2 | next | achats | Les commandes suivent le budget | P p. 12 |
+;   label p1 | Phase 1
+;   label affaire-board | Tableau de bord
 ;   #+end_claims
+;
+; `label TOKEN | Text` names a phase, a desk or a screen for the reader; tokens
+; stay in the data. Claim IDs are anchors, shown only with :ids true.
 ;
 ; A claim with no screen is an open promise and stays visibly so. Filters and
 ; the screen dialog are local view state; only the feedback form writes. Pure.
@@ -45,6 +50,10 @@
                   (cond
                     (or (blank? t) (starts-with? t "#")) acc
                     (starts-with? t "group ") (update acc :groups conj {:title (trim (subs t 6)) :claims []})
+                    (starts-with? t "label ")
+                    (let [[k v] (mapv trim (String/split (subs t 6) "|"))]
+                      (if (or (blank? k) (blank? v)) (update acc :errors conj (str "A label needs TOKEN | Text: " t))
+                        (assoc-in acc [:labels k] v)))
                     (starts-with? t "claim ")
                     (let [c (mapv trim (String/split (subs t 6) "|"))
                           [id phase desks text source screens] c
@@ -57,11 +66,11 @@
                                                                   :source (when-not (blank? source) source)
                                                                   :screens (words screens (Regex/compile! "\\s+"))}))))))
                     :else (update acc :errors conj (str "Unknown claims line: " t)))))
-              {:groups [] :errors []} body)
+              {:groups [] :errors [] :labels {}} body)
         groups (vec (filter (fn [g] (or (seq (:claims g)) (:title g))) (:groups acc)))
         claims (mapcat :claims groups)
         ids (map :id claims)]
-    {:groups groups
+    {:groups groups :labels (:labels acc)
      :errors (vec (concat (:errors acc)
                           (when (empty? claims) ["Declare at least one claim"])
                           (for [[id k] (frequencies ids) :when (> k 1)] (str "Duplicate claim: " id))
@@ -74,7 +83,9 @@
 
 (defn- covered? [c] (boolean (seq (:screens c))))
 
-(defn- coverage-h [L claims phases]
+(defn- lab [names t] (get names t t))
+
+(defn- coverage-h [L names claims phases]
   (let [n (count claims) k (count (filter covered? claims))]
     [:div.cl-cover
      [:p.cl-total [:b (str k)] [:span (str "/ " n)] [:small (:covered L)]]
@@ -82,43 +93,44 @@
       (for [p phases]
         (let [cs (filter (fn [c] (= p (:phase c))) claims) kc (count (filter covered? cs))]
           [:li {:class (tone-class p)}
-           [:span.cl-ph p]
-           [:span.cl-meter {:role "img" :aria-label (str p " : " kc " / " (count cs) " " (:covered L))}
+           [:span.cl-ph (lab names p)]
+           [:span.cl-meter {:role "img" :aria-label (str (lab names p) " : " kc " / " (count cs) " " (:covered L))}
             [:i {:style (str "width:" (erlang/round (/ (* 100 kc) (max 1 (count cs)))) "%")}]]
            [:span.cl-frac (str kc " / " (count cs))]]))]
      (when (< k n) [:p.cl-opens [:b (str (- n k))] " " (:opens L)])]))
 
-(defn- chip-group-h [L kind label values counts]
+(defn- chip-group-h [L names kind label values counts]
   [:div.cl-fgroup {:role "group" :aria-label label}
    [:span.cl-flabel label]
    [:div.cl-fchips
     [:button {:type "button" :data-claims-filter kind :data-value "" :aria-pressed "true"} (:all L)]
     (for [v values]
       [:button {:type "button" :class (if (= kind "phase") (tone-class v) "") :data-claims-filter kind :data-value v :aria-pressed "false"}
-       v [:span.n (str (get counts v 0))]])]])
+       (lab names v) [:span.n (str (get counts v 0))]])]])
 
-(defn- row-h [L block-id src c]
+(defn- row-h [L names ids? block-id src c]
   [:li {:class (str "cl-row " (tone-class (:phase c)) (if (covered? c) "" " open"))
         :id (str "claim-" block-id "-" (:id c))
         :data-phase (:phase c) :data-desks (join "|" (:desks c)) :data-open (if (covered? c) "0" "1")}
-   [:div.cl-key [:span.cl-id (:id c)] [:span.cl-ph (:phase c)]]
+   [:div.cl-key (when ids? [:span.cl-id (:id c)]) [:span.cl-ph (lab names (:phase c))]]
    [:p.cl-text (ui/md (:text c))]
    [:div.cl-facts
     (when (:source c) [:span.cl-src {:title (:source L)} (:source c)])
-    (for [d (:desks c)] [:span.cl-desk d])]
+    (for [d (:desks c)] [:span.cl-desk (lab names d)])]
    [:div.cl-screens
     (if (covered? c)
       (for [v (:screens c)]
         (if src
           [:button {:type "button" :class "cl-screen" :data-claims-view v :data-claim (:id c)
-                    :aria-haspopup "dialog" :aria-label (str (:view L) " " v)}
-           (ui/ico "eye") [:span v]]
-          [:span.cl-screen [:span v]]))
+                    :aria-haspopup "dialog" :aria-label (str (:view L) " " (lab names v))}
+           (ui/ico "eye") [:span (lab names v)]]
+          [:span.cl-screen [:span (lab names v)]]))
       [:span.cl-none [:i {:aria-hidden "true"} "○"] (:open L)])]])
 
 (defn claims-h [node]
   (let [a (:attrs node) L (labels-for a) id (:id a)
-        model (parse (:body node)) groups (:groups model)
+        model (parse (:body node)) groups (:groups model) names (:labels model)
+        ids? (contains? #{true "true" "yes"} (:ids a))
         claims (mapcat :claims groups)
         src (safe-src (:src a))
         errors (cond-> (:errors model) (and (:src a) (nil? src)) (conj "The screen host :src must be a same-origin path"))
@@ -130,10 +142,10 @@
      (if (seq errors)
        [:div.cl-errors {:role "alert"} [:b (:errors L)] [:ul (map (fn [e] [:li e]) errors)]]
        (list
-         (coverage-h L claims phases)
+         (coverage-h L names claims phases)
          [:div.cl-filters
-          (chip-group-h L "phase" (:phase L) phases (frequencies (map :phase claims)))
-          (chip-group-h L "desk" (:desk L) desks (frequencies (mapcat :desks claims)))
+          (chip-group-h L names "phase" (:phase L) phases (frequencies (map :phase claims)))
+          (chip-group-h L names "desk" (:desk L) desks (frequencies (mapcat :desks claims)))
           [:div.cl-fend
            (when (> n-open 0)
              [:button {:type "button" :class "cl-only-open" :data-claims-filter "open" :data-value "1" :aria-pressed "false"}
@@ -144,13 +156,13 @@
           (for [g groups]
             [:div.cl-group {:data-claims-group "true"}
              (when (:title g) [:h5 (ui/md (:title g))])
-             [:ul.cl-rows (for [c (:claims g)] (row-h L id src c))]])
+             [:ul.cl-rows (for [c (:claims g)] (row-h L names ids? id src c))]])
           [:p.cl-empty {:hidden true} (:none L)]]
          (when src
            [:dialog {:class "cl-dialog" :aria-labelledby (str "claims-" id "-dlg")}
             [:div.cl-dlg-box
              [:header.cl-dlg-head
-              [:div.cl-dlg-title [:span.cl-id {:data-claims-dlg-id "true"}]
+              [:div.cl-dlg-title [:span.cl-id {:data-claims-dlg-id "true" :hidden (not ids?)}]
                [:b {:id (str "claims-" id "-dlg") :data-claims-dlg-text "true"}]]
               [:button {:type "button" :class "cl-dlg-close" :data-claims-close "true" :aria-label (:close L) :title (:close L)} (ui/ico "x")]
               [:nav.cl-dlg-views {:aria-label (:screens L)}]

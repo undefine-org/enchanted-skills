@@ -123,10 +123,10 @@
         asks (filter (fn [i] (contains? #{"ask" "decision"} (:lang i))) open)]
     [:div.tally
      [:span.tally-n (str (- (count items) (count open)) "/" (count items))]
-     [:span "answered"]
+     [:span (ui/tr "answered")]
      (when (seq asks)
        [:a.next {:href (str "#" (:lang (first asks)) "-" (:id (first asks)))}
-        (str (count asks) " questions wait for you →")])]))
+        (str (count asks) (ui/tr " questions wait for you →"))])]))
 
 (defn- sec-id [s] (if (:head s) (str "s-" (ui/slug (:title (:head s)))) "s-intro"))
 
@@ -153,17 +153,19 @@
          [:a.side-sec {:href (str "#" (sec-id s))}
           [:span.st (if (:head s) (ui/md (:title (:head s))) "Overview")]
           (cond (> n ok) [:span.wait {:title "waiting for your answer"} (- n ok)]
-                (> n 0) [:span.ok {:title "answered"} "✓"]
+                (> n 0) [:span.ok {:title (ui/tr "answered")} "✓"]
                 (seq kws) [:span.prog {:title "done / total"} (str done "/" (count kws))]
                 :else nil)]
          (when (seq subs)
            [:div.side-subs (for [h subs] [:a {:href (str "#" (ui/slug (:title h)))} (ui/md (:title h))])])]))]
-   [:a.side-all {:href "#all"} "Whole document"]])
+   [:a.side-all {:href "#all"} (ui/tr "Whole document")]])
 
 (defn doc-h
   "The document body (sidebar, header, nav and sections) as hiccup."
   [doc]
-  (let [meta (:meta doc) secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
+  (let [meta (:meta doc)
+        _ (erlang/put :dossier/language (:language meta))
+        secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
         n (count secs)]
     (list
       [:div {:class "app2" :data-design (:design meta) :data-layout (:layout meta)}
@@ -195,7 +197,7 @@
 (defn page-h
   "The full HTML document."
   [doc css js]
-  [:html {:lang "en" :data-design (get-in doc [:meta :design])}
+  [:html {:lang (or (get-in doc [:meta :language]) "en") :data-design (get-in doc [:meta :design])}
    [:head
     [:meta {:charset "utf-8"}]
     [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
@@ -203,7 +205,7 @@
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
     [:style css (design/css)]]
    [:body
-    [:div.live [:i] [:span#stamp "live"] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} "theme"]]
+    [:div.live [:i] [:span#stamp (ui/tr "live")] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} (ui/tr "theme")]]
     [:main#doc (doc-h doc)]
     [:div#toast]
     [:script js]]])

@@ -700,7 +700,7 @@
     dlg.querySelector('[data-claims-dlg-text]').textContent = row.querySelector('.cl-text').textContent;
     const nav = dlg.querySelector('.cl-dlg-views');
     nav.replaceChildren(...[...row.querySelectorAll('[data-claims-view]')].map(b => {
-      const x = document.createElement('button'); x.type = 'button'; x.dataset.claimsSwitch = b.dataset.claimsView; x.textContent = b.dataset.claimsView; return x;
+      const x = document.createElement('button'); x.type = 'button'; x.dataset.claimsSwitch = b.dataset.claimsView; x.textContent = b.querySelector('span')?.textContent || b.dataset.claimsView; return x;
     }));
     nav.hidden = nav.children.length < 2;
     showView(root, dlg, button.dataset.claimsView);

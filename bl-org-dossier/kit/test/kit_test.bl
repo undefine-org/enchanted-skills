@@ -284,6 +284,25 @@
     (is (not (includes? html "<dialog"))))
   (is (not (includes? (h/hiccup->html (claims/claims-h {:attrs {:id "x" :src "//evil.example"} :body ["claim A | p1 | ops | t | P | home"]})) "<iframe"))))
 
+(deftest claims-show-labels-not-tokens
+  (let [html (h/hiccup->html (claims/claims-h {:attrs {:id "x" :src "/views"}
+                                               :body ["claim C7 | p1 | marches | t | P | marches-veille"
+                                                      "label p1 | Phase 1" "label marches | Marchés" "label marches-veille | Veille"]}))]
+    (doseq [needle ["Phase 1" "Marchés" "<span>Veille</span>" "data-claims-view=\"marches-veille\"" "data-phase=\"p1\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (not (includes? html ">C7<")) "claim IDs are anchors, not text, unless :ids true"))
+  (is (includes? (h/hiccup->html (claims/claims-h {:attrs {:id "x" :ids "true"} :body ["claim C7 | p1 | a | t"]})) ">C7<"))
+  (is (seq (:errors (claims/parse ["claim C1 | p1 | a | t" "label p1"])))))
+
+(deftest a-french-document-speaks-french
+  (let [doc (o/read-doc (join "\n" ["#+title: Dossier" "#+language: fr" "* A"
+                                    "#+begin_ask :id q :title \"Q ?\" :options \"Oui|Non\"" "Contexte." "#+end_ask"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["lang=\"fr\"" "attend votre avis" "Envoyer à Claude" "Tout le document" "questions vous attendent"]]
+      (is (includes? html needle) (str "missing " needle))))
+  (let [html (h/hiccup->html (pg/page-h (o/read-doc "#+title: D\n* A\n#+begin_ask :id q :title Q :options \"A|B\"\nx\n#+end_ask") "" ""))]
+    (is (includes? html "awaiting you"))))
+
 (deftest a-lifetime-draws-lanes-spans-handoffs-and-a-list-in-order
   (let [doc (o/read-doc (join "\n" ["* L" "#+begin_lifetime :id life :title Life :start 2026-01 :end 2029-12 :lang fr"
                                     "lane offer | Commercial | p1" "lane works | Travaux | next"
