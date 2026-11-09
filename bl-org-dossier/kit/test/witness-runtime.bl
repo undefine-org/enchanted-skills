@@ -1,0 +1,14 @@
+; Run with bl run, without the bl test prelude: serving must load real records.
+(ns witness-runtime (:require [dossier.witness :as witness] [bl.json :as json]))
+(def root (Path/join (System/tmp_dir!) (str "witness-runtime-" (Base/encode16 (crypto/strong_rand_bytes 8)))))
+(File/mkdir_p! root)
+(def run (Path/join root "record.json"))
+(def node {:t :block :lang "witness" :attrs {:id "runtime" :run "record.json" :frames "."}})
+(defn state [] (:state (:data (first (:nodes (witness/enrich {:nodes [node]} root))))))
+(try
+ (File/write! run (json/encode {:world "browser" :ok true :verdicts [{:step 1 :msg "Actual captured claim" :verdict "witnessed"}]}))
+ (assert (= "witnessed" (state)))
+ (File/write! run (json/encode {:world "browser" :ok true :verdicts [{:step "1" :msg "Invalid claim" :verdict "witnessed"}]}))
+ (assert (= "invalid" (state)))
+ (println {:standalone-witness :passed :claims 2})
+ (finally (File/rm_rf! root)))

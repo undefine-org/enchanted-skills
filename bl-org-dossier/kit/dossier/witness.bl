@@ -14,7 +14,7 @@
   (try
    (let [record (json/decode (File/read! path)) claims (get record "verdicts")]
     (if (and (map? record) (vector? claims)
-             (every? (fn [claim] (and (map? claim) (integer? (get claim "step"))
+             (every? (fn [claim] (and (map? claim) (erlang/is_integer (get claim "step"))
                                       (pos? (get claim "step")) (string? (get claim "msg")))) claims))
      {:record record} {:state "invalid"}))
    (catch _ {:state "invalid"}))))
