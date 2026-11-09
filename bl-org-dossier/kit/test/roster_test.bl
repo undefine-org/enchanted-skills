@@ -56,6 +56,9 @@
    (is (includes? html "data-roster-note=\"work\""))
    (is (= 200 (:status saved)))
    (is (= "Saved review" (get-in (nth (:items (model/parse (File/read! (str root "/project.org")))) 2) [:props "REVIEW_NOTE"])))
+   (is (= "Saved review" (get-in (first (filter (fn [x] (= "roster" (:lang x))) (:nodes (roster/enrich doc root options)))) [:data :items 2 :props "REVIEW_NOTE"])))
+   (is (= 409 (:status (roster/submit-note! doc root options "reviewer" (json/encode {"roster" "work" "task" "sibling" "note" "must not overwrite" "version" "old-version"})))))
+   (is (not (includes? (File/read! (str root "/project.org")) "must not overwrite")))
    (is (nil? (roster/resolve-file root root "../outside.org")))
    (is (= 400 (:status (roster/submit-note! doc root options "reviewer" "invalid-json"))))
    (is (= 400 (:status (roster/submit-note! doc root options "reviewer" (json/encode {"roster" "unknown" "task" "sibling" "note" "bad"})))))
@@ -69,3 +72,8 @@
   (is (includes? html "<span>wait</span>"))
   (is (includes? html "<span>review</span>"))
   (is (includes? html "<span>done</span>"))))
+
+(deftest cyclic-dependencies-and-unstable-note-targets-are-rejected
+ (let [text "* Tasks\n** TODO R1 First\n:PROPERTIES:\n:BLOCKED_BY: R2\n:END:\n** TODO R2 Second\n:PROPERTIES:\n:BLOCKED_BY: R1\n:END:\n"]
+  (is (seq (:errors (model/parse text)))))
+ (is (try (model/note-text "* Tasks\n** TODO A task without identity\n" "line-1" "unsafe" "Comment" "now" "actor") false (catch _ true))))

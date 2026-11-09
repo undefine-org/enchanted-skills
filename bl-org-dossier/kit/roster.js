@@ -23,9 +23,9 @@
     const s = state(g), rows = qa(g, '[data-roster-row]');
     const visible = rows.filter(row => matches(row, s.filter) && (!s.area || row.dataset.area === s.area) && (!s.search || row.dataset.search.includes(s.search.toLowerCase())));
     rows.forEach(row => { row.hidden = !visible.includes(row); row.setAttribute('aria-pressed', row.dataset.rosterRow === s.selected); });
-    qa(g, '[data-roster-group]').forEach(group => { group.hidden = !qa(group, '[data-roster-row]').some(row => !row.hidden); });
+    qa(g, '[data-roster-group]').forEach(group => { const current = qa(group, '[data-roster-row]').filter(row => !row.hidden); group.hidden = !current.length; q(group, 'h3 span').textContent = current.length; });
     qa(g, '[data-roster-filter-to]').forEach(b => b.setAttribute('aria-pressed', b.dataset.rosterFilterTo === s.filter));
-    qa(g, '[data-roster-filter-count]').forEach(b => { b.textContent = rows.filter(row => matches(row, b.dataset.rosterFilterCount)).length; });
+    qa(g, '[data-roster-filter-count]').forEach(b => { b.textContent = rows.filter(row => (!s.area || row.dataset.area === s.area) && (!s.search || row.dataset.search.includes(s.search.toLowerCase())) && matches(row, b.dataset.rosterFilterCount)).length; });
     const select = q(g, '[data-roster-filter-select]'); if (select) select.value = s.filter;
     q(g, '[data-roster-visible-count]').textContent = visible.length;
     q(g, '[data-roster-empty]').hidden = visible.length > 0;
@@ -46,7 +46,7 @@
   function choose(g, id, remember = true) {
     const s = state(g);
     if (!q(g, `[data-roster-panel="${CSS.escape(id)}"]`)) return;
-    if (remember && s.selected && s.selected !== id) s.history.push(s.selected);
+    if (remember && s.selected && s.selected !== id) s.history.push({ selected: s.selected, filter: s.filter, area: s.area, search: s.search });
     const row = q(g, `[data-roster-row="${CSS.escape(id)}"]`);
     if (row?.hidden) { s.filter = 'all'; s.area = ''; s.search = ''; q(g, '[data-roster-search]').value = ''; q(g, '[data-roster-area]').value = ''; }
     s.selected = id; s.listOpen = false; paint(g, { follow: true });
@@ -71,7 +71,7 @@
       g.addEventListener('click', e => {
         const filter = e.target.closest('[data-roster-filter-to]'); if (filter) { s.filter = filter.dataset.rosterFilterTo; paint(g); }
         const target = e.target.closest('[data-roster-to]'); if (target) choose(g, target.dataset.rosterTo);
-        if (e.target.closest('[data-roster-back]') && s.history.length) choose(g, s.history.pop(), false);
+        if (e.target.closest('[data-roster-back]') && s.history.length) { const back = s.history.pop(); Object.assign(s, back); q(g, '[data-roster-search]').value = s.search; q(g, '[data-roster-area]').value = s.area; choose(g, back.selected, false); }
         if (e.target.closest('[data-roster-close-list]')) { s.listOpen = false; paint(g); q(g, '[data-roster-picker]').focus({ preventScroll: true }); }
         if (e.target.closest('[data-roster-picker]')) { s.listOpen = !s.listOpen; paint(g); if (s.listOpen) q(g, '[data-roster-area]').focus({ preventScroll: true }); }
         const image = e.target.closest('[data-roster-image]');
@@ -80,6 +80,7 @@
           q(dialog, 'img').alt = image.dataset.rosterCaption; q(dialog, 'p').textContent = image.dataset.rosterCaption; dialog.showModal();
         }
       });
+      qa(g, 'iframe[data-roster-preview]').forEach(frame => frame.addEventListener('load', () => { try { const theme = document.documentElement.dataset.theme; if (theme) frame.contentDocument.documentElement.dataset.theme = theme; } catch {} }));
       g.addEventListener('toggle', e => {
         if (!e.target.open) return;
         const iframe = q(e.target, 'iframe[data-roster-preview]'); if (iframe && !iframe.src) iframe.src = iframe.dataset.rosterPreview;
@@ -95,7 +96,7 @@
         e.preventDefault(); if (f.dataset.saving) return;
         const button = q(f, 'button[type=submit]'), status = q(f, '.or-save-state');
         f.dataset.saving = 'true'; button.disabled = true; status.textContent = 'Saving…';
-        const payload = { roster: f.dataset.rosterNote, task: f.dataset.task, note: f.elements.note.value, decision: f.elements.decision.value };
+        const payload = { roster: f.dataset.rosterNote, task: f.dataset.task, note: f.elements.note.value, decision: f.elements.decision.value, version: f.dataset.taskVersion };
         try {
           const res = await fetch('roster-note', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
           const body = await res.json(); if (!res.ok || body.ok !== true || body.note !== payload.note || body.task !== payload.task) throw new Error(body.error || 'The server did not confirm the save.');
@@ -116,6 +117,7 @@
     });
   }
   init();
+  new MutationObserver(() => { qa(document, 'iframe[data-roster-preview]').forEach(frame => { try { if (frame.contentDocument) frame.contentDocument.documentElement.dataset.theme = document.documentElement.dataset.theme || ''; } catch {} }); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   new MutationObserver(records => {
     if (records.some(record => [...record.addedNodes].some(n => n.nodeType === 1 && (n.matches?.('[data-roster]') || n.querySelector?.('[data-roster]'))))) init();
   }).observe(document.getElementById('doc'), { childList: true, subtree: true });

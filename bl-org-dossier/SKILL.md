@@ -107,6 +107,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `horizons :id :now :title` | `horizon NAME \| start \| end` (the team's own horizons, widest first), `goal HORIZON \| title \| date \| a/b` (date and progress optional) | a telescope: each band is the magnified now of the one above, joined by a funnel; goals on their band, progress as an arc, undated goals on the dashed someday edge; answerable |
 | `film :id :title :run :src` | prose (the experience it establishes); `missing @icon Beat \| why` lines for beats not filmed yet | a filmed `scenario.demo` run read from `:run` (its output folder, relative to the dossier): the movie (`:src`) with a chapter per scene, each scene's narration, steps and claims with their verdicts, and the gaps computed from the run (a scene that proves nothing, a gesture after its scene's last claim, a claim not witnessed, no movie yet) plus the declared ones; answerable. The server reads the run (`dossier.film/enrich`); the page stays pure |
 | `milestones :id :title :start` | `milestone ID \| state \| title \| lane`, then `needs`, `step`, `check`, `gate` | clickable map and one milestone's steps, dependencies, completion criteria and access gates; selection survives live refresh; feedback remains explicit |
+| `roster :id :source :title :start :who` | Ordinary Org task headings and their drawers, read from `:source` by the connected review host | A live work list with filters, inline evidence, blockers, next action, task notes and explicit roster approval; see Org-native rosters below |
 | `witness :id :title :run :frames` | optional `:scope` describes what was exercised | actual Scenario Runner claims paired with their recorded browser frames, one at a time; timestamp, verdicts, full-size frame link and feedback; no fabricated movie |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
@@ -490,3 +491,70 @@ recorded timestamps. A frame is recorded evidence, never live service health.
 Inspect milestone selection, dependency navigation, frame stepping, keyboard
 arrows, live-refresh continuity, phone overflow and both themes in a real
 browser. Save a reaction on a disposable dossier to verify the authorized path.
+
+
+## Org-native rosters
+
+A roster is a generated view of normal Org, not another task inventory:
+
+```org
+#+begin_roster :id delivery :source "../PROJECT.bl.org" :title "Progress, in plain sight." :start R41 :who "othman hotel"
+#+end_roster
+```
+
+Serve it with the connected `codebase-review/kit/serve.bl` host and set
+`DOSSIER_ROSTER_ROOT` to the trusted project root. The source must be an Org
+file under that root, including after symlink resolution. Keep `DOSSIER_OWNER`
+configured for a published review. The basic dossier host does not enrich
+rosters; custom hosts call `dossier.roster/enrich` at the I/O boundary.
+
+Tasks use their own `#+TODO` workflow, headings, `:PROPERTIES:` drawers,
+planning dates and ordinary file links. Prefer a native `:ID:`; legacy IDs at
+the start of a heading also work. A task without stable identity can be read
+but cannot receive a note. Child progress comes from the actual outline;
+siblings are never children. Missing dependencies and cycles are visible errors.
+
+Existing properties: `OWNER`, `PRIORITY`, `AREA`, `BLOCKED_BY`, `COMMIT`,
+`TEST`, `EVIDENCE`. Optional presentation/progress properties:
+
+| Property | Meaning |
+|---|---|
+| `ROSTER_TITLE`, `OUTCOME` | Short title and the person's outcome; full source stays in details |
+| `NEXT_ACTION`, `ACTION_OWNER` | Concrete next move and its responsible person (defaults to OWNER) |
+| `HORIZON: later` | Deferred work; P3 also appears under Later |
+| `BUILD`, `CHECKED`, `LIVE` | Explicit, separately scoped implementation/check/live labels |
+| `PROOF` | Ordinary `[[file:record.json][Label]]` evidence links |
+| `WITNESS`, `FRAMES`, `PROOF_SCOPE`, `PROOF_STEP` | An actual Scenario Runner JSON record, its recorded frames, scope and preferred step |
+| `PREVIEW`, `PREVIEW_SCOPE` | Existing same-origin source view (or HTTPS view), lazily opened in place |
+| `FILM` | Actual recorded video URL; never synthesize a movie or a claim |
+
+`Open`, `All work`, `Needs you`, `Ready`, `Blocked`, `Done`, `Later`, search
+and workstream selection are local projections. Counts come from matching
+Org tasks. The progress strip counts tasks; it does not measure production
+readiness. `DROP` is retained as superseded work. `WAIT` and `REVIEW` remain
+visible. Comments save `REVIEW_NOTE`, `REVIEW_DECISION`, `REVIEW_AT` and
+`REVIEW_BY` into that task's drawer, preserving TODO, ownership and evidence.
+Approval of the roster writes to its own block; it does not approve product
+expansion or activate a provider.
+
+The pure public renderers live in `dossier.roster.view` and carry `:ui`
+annotations and authored examples. `dossier.roster/enrich` accepts trusted
+`:root`, `:can-write?` and optional `:evidence` host options. The latter is a
+server-owned `(fn [item context] ...)` projection of existing evidence records;
+its output is a `:proofs` vector plus an optional source `:fingerprint`.
+A file existing is not evidence that its check passed. Retain the actual
+recorded scope/date and show missing or changed-source evidence honestly.
+
+Custom hosts serve the declared `/roster-media/ROSTER/TASK/frame-N.png` through
+`dossier.roster/media-path`, and authenticated, bounded `/roster-note` requests
+through `submit-note!`. HTTP input only names roster/task IDs; it never names
+files or executable code. Include `roster.css` and `roster.js` alongside the
+standard assets. Live revisions include enriched roster data, so source/evidence
+changes refresh open views. Selection, filters, review drafts and focus survive
+ordinary refresh. Embed source views as local previews, not provider actions.
+
+Before publishing, use the actual UI on phone and desktop in both themes.
+Inspect measured bars, proof enlargement, gallery controls, dependency/back
+navigation, empty filters, task-picker close, saved/reloaded notes, live draft
+preservation, denied writes and a disposable roster approval. Keep the real
+approval unanswered until the owner decides.

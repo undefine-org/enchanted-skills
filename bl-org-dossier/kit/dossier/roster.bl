@@ -11,6 +11,13 @@
  (when (and (string? path) (not (blank? path)))
   (let [root (real root) file (real (Path/expand (if (starts-with? path "/") path (Path/join directory path))))]
    (when (and root file (starts-with? file (str root "/")) (File/regular? file)) file))))
+(def ^:private parsed-sources (atom {}))
+(defn- parsed-source [file text]
+ (let [digest (String/downcase (Base/encode16 (crypto/hash :sha256 text))) cached (get @parsed-sources file)]
+  (if (= digest (:digest cached)) (:model cached)
+   (let [parsed (model/parse text)]
+    (swap! parsed-sources (fn [entries] (assoc (if (< (count entries) 16) entries {}) file {:digest digest :model parsed})))
+    parsed))))
 (defn- block [doc id]
  (first (filter (fn [n] (and (= "roster" (:lang n)) (= id (get-in n [:attrs :id])))) (:nodes doc))))
 (defn context [doc directory id options]
@@ -18,7 +25,7 @@
        file (resolve-file root directory source)]
   (when-not (and node file (ends-with? file ".org")) (throw (ex-info "The roster source must be an Org file inside the configured root" {:id id})))
   (let [text (File/read! file)]
-   {:node node :root root :file file :directory (Path/dirname file) :text text :model (model/parse text) :resolve (fn [p] (resolve-file root (Path/dirname file) p))})))
+   {:record-cache (atom {}) :node node :root root :file file :directory (Path/dirname file) :text text :model (parsed-source file text) :resolve (fn [p] (resolve-file root (Path/dirname file) p)) :resolve-root (fn [p] (resolve-file root root p))})))
 (defn witness-node [id item]
  (when-let [run (get-in item [:props "WITNESS"])]
   {:t :block :lang "witness" :attrs {:id (:id item) :title (get-in item [:props "PROOF_TITLE"] "Recorded journey")
@@ -63,7 +70,7 @@
  (try
   (when (> (erlang/byte_size body) 16384) (throw (ex-info "Note is too large" {})))
   (let [request (json/decode body) id (get request "roster") task (get request "task")
-        note (get request "note" "") decision (get request "decision" "Comment")]
+        note (get request "note" "") decision (get request "decision" "Comment") version (get request "version")]
    (when-not (and (string? id) (string? task) (< (count id) 100) (< (count task) 100)
                   (string? note) (<= (count note) 12000) (string? decision)
                   (contains? #{"Comment" "Looks right" "Needs changes"} decision))
@@ -71,12 +78,16 @@
    (let [ctx (context doc directory id options) path (:file ctx)]
     (global/trans (tuple (tuple :dossier/roster-note path) (erlang/self))
      (fn []
-      (let [text (File/read! path) stamp (subs (String/replace (str (DateTime/utc_now)) (Regex/compile! "^~U\\[") "") 0 19)
+      (let [text (File/read! path)
+            current (first (filter (fn [x] (= task (:id x))) (:items (model/parse text))))
+            actual (when current (String/downcase (Base/encode16 (crypto/hash :sha256 (:raw current)))))
+            _ (when (and version (not= version actual)) (throw (ex-info "This task changed. Reload its saved record before saving your draft again." {:status 409})))
+            stamp (subs (String/replace (str (DateTime/utc_now)) (Regex/compile! "^~U\\[") "") 0 19)
             changed (model/note-text text task note decision stamp by)
             temporary (str path ".roster-tmp")]
        (File/write! temporary changed) (File/rename! temporary path)
        {:status 200 :body {:ok true :task task :note note :decision decision :at stamp
                           :rev (str (erlang/phash2 changed))}})))))
-  (catch error {:status 400 :body {:error (ex-message error)}})))
+  (catch error {:status (or (:status (ex-data error)) 400) :body {:error (ex-message error)}})))
 
 (defn roster-h [node] (view/roster-h node))

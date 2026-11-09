@@ -59,7 +59,7 @@
   [:summary (ui/ico "comment") "Your ideas on this task"
    (when (get-in item [:props "REVIEW_NOTE"]) [:span.or-saved "Saved"])]
   (if can-write?
-   [:form.or-note-form {:data-roster-note roster-id :data-task (:id item)}
+   [:form.or-note-form {:data-roster-note roster-id :data-task (:id item) :data-task-version (String/downcase (Base/encode16 (crypto/hash :sha256 (:raw item))))}
     [:label {:for (str "note-" roster-id "-" (:id item))} "What should change?"]
     [:textarea {:id (str "note-" roster-id "-" (:id item)) :name "note" :rows 3 :maxlength 12000
                 :placeholder "A correction, an idea, a different priority…"} (get-in item [:props "REVIEW_NOTE"] "")]
@@ -110,39 +110,49 @@
     (when (and (empty? (:proofs item)) (nil? (:witness item)) (nil? (get-in item [:props "FILM"])))
      [:div.or-reference-proof (ui/ico "file")
       [:div [:strong (if (:done? item) "Completion references recorded" "Qualification still ahead")]
-       [:p (if (:done? item) "Open the source record for the scoped completion evidence." "No recorded outcome is attached to this task yet.")]]])
+       [:p (or (when-let [e (get-in item [:props "EVIDENCE"])]
+                  (if (> (count e) 210) (str (subs e 0 210) "…") e))
+               (if (:done? item) "The task's source references are recorded below." "No recorded outcome is attached to this task yet."))]
+       (when-let [commits (get-in item [:props "COMMIT"])]
+        [:div.or-source-chips (for [commit (take 3 (Regex/split (Regex/compile! "\\s+") commits))] [:code commit])])]])
     (preview-h item)]
    [:aside.or-action-column
     [:section.or-next
-     [:span.or-eyebrow (ui/ico "next") (if (:done? item) "Outcome" "Next move")]
+     [:span.or-eyebrow (ui/ico "next") (if (:done? item) "Outcome" "Next move")
+      (when (and (not (:done? item)) (:action-owner item)) [:span.or-next-owner (:action-owner item)])]
      [:h3 (or (:next item) (if (:done? item) "Scoped work recorded" "Define the next action"))]
      (when (seq (:blockers item))
       [:div.or-dependencies [:span "Depends on"]
        (for [id (:blockers item)] [:button {:type "button" :data-roster-to id} (ui/ico "lock") id (ui/ico "next")])])
      (when (pos? (or (:child-count item) 0))
       [:p.or-child-progress (str (:child-done item) " / " (:child-count item) " child tasks complete")])]
-    (task-note roster-id item can-write?)
+    (task-note roster-id item (and can-write? (:stable-id? item)))
     (references-h item)]]])
 
 (defn- row-h [item who start]
  [:button.or-work-row {:type "button" :data-roster-to (:id item) :data-roster-row (:id item)
-  :data-state (:state item) :data-area (:area item) :data-owner (:owner item)
+  :data-state (:state item) :data-area (:area item) :data-owner (:owner item) :data-action-owner (:action-owner item)
   :data-blocked (str (boolean (:blocked? item))) :data-done (str (boolean (:done? item)))
   :data-dropped (str (boolean (:dropped? item))) :data-later (str (boolean (:later? item)))
-  :data-needs-you (str (and (not (:done? item)) (not (:later? item)) (contains? who (:owner item))))
+  :data-needs-you (str (and (not (:done? item)) (not (:later? item)) (contains? who (:action-owner item))))
   :data-search (lower-case (str (:id item) " " (:title item) " " (:owner item) " " (:area item)))
   :aria-pressed (= start (:id item))}
   [:span {:class (str "or-work-mark " (lower-case (:state item)))} (ui/ico (cond (:dropped? item) "x" (:done? item) "check" (:blocked? item) "lock" :else "clock"))]
   [:span.or-work-name [:strong (:title item)] [:small (:id item) " · " (get state-labels (:state item) (:state item))]]
   [:span.or-work-arrow (ui/ico "next")]])
-(defn roster-h [node]
+(defn ^{:ui {:id "org-roster" :family "Progress" :title "Org-native progress roster"
+ :use "Project canonical Org tasks with their owner, evidence, blockers and next action."
+ :examples [{:state "Waiting for activation" :args [{:attrs {:id "example" :title "The work, in plain sight" :source "PROJECT.bl.org" :start "R1"}
+  :data {:source "PROJECT.bl.org" :keywords {:open ["WAIT"] :done ["DONE"]} :counts {"WAIT" 1} :errors [] :can-write? false
+   :items [{:id "R1" :stable-id? true :state "WAIT" :title "Qualify a connection" :area "Models" :owner "Operator" :action-owner "Operator" :priority "P1" :props {} :blockers [] :blocked? true :proofs [] :line 0 :raw "** WAIT Qualify a connection" :next "Activate the reviewed route."}]}}]}]}}
+ roster-h [node]
  (let [a (:attrs node) data (:data node) items (:items data) who (set (Regex/split (Regex/compile! "\\s+") (get a :who "othman hotel")))
        start (or (:start a) (:id (first (filter (fn [i] (not (:done? i))) items))) (:id (first items)))
        complete (count (filter (fn [i] (and (:done? i) (not (:dropped? i)))) items))
        open (count (remove :done? items)) dropped (count (filter :dropped? items))
        groups (sort (distinct (map :area items))) can-write? (:can-write? data)]
   [:section.org-roster {:id (str "roster-" (:id a)) :data-roster (:id a) :data-roster-start start
-                        :data-roster-filter (or (:filter a) "open") :data-ui-component "org-roster"}
+                        :data-roster-filter (or (:filter a) "open") :data-roster-source-sha256 (:source-sha256 data) :data-ui-component "org-roster"}
    [:header.or-overview
     [:div.or-overview-title [:span.or-eyebrow (or (:eyebrow a) "Delivery / Org source")]
      [:h1 (or (:title a) "Progress, in plain sight.")]

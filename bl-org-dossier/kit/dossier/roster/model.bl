@@ -13,6 +13,8 @@
         {:path (nth m 1) :label (or (nth m 2 nil) (nth m 1))})))
 (defn- heading-state [h states]
  (or (:todo h) (when (contains? states (first (words (:title h)))) (first (words (:title h))))))
+(defn- cycle? [by-id id trail]
+ (or (contains? trail id) (some (fn [dep] (cycle? by-id dep (conj trail id))) (:blocked-by (get by-id id)))))
 (defn parse [text]
  (let [doc (org/read-doc text) ks (declaration doc) states (set (concat (:open ks) (:done ks)))
        headings (vec (filter (fn [n] (= :heading (:t n))) (:nodes doc)))
@@ -36,9 +38,9 @@
                 parent (last (filter (fn [x] (and (< (:level x) (:level h)) (heading-state x states))) ancestors))
                 parent-title (when parent (Regex/run (Regex/compile! "^([A-Z]+[0-9]+[a-z]?)\\s+") (:title parent)))
                 dates (into {} (for [m (Regex/scan (Regex/compile! "(DEADLINE|SCHEDULED|CLOSED):\\s*[<\\[]([0-9]{4}-[0-9]{2}-[0-9]{2})") raw)] [(nth m 1) (nth m 2)]))]
-           {:id id :state state :title (or (get props "ROSTER_TITLE") (nth named 2 nil) title)
+           {:id id :stable-id? (boolean (or (get props "ID") named)) :state state :title (or (get props "ROSTER_TITLE") (nth named 2 nil) title)
             :original-title title :line (:line h) :end next-line :level (:level h) :props props
-            :owner (get props "OWNER" "Unassigned") :area (get props "AREA" "Other")
+            :owner (get props "OWNER" "Unassigned") :action-owner (get props "ACTION_OWNER" (get props "OWNER" "Unassigned")) :area (get props "AREA" "Other")
             :priority (or (get props "PRIORITY") (when priority (nth priority 1)) "P2")
             :parent-line (:line parent) :parent (nth parent-title 1 nil) :done? (contains? (set (:done ks)) state)
             :dropped? (= "DROP" state) :deadline (get dates "DEADLINE") :closed (get dates "CLOSED")
@@ -58,14 +60,15 @@
                 :blocked? (boolean (and (not (:done? item)) (or (seq blockers) (contains? #{"WAIT" "BLOCKED"} (:state item)))))
                 :children (mapv :id children) :child-count (count children) :child-done (count (filter :done? children))))) items)
        duplicates (for [[id n] (frequencies (map :id items)) :when (> n 1)] (str "Duplicate task ID: " id))
-       errors (vec (concat duplicates (for [item items id (:missing-blockers item)] (str (:id item) " depends on missing task " id))))]
-  {:items items :keywords ks :counts (frequencies (map :state items)) :errors errors :title (get-in doc [:meta :title])}))
+       errors (vec (concat duplicates (for [item items id (:missing-blockers item)] (str (:id item) " depends on missing task " id))
+                   (when (some (fn [item] (cycle? by-id (:id item) #{})) items) ["Task dependencies contain a cycle"])))]
+  {:items items :keywords ks :counts (frequencies (map :state items)) :errors errors :title (get-in doc [:meta :title]) :meta (:meta doc)}))
 
 (defn note-text
  "Patch only one task's review properties. Status, evidence and surrounding source are preserved."
  [text id note decision stamp by]
  (let [model (parse text) item (first (filter (fn [x] (= id (:id x))) (:items model)))]
-  (when (or (nil? item) (seq (:errors model))) (throw (ex-info "Task is missing or its roster needs attention" {:id id})))
+  (when (or (nil? item) (not (:stable-id? item)) (seq (:errors model))) (throw (ex-info "Task is missing or its roster needs attention" {:id id})))
   (let [lines (vec (split text "\n")) from (inc (:line item)) to (:end item)
         drawer (first (filter (fn [i] (= ":PROPERTIES:" (trim (nth lines i)))) (range from to)))
         end (when drawer (first (filter (fn [i] (= ":END:" (trim (nth lines i)))) (range (inc drawer) to))))
