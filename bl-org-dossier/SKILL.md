@@ -514,6 +514,13 @@ the start of a heading also work. A task without stable identity can be read
 but cannot receive a note. Child progress comes from the actual outline;
 siblings are never children. Missing dependencies and cycles are visible errors.
 
+The roster includes a collapsible project outline above the task view. Set
+`:group-by WORKSTREAM` to group by that native property (default: `AREA`). A task
+inherits the grouping property from its task parent; siblings remain separate.
+Filters/search apply to the outline and list together. Opening a tree task
+selects the same evidence panel. Branches, selection and draft notes survive a
+live refresh; the outline starts folded on phones.
+
 Existing properties: `OWNER`, `PRIORITY`, `AREA`, `BLOCKED_BY`, `COMMIT`,
 `TEST`, `EVIDENCE`. Optional presentation/progress properties:
 

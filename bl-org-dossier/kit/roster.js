@@ -4,7 +4,7 @@
   const q = (g, s) => g.querySelector(s);
   const qa = (g, s) => [...g.querySelectorAll(s)];
   function state(g) {
-    if (!states.has(g.dataset.roster)) states.set(g.dataset.roster, { selected: g.dataset.rosterStart, filter: g.dataset.rosterFilter || 'open', area: '', search: '', history: [], drafts: new Map(), listOpen: false });
+    if (!states.has(g.dataset.roster)) states.set(g.dataset.roster, { selected: g.dataset.rosterStart, filter: g.dataset.rosterFilter || 'open', area: '', search: '', history: [], drafts: new Map(), listOpen: false, outlineOpen: innerWidth >= 760, branches: new Set() });
     return states.get(g.dataset.roster);
   }
   function matches(row, filter) {
@@ -32,6 +32,21 @@
     if (!follow && !visible.some(row => row.dataset.rosterRow === s.selected)) s.selected = visible[0]?.dataset.rosterRow || null;
     qa(g, '[data-roster-panel]').forEach(panel => { panel.hidden = panel.dataset.rosterPanel !== s.selected; });
     qa(g, '[data-roster-row]').forEach(row => row.setAttribute('aria-pressed', row.dataset.rosterRow === s.selected));
+    const visibleIds = new Set(visible.map(row => row.dataset.rosterRow));
+    qa(g, '[data-roster-outline-leaf]').forEach(leaf => {
+      leaf.hidden = !visibleIds.has(leaf.dataset.rosterOutlineLeaf) && !qa(leaf, '[data-roster-outline-leaf]').some(child => visibleIds.has(child.dataset.rosterOutlineLeaf));
+      leaf.dataset.context = String(!visibleIds.has(leaf.dataset.rosterOutlineLeaf));
+    });
+    qa(g, '[data-roster-outline-task]').forEach(button => button.setAttribute('aria-pressed', button.dataset.rosterOutlineTask === s.selected));
+    qa(g, '[data-roster-stream]').forEach(branch => {
+      branch.hidden = !qa(branch, '[data-roster-outline-leaf]').some(leaf => !leaf.hidden);
+      // Searches expose their matches; clearing the search restores the chosen outline.
+      branch.open = !!s.search || s.branches.has(branch.dataset.rosterStream);
+    });
+    const branches = qa(g, '[data-roster-stream]').filter(branch => !branch.hidden);
+    q(g, '[data-roster-stream-count]').textContent = branches.length;
+    const expand = q(g, '[data-roster-expand]');
+    expand.firstChild.textContent = branches.length && branches.every(branch => branch.open) ? 'Collapse all ' : 'Expand all ';
     q(g, '[data-roster-filter-empty]').hidden = !!s.selected;
     const active = q(g, `[data-roster-detail="${CSS.escape(s.selected || '')}"]`);
     qa(g, '[data-roster-back]').forEach(b => { b.hidden = !s.history.length; });
@@ -50,6 +65,8 @@
     const row = q(g, `[data-roster-row="${CSS.escape(id)}"]`);
     if (row?.hidden) { s.filter = 'all'; s.area = ''; s.search = ''; q(g, '[data-roster-search]').value = ''; q(g, '[data-roster-area]').value = ''; }
     s.selected = id; s.listOpen = false; paint(g, { follow: true });
+    const list = q(g, '.or-work-list'), selectedRow = q(g, `[data-roster-row="${CSS.escape(id)}"]`);
+    if (selectedRow && !selectedRow.hidden) list.scrollTop += selectedRow.getBoundingClientRect().top - list.getBoundingClientRect().top - list.clientHeight / 3;
     if (innerWidth < 760) q(g, '.or-detail-region').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
   function init() {
@@ -57,6 +74,7 @@
       if (g.dataset.rosterReady) return; g.dataset.rosterReady = 'true';
       if (!q(g, '[data-roster-search]')) return;
       const s = state(g);
+      q(g, '[data-roster-outline]').open = s.outlineOpen;
       q(g, '[data-roster-search]').value = s.search; q(g, '[data-roster-area]').value = s.area;
       s.drafts.forEach((draft, task) => {
         const f = q(g, `form[data-task="${CSS.escape(task)}"]`); if (!f) return;
@@ -70,7 +88,19 @@
       q(g, '[data-roster-filter-select]')?.addEventListener('change', e => { s.filter = e.target.value; paint(g); });
       g.addEventListener('click', e => {
         const filter = e.target.closest('[data-roster-filter-to]'); if (filter) { s.filter = filter.dataset.rosterFilterTo; paint(g); }
-        const target = e.target.closest('[data-roster-to]'); if (target) choose(g, target.dataset.rosterTo);
+        const target = e.target.closest('[data-roster-to]'); if (target) {
+          choose(g, target.dataset.rosterTo);
+          if (target.hasAttribute('data-roster-outline-task')) {
+            q(g, '[data-roster-panel]:not([hidden]) .or-task')?.focus({ preventScroll: true });
+            q(g, '.or-detail-region').scrollIntoView({ block: 'start', behavior: 'instant' });
+          }
+        }
+        if (e.target.closest('[data-roster-expand]')) {
+          const branches = qa(g, '[data-roster-stream]').filter(branch => !branch.hidden), open = !branches.every(branch => branch.open);
+          s.search = ''; q(g, '[data-roster-search]').value = '';
+          branches.forEach(branch => open ? s.branches.add(branch.dataset.rosterStream) : s.branches.delete(branch.dataset.rosterStream));
+          paint(g);
+        }
         if (e.target.closest('[data-roster-back]') && s.history.length) { const back = s.history.pop(); Object.assign(s, back); q(g, '[data-roster-search]').value = s.search; q(g, '[data-roster-area]').value = s.area; choose(g, back.selected, false); }
         if (e.target.closest('[data-roster-close-list]')) { s.listOpen = false; paint(g); q(g, '[data-roster-picker]').focus({ preventScroll: true }); }
         if (e.target.closest('[data-roster-picker]')) { s.listOpen = !s.listOpen; paint(g); if (s.listOpen) q(g, '[data-roster-area]').focus({ preventScroll: true }); }
@@ -82,6 +112,12 @@
       });
       qa(g, 'iframe[data-roster-preview]').forEach(frame => frame.addEventListener('load', () => { try { const theme = document.documentElement.dataset.theme; if (theme) frame.contentDocument.documentElement.dataset.theme = theme; } catch {} }));
       g.addEventListener('toggle', e => {
+        if (e.target.hasAttribute('data-roster-outline')) s.outlineOpen = e.target.open;
+        if (e.target.hasAttribute('data-roster-stream') && !s.search) {
+          e.target.open ? s.branches.add(e.target.dataset.rosterStream) : s.branches.delete(e.target.dataset.rosterStream);
+          const branches = qa(g, '[data-roster-stream]').filter(branch => !branch.hidden);
+          q(g, '[data-roster-expand]').firstChild.textContent = branches.every(branch => branch.open) ? 'Collapse all ' : 'Expand all ';
+        }
         if (!e.target.open) return;
         const iframe = q(e.target, 'iframe[data-roster-preview]'); if (iframe && !iframe.src) iframe.src = iframe.dataset.rosterPreview;
       }, true);
@@ -101,6 +137,7 @@
           const res = await fetch('roster-note', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
           const body = await res.json(); if (!res.ok || body.ok !== true || body.note !== payload.note || body.task !== payload.task) throw new Error(body.error || 'The server did not confirm the save.');
           s.drafts.delete(f.dataset.task); f.elements.note.defaultValue = f.elements.note.value;
+          if (typeof body.version === 'string') f.dataset.taskVersion = body.version;
           status.textContent = 'Saved to this task'; f.closest('details').open = true;
         } catch (error) { status.textContent = 'Not saved: ' + error.message; }
         finally { delete f.dataset.saving; button.disabled = false; }
@@ -108,10 +145,10 @@
       g.addEventListener('keydown', e => {
         if (e.key === 'Escape' && s.listOpen) { s.listOpen = false; paint(g); q(g, '[data-roster-picker]').focus(); }
         if (e.target.closest('input,textarea,select,dialog') || e.metaKey || e.ctrlKey || e.altKey) return;
-        const row = e.target.closest('[data-roster-row]');
-        if (row && ['ArrowDown', 'ArrowUp'].includes(e.key)) {
-          e.preventDefault(); const rows = qa(g, '[data-roster-row]').filter(x => !x.hidden), i = rows.indexOf(row);
-          const next = rows[(i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length]; next?.focus();
+        const tree = e.target.closest('[data-roster-outline-task]'), row = tree || e.target.closest('[data-roster-row]');
+        if (row && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+          e.preventDefault(); const rows = qa(g, tree ? '[data-roster-outline-task]' : '[data-roster-row]').filter(x => x.getClientRects().length > 0), i = rows.indexOf(row);
+          const next = e.key === 'Home' ? rows[0] : e.key === 'End' ? rows.at(-1) : rows[(i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length]; next?.focus();
         }
       });
     });

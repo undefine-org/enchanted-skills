@@ -87,6 +87,8 @@
             temporary (str path ".roster-tmp")]
        (File/write! temporary changed) (File/rename! temporary path)
        {:status 200 :body {:ok true :task task :note note :decision decision :at stamp
+                          :version (String/downcase (Base/encode16 (crypto/hash :sha256
+                            (:raw (first (filter (fn [x] (= task (:id x))) (:items (model/parse changed))))))))
                           :rev (str (erlang/phash2 changed))}})))))
   (catch error {:status (or (:status (ex-data error)) 400) :body {:error (ex-message error)}})))
 

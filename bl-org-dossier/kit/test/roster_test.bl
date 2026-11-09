@@ -55,6 +55,9 @@
    (is (includes? html "data-roster-row=\"sibling\""))
    (is (includes? html "data-roster-note=\"work\""))
    (is (= 200 (:status saved)))
+   (is (string? (get-in saved [:body :version])))
+   (is (= 200 (:status (roster/submit-note! doc root options "reviewer"
+     (json/encode {"roster" "work" "task" "sibling" "note" "Saved review" "version" (get-in saved [:body :version])})))))
    (is (= "Saved review" (get-in (nth (:items (model/parse (File/read! (str root "/project.org")))) 2) [:props "REVIEW_NOTE"])))
    (is (= "Saved review" (get-in (first (filter (fn [x] (= "roster" (:lang x))) (:nodes (roster/enrich doc root options)))) [:data :items 2 :props "REVIEW_NOTE"])))
    (is (= 409 (:status (roster/submit-note! doc root options "reviewer" (json/encode {"roster" "work" "task" "sibling" "note" "must not overwrite" "version" "old-version"})))))
@@ -77,3 +80,23 @@
  (let [text "* Tasks\n** TODO R1 First\n:PROPERTIES:\n:BLOCKED_BY: R2\n:END:\n** TODO R2 Second\n:PROPERTIES:\n:BLOCKED_BY: R1\n:END:\n"]
   (is (seq (:errors (model/parse text)))))
  (is (try (model/note-text "* Tasks\n** TODO A task without identity\n" "line-1" "unsafe" "Comment" "now" "actor") false (catch _ true))))
+
+(deftest workstreams-inherit-from-real-task-parents-without-losing-the-outline
+ (let [text (String/replace outline ":OWNER: codex" ":OWNER: codex\n:WORKSTREAM: Reliability")
+       items (model/group-items (:items (model/parse text)) "WORKSTREAM")
+       [parent child sibling] items
+       doc (org/read-doc "* Work\n#+begin_roster :id tree :source project.org :group-by WORKSTREAM\n#+end_roster\n")]
+  (is (= "Reliability" (:stream parent)))
+  (is (= "Reliability" (:stream child)))
+  (is (= "Other" (:stream sibling)))
+  (is (= "parent" (:parent child)))
+  (is (nil? (:parent sibling)))
+  (scratch (fn [root]
+   (File/write! (str root "/project.org") text)
+   (let [html (h/hiccup->html (page/page-h (roster/enrich doc root {:root root}) "" ""))]
+    (is (includes? html "data-roster-stream=\"Reliability\""))
+    (is (includes? html "data-roster-outline-task=\"child\""))
+    (is (includes? html "data-roster-outline-task=\"sibling\""))
+    (is (includes? html "Reliability: 1 done, 1 open, 0 dropped"))
+    (is (includes? html "data-roster-to=\"parent\">Parent"))
+    (is (includes? html "Waiting for")))))))

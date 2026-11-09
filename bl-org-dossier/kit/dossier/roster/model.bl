@@ -64,6 +64,17 @@
                    (when (some (fn [item] (cycle? by-id (:id item) #{})) items) ["Task dependencies contain a cycle"])))]
   {:items items :keywords ks :counts (frequencies (map :state items)) :errors errors :title (get-in doc [:meta :title]) :meta (:meta doc)}))
 
+(defn group-items
+ "Group native tasks by a declared Org property, inheriting it from task parents."
+ [items property]
+ (let [key (upper-case (str (or property "AREA"))) by-id (into {} (map (fn [x] [(:id x) x]) items))
+       group-of (fn group-of [item seen]
+         (or (get-in item [:props key])
+             (when (and (:parent item) (not (contains? seen (:id item))))
+               (when-let [parent (get by-id (:parent item))] (group-of parent (conj seen (:id item)))))
+             (:area item) "Other"))]
+  (mapv (fn [item] (assoc item :stream (group-of item #{}))) items)))
+
 (defn note-text
  "Patch only one task's review properties. Status, evidence and surrounding source are preserved."
  [text id note decision stamp by]
