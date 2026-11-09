@@ -173,7 +173,7 @@
   :data-blocked (str (boolean (:blocked? item))) :data-done (str (boolean (:done? item)))
   :data-dropped (str (boolean (:dropped? item))) :data-later (str (boolean (:later? item)))
   :data-needs-you (str (and (not (:done? item)) (not (:later? item)) (contains? who (:action-owner item))))
-  :data-search (lower-case (str (:id item) " " (:title item) " " (:owner item) " " (:area item) " " (:stream item)))
+  :data-search (lower-case (str (:id item) " " (:title item) " " (:owner item) " " (:area item)))
   :aria-pressed (= start (:id item))}
   [:span {:class (str "or-work-mark " (lower-case (item-state item)))} (ui/ico (cond (:dropped? item) "x" (:done? item) "check" (:blocked? item) "lock" :else "clock"))]
   [:span.or-work-name [:strong (:title item)] [:small (:id item) " · " (get state-labels (item-state item) (:state item))]]
