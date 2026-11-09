@@ -24,3 +24,5 @@
 .or-all-claims .witness-stage img{display:block;width:100%;aspect-ratio:1.44;object-fit:contain;background:var(--paper)}.or-all-claims .witness-controls{position:relative;min-height:38px}
 
 .or-source-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.or-source-chips>code{font-size:9px;background:var(--card);border:1px solid var(--line);padding:3px 6px;border-radius:5px}.or-next-owner{margin-left:auto;letter-spacing:0;text-transform:none;font-size:9px;color:var(--muted)}
+/* Keep the initial work list inside the actual desktop viewport. */
+@media(min-width:760px){.or-work-list{max-height:clamp(260px,calc(100dvh - 430px),550px);min-height:0}}
