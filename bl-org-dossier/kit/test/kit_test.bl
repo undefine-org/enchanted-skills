@@ -8,7 +8,7 @@
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
             [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]
-            [dossier.ui :as ui] [dossier.tone] [dossier.claims :as claims]))
+            [dossier.ui :as ui] [dossier.tone] [dossier.claims :as claims] [dossier.lifetime :as lifetime]))
 
 (deftest a-screen-graph-can-branch-and-take-feedback
   (let [lines ["#+design: forest" "* Walk"
@@ -284,3 +284,24 @@
     (is (not (includes? html "<dialog"))))
   (is (not (includes? (h/hiccup->html (claims/claims-h {:attrs {:id "x" :src "//evil.example"} :body ["claim A | p1 | ops | t | P | home"]})) "<iframe"))))
 
+(deftest a-lifetime-draws-lanes-spans-handoffs-and-a-list-in-order
+  (let [doc (o/read-doc (join "\n" ["* L" "#+begin_lifetime :id life :title Life :start 2026-01 :end 2029-12 :lang fr"
+                                    "lane offer | Commercial | p1" "lane works | Travaux | next"
+                                    "span offer | 2026-01 | 2026-04 | Tender" "span offer | 2026-03 | 2026-04 | Negotiation"
+                                    "handoff offer -> works | 2026-05 | Signed"
+                                    "span works | 2026-05 | 2028-12 | Site"
+                                    "marker 2026-11 | aujourd'hui" "#+end_lifetime"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))
+        model (lifetime/parse {:start "2026-01" :end "2029-12"} ["lane a | A" "span a | 2026-01 | 2026-02 | Short label here" "span a | 2026-03 | 2026-04 | Next"])]
+    (doseq [needle ["data-lifetime=\"life\"" "lt-span tone-p1" "lt-handoff down" "lt-marker" "lt-facts" "--months:48"
+                    "janv. 2026 → avr. 2026 · 4 mois" "Passage de relais" "data-lt-detail=\"h3\"" "data-id=\"life\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (= ["life"] (map :id (pg/feedback-items doc))))
+    (is (empty? (:errors model)))
+    ;; a short span whose label is wider than it pushes the next span to a second row
+    (is (= {"s1" 0 "s2" 1} (:rows (first (:lanes (lifetime/layout model)))))))
+  (doseq [lines [["lane a | A" "span b | 2026-01 | 2026-02 | Missing lane"]
+                 ["lane a | A" "span a | 2026-05 | 2026-02 | Backwards"]
+                 ["lane a | A" "span a | 2026-13 | 2026-14 | Bad month"]
+                 ["lane a | A" "handoff a to b | 2026-01 | Bad arrow"]]]
+    (is (seq (:errors (lifetime/parse {:start "2026-01" :end "2026-12"} lines))) (pr-str lines))))

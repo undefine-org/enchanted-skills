@@ -1,0 +1,205 @@
+; dossier/lifetime.bl — one contract's life across desks, as lanes on a month axis.
+;
+;   #+begin_lifetime :id vie :title "Une affaire, quatre ans" :start 2026-01 :end 2029-12 :lang fr
+;   lane offre | Commercial | p1
+;   lane etudes | Bureau d'études | next
+;   span offre | 2026-01 | 2026-04 | Appel d'offres
+;   handoff offre -> etudes | 2026-05 | Marché signé
+;   marker 2026-11 | aujourd'hui
+;   #+end_lifetime
+;
+; Spans are inclusive months; handoffs and markers sit at the start of their
+; month. Labels reserve their own width, so a short span pushes the next one
+; to a sub-row rather than hiding its words. The same facts are also a list in
+; order. Selection is local view state; only the feedback form writes. Pure.
+
+(ns dossier.lifetime (:require [dossier.ui :as ui] [dossier.claims :as claims]))
+
+(def labels
+ {"en" {:months "months" :month "month" :span "Span" :handoff "Handoff" :marker "Marker" :facts "In order"
+        :scroll "Timeline, scrolls sideways" :pick "Choose a bar or a handoff to read it here."
+        :errors "Lifetime declaration needs attention" :prompt "Does this life of the contract hold?"
+        :names ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]
+        :opts [["faithful" "Faithful"] ["rework" "Rework"]]}
+  "fr" {:months "mois" :month "mois" :span "Période" :handoff "Passage de relais" :marker "Repère" :facts "Dans l'ordre"
+        :scroll "Frise, défile latéralement" :pick "Choisir une barre ou un relais pour le lire ici."
+        :errors "La déclaration de la frise est à revoir" :prompt "Cette vie de l'affaire tient-elle ?"
+        :names ["janv." "févr." "mars" "avr." "mai" "juin" "juil." "août" "sept." "oct." "nov." "déc."]
+        :opts [["faithful" "Fidèle"] ["rework" "À revoir"]]}})
+
+(def px-month "The narrowest month the track draws; label reservations assume it." 18)
+(def row-h 34)
+(def lane-pad 7)
+(def axis-h 40)
+
+(defn month
+  "`2026-03` → an absolute month number, nil when malformed."
+  [s]
+  (when-let [m (and (string? s) (Regex/run (Regex/compile! "^(\\d{4})-(\\d{2})$") (trim s)))]
+    (let [y (erlang/binary_to_integer (nth m 1)) mo (erlang/binary_to_integer (nth m 2))]
+      (when (and (>= mo 1) (<= mo 12)) (+ (* 12 y) (dec mo))))))
+
+(defn- fmt [L m] (str (nth (:names L) (rem m 12)) " " (quot m 12)))
+
+(defn parse
+  "Header attrs + body → {:start :end :lanes [...] :items [...] :errors [...]}; items carry :m0 :m1."
+  [a body]
+  (let [start (month (:start a)) end (month (:end a))
+        acc (reduce
+              (fn [acc line]
+                (let [t (trim line) sp (index-of t " ")
+                      verb (if sp (subs t 0 sp) t)
+                      tail (if sp (trim (subs t (inc sp))) "")
+                      c (mapv trim (String/split tail "|"))]
+                  (cond
+                    (or (blank? t) (starts-with? t "#")) acc
+                    (= verb "lane") (update acc :lanes conj {:id (nth c 0) :label (nth c 1 (nth c 0)) :tone (nth c 2 "")})
+                    (= verb "span") (update acc :items conj {:kind "span" :lane (nth c 0) :from (nth c 1 "") :to (nth c 2 "") :label (nth c 3 "")})
+                    (= verb "handoff")
+                    (let [m (Regex/run (Regex/compile! "^(\\S+)\\s*->\\s*(\\S+)$") (nth c 0))]
+                      (if m
+                        (update acc :items conj {:kind "handoff" :lane (nth m 1) :to-lane (nth m 2) :from (nth c 1 "") :to (nth c 1 "") :label (nth c 2 "")})
+                        (update acc :errors conj (str "A handoff reads LANE -> LANE | date | label: " t))))
+                    (= verb "marker") (update acc :items conj {:kind "marker" :from (nth c 0) :to (nth c 0) :label (nth c 1 "")})
+                    :else (update acc :errors conj (str "Unknown lifetime line: " t)))))
+              {:lanes [] :items [] :errors []} body)
+        lanes (:lanes acc)
+        lane-ids (set (map :id lanes))
+        items (vec (map-indexed (fn [i it] (assoc it :id (str (subs (:kind it) 0 1) (inc i)) :m0 (month (:from it)) :m1 (month (:to it))))
+                                (:items acc)))]
+    {:start start :end end :lanes lanes :items items
+     :errors (vec (concat (:errors acc)
+                          (when (or (nil? start) (nil? end)) ["The header needs :start and :end as YYYY-MM"])
+                          (when (and start end (< end start)) [":end comes before :start"])
+                          (when (empty? lanes) ["Declare at least one lane"])
+                          (for [[id k] (frequencies (map :id lanes)) :when (> k 1)] (str "Duplicate lane: " id))
+                          (for [it items :when (or (nil? (:m0 it)) (nil? (:m1 it)))] (str "Dates are YYYY-MM: " (:label it)))
+                          (for [it items :when (and (:m0 it) (:m1 it) (< (:m1 it) (:m0 it)))] (str "A span ends before it starts: " (:label it)))
+                          (for [it items :when (and start end (:m0 it) (:m1 it) (or (< (:m0 it) start) (> (:m1 it) end)))]
+                            (str "Outside :start–:end: " (:label it)))
+                          (for [it items l [(:lane it) (:to-lane it)] :when (and l (not= "marker" (:kind it)) (not (contains? lane-ids l)))]
+                            (str (:label it) " names a missing lane: " l))))}))
+
+(defn- reserve
+  "Months a span occupies on its row: its duration, or its label's width at the narrowest scale."
+  [it]
+  (max (inc (- (:m1 it) (:m0 it))) (erlang/ceil (/ (+ 22 (* 6.8 (count (:label it)))) px-month))))
+
+(defn- rows-of
+  "Greedy sub-rows for one lane's spans: {span-id row}."
+  [spans]
+  (:at (reduce (fn [acc it]
+                 (let [free (:free acc)
+                       r (or (first (keep-indexed (fn [i f] (when (<= f (:m0 it)) i)) free)) (count free))]
+                   {:free (if (< r (count free)) (assoc free r (+ (:m0 it) (reserve it))) (conj free (+ (:m0 it) (reserve it))))
+                    :at (assoc (:at acc) (:id it) r)}))
+               {:free [] :at {}} (sort-by :m0 spans))))
+
+(defn layout
+  "Vertical geometry: lane tops and heights, each span's row, the canvas height."
+  [model]
+  (let [spans (filter (fn [it] (= "span" (:kind it))) (:items model))
+        lanes (reduce (fn [acc lane]
+                        (let [at (rows-of (filter (fn [s] (= (:id lane) (:lane s))) spans))
+                              n (max 1 (inc (reduce max -1 (vals at))))
+                              h (+ (* 2 lane-pad) (* n row-h))]
+                          {:y (+ (:y acc) h) :lanes (conj (:lanes acc) (assoc lane :top (:y acc) :h h :rows at))}))
+                      {:y axis-h :lanes []} (:lanes model))]
+    {:lanes (:lanes lanes) :height (+ 8 (:y lanes))
+     :lane (into {} (map (fn [l] [(:id l) l]) (:lanes lanes)))}))
+
+(defn- pct [x] (str (/ (erlang/round (* 10000 x)) 100.0) "%"))
+
+(defn- when-text [L it]
+  (if (= "span" (:kind it))
+    (let [n (inc (- (:m1 it) (:m0 it)))]
+      (str (fmt L (:m0 it)) " → " (fmt L (:m1 it)) " · " n " " (if (= 1 n) (:month L) (:months L))))
+    (fmt L (:m0 it))))
+
+(defn- lane-label [geo id] (or (:label (get (:lane geo) id)) id))
+
+(defn- aria [L geo it]
+  (case (:kind it)
+    "span" (str (:span L) " · " (lane-label geo (:lane it)) " · " (:label it) " · " (when-text L it))
+    "handoff" (str (:handoff L) " · " (lane-label geo (:lane it)) " → " (lane-label geo (:to-lane it)) " · " (:label it) " · " (when-text L it))
+    (str (:marker L) " · " (:label it) " · " (when-text L it))))
+
+(defn- detail-h [L geo it]
+  (let [tone (:tone (get (:lane geo) (:lane it)))]
+    [:div {:class (str "lt-card " (claims/tone-class (or tone ""))) :data-lt-detail (:id it) :hidden true}
+     [:span.lt-kind (get L (keyword (:kind it)))]
+     [:b (ui/md (:label it))]
+     (case (:kind it)
+       "span" [:span.lt-who (lane-label geo (:lane it))]
+       "handoff" [:span.lt-who (lane-label geo (:lane it)) [:i " → "] (lane-label geo (:to-lane it))]
+       nil)
+     [:time (when-text L it)]]))
+
+(defn- track-h [L model geo]
+  (let [s (:start model) n (inc (- (:end model) s))
+        x (fn [m] (pct (/ (- m s) n)))]
+    (list
+      ;; the axis: a line per year, a tick per quarter
+      (for [m (range s (inc (:end model))) :when (or (= m s) (= 0 (rem m 12)))]
+        [:div.lt-year {:style (str "left:" (x m))} [:span (str (quot m 12))]])
+      (for [m (range s (inc (:end model))) :when (and (not= m s) (= 0 (rem m 3)) (not= 0 (rem m 12)))]
+        [:i.lt-tick {:style (str "left:" (x m))}])
+      (for [l (:lanes geo)] [:div {:class (str "lt-band " (claims/tone-class (:tone l))) :style (str "top:" (:top l) "px;height:" (:h l) "px")}])
+      (for [it (:items model) :when (= "marker" (:kind it))]
+        [:div.lt-marker {:style (str "left:" (x (:m0 it)))}
+         [:button {:type "button" :data-lt-item (:id it) :aria-pressed "false" :aria-label (aria L geo it)} (:label it)]])
+      (for [it (:items model) :when (= "span" (:kind it))]
+        (let [l (get (:lane geo) (:lane it)) r (get (:rows l) (:id it) 0)]
+          [:button {:type "button" :class (str "lt-span " (claims/tone-class (:tone l))
+                                               ;; a label that would run past :end reads from the bar's end instead
+                                               (if (> (+ (:m0 it) (reserve it)) (inc (:end model))) " lt-end" ""))
+                    :style (str "left:" (x (:m0 it)) ";width:" (pct (/ (inc (- (:m1 it) (:m0 it))) n))
+                                ";top:" (+ (:top l) lane-pad (* r row-h) 3) "px")
+                    :data-lt-item (:id it) :aria-pressed "false" :aria-label (aria L geo it)}
+           [:span (:label it)]]))
+      (for [it (:items model) :when (= "handoff" (:kind it))]
+        (let [a (get (:lane geo) (:lane it)) b (get (:lane geo) (:to-lane it))
+              ya (+ (:top a) (/ (:h a) 2)) yb (+ (:top b) (/ (:h b) 2))]
+          [:button {:type "button" :class (str "lt-handoff " (if (> yb ya) "down" "up"))
+                    :style (str "left:" (x (:m0 it)) ";top:" (min ya yb) "px;height:" (max 12 (abs (- yb ya))) "px")
+                    :data-lt-item (:id it) :aria-pressed "false" :aria-label (aria L geo it) :title (:label it)}
+           [:i.lt-wire]])))))
+
+(defn lifetime-h [node]
+  (let [a (:attrs node) L (get labels (if (= "fr" (:lang a)) "fr" "en"))
+        model (parse a (:body node))]
+    [:section {:class "lifetime" :id (str "lifetime-" (:id a)) :data-lifetime (:id a)}
+     [:header.lt-head [:h4 (ui/md (or (:title a) "Lifetime"))]
+      (when (and (:start model) (:end model) (empty? (:errors model)))
+        [:span.lt-range (str (fmt L (:start model)) " → " (fmt L (:end model)) " · "
+                             (inc (- (:end model) (:start model))) " " (:months L))])]
+     (if (seq (:errors model))
+       [:div.lt-errors {:role "alert"} [:b (:errors L)] [:ul (map (fn [e] [:li e]) (:errors model))]]
+       (let [geo (layout model) n (inc (- (:end model) (:start model)))
+             ordered (sort-by (fn [it] (+ (* 4 (:m0 it)) (case (:kind it) "marker" 0 "handoff" 1 2))) (:items model))]
+         (list
+           [:div.lt-scroll {:tabindex "0" :role "region" :aria-label (str (or (:title a) "Lifetime") " · " (:scroll L))}
+            [:div.lt-canvas {:style (str "--months:" n ";--px-month:" px-month "px;height:" (:height geo) "px")}
+             [:div.lt-labels {:aria-hidden "true"}
+              (for [l (:lanes geo)]
+                [:div {:class (str "lt-lane " (claims/tone-class (:tone l))) :style (str "top:" (:top l) "px;height:" (:h l) "px")}
+                 [:span (:label l)]])]
+             [:div.lt-track (track-h L model geo)]]]
+           [:div.lt-detail {:aria-live "polite"}
+            [:p.lt-hint (:pick L)]
+            (for [it (:items model)] (detail-h L geo it))]
+           [:details.lt-facts
+            [:summary (:facts L) [:span.n (str (count ordered))]]
+            [:ol
+             (for [it ordered]
+               (let [tone (:tone (get (:lane geo) (:lane it)))]
+                 [:li {:class (str "lt-fact " (:kind it) " " (claims/tone-class (or tone "")))}
+                  [:button {:type "button" :data-lt-item (:id it) :aria-pressed "false"}
+                   [:time (when-text L it)]
+                   [:span.lt-kind (get L (keyword (:kind it)))]
+                   [:b (ui/md (:label it))]
+                   (case (:kind it)
+                     "span" [:span.lt-who (lane-label geo (:lane it))]
+                     "handoff" [:span.lt-who (lane-label geo (:lane it)) " → " (lane-label geo (:to-lane it))]
+                     nil)]]))]])))
+     (when (:id a) (ui/feedback-h a (:opts L) (:prompt L)))]))

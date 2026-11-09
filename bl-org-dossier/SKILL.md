@@ -110,6 +110,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `roster :id :source :title :start :who` | Ordinary Org task headings and their drawers, read from `:source` by the connected review host | A live work list with filters, inline evidence, blockers, next action, task notes and explicit roster approval; see Org-native rosters below |
 | `witness :id :title :run :frames` | optional `:scope` describes what was exercised | actual Scenario Runner claims paired with their recorded browser frames, one at a time; timestamp, verdicts, full-size frame link and feedback; no fabricated movie |
 | `claims :id :title [:src "/views"] [:lang fr]` | `group Title`, then `claim ID \| phase \| desks \| text \| source \| screens` (desks comma-separated, screens space-separated view ids, may be empty) | a filterable ledger of a proposal's promises: coverage per phase (claims with ≥1 screen / all), phase and desk filters, source and desk chips; a screen chip opens `SRC?view=ID` in a dialog; a claim with no screen reads as an open promise; answerable. See *Claims and a contract's lifetime* |
+| `lifetime :id :title :start YYYY-MM :end YYYY-MM [:lang fr]` | `lane ID \| Label \| tone`, `span LANE \| YYYY-MM \| YYYY-MM \| label`, `handoff LANE -> LANE \| YYYY-MM \| label`, `marker YYYY-MM \| label` | lanes on a month axis, spans as bars whose labels never collide, handoffs as connectors, markers as full-height lines; selecting one shows its detail under the timeline; the timeline scrolls inside its own box and the same facts follow as a list in order; answerable |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
 passes the file in `(BeamLisp/argv)`, so a cell can read its own block and turn it into
@@ -161,7 +162,7 @@ Icons: `@name` anywhere in a screen or desk line draws a line icon — `home mat
 search plus send file word check x alert clock user bot chat comment link seal eye edit version diff filter more back next
 down up bell wait calendar scale flag play undo lock attach grid list board split spark`. Prefer an icon to a word for kinds of things.
 
-Answerable blocks: `ask decision screen screen_graph run desk job schema procedure film horizons witness milestones claims`. Each needs a unique `:id`.
+Answerable blocks: `ask decision screen screen_graph run desk job schema procedure film horizons witness milestones claims lifetime`. Each needs a unique `:id`.
 
 ### Screen graphs
 
@@ -317,7 +318,7 @@ the reader's draft and reports the HTTP failure instead of a JSON parser error.
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,
-`kit/dossier/{org,attrs,ui,page,answer,design,claims}.bl` (pure), `kit/dossier/design/*.bl.org`,
+`kit/dossier/{org,attrs,ui,page,answer,design,claims,lifetime}.bl` (pure), `kit/dossier/design/*.bl.org`,
 `kit/style.css`, `kit/live.js`.
 Tests: `bl test -p ~/.claude/skills/bl-org-dossier/kit kit/test/kit_test.bl`.
 A new component = one `-h` fn in `ui.bl`, a case in `block->h`, CSS, a needle in the test.
@@ -495,7 +496,7 @@ browser. Save a reaction on a disposable dossier to verify the authorized path.
 
 
 
-## Claims projected onto screens
+## Claims and a contract's lifetime
 
 Use `claims` to project every claim of a commercial proposal onto the screens
 that show it. `:src` names a same-origin screen host (`/views`): each screen
@@ -513,10 +514,29 @@ claim C2 | next | achats | Les commandes suivent le budget de l'affaire | P p. 1
 #+end_claims
 ```
 
-Phase tones: `p1` slate, `next` ochre, `p2` plum, `now` sage, `later`
-mocha, or a palette name (`sage clay slate ochre plum mocha`). The phase name is always
-written next to its colour. Duplicate IDs and claims without text are
-authoring errors shown in place of the block.
+Use `lifetime` for one record living across years and desks. Spans are
+inclusive months; handoffs and markers sit at the start of their month. A label
+reserves its width at the narrowest scale (18 px a month), so a short span moves
+the next one to a sub-row rather than hiding words. Lane labels stay pinned
+while the timeline scrolls sideways inside its own box; on a phone the list
+« in order » is open below it. Arrow keys step through items, Escape clears.
+
+```org
+#+begin_lifetime :id vie :title "Une affaire, quatre ans" :start 2026-01 :end 2029-12 :lang fr
+lane offre | Commercial | p1
+lane etudes | Bureau d'études | next
+span offre | 2026-01 | 2026-04 | Appel d'offres
+handoff offre -> etudes | 2026-05 | Marché signé
+span etudes | 2026-05 | 2026-09 | Études d'exécution
+marker 2026-11 | aujourd'hui
+#+end_lifetime
+```
+
+Phase and lane tones: `p1` slate, `next` ochre, `p2` plum, `now` sage, `later`
+mocha, or a palette name (`sage clay slate ochre plum mocha`). The phase or lane
+name is always written next to its colour. Unknown lanes, malformed or
+backwards dates, dates outside `:start`–`:end`, duplicate IDs and claims
+without text are authoring errors shown in place of the block.
 
 ## Org-native rosters
 

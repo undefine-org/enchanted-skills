@@ -293,7 +293,7 @@
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
-    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones],[data-claims]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones],[data-claims],[data-lifetime]') || e.metaKey || e.ctrlKey || e.altKey) return;
     const list = secs(), i = list.findIndex(s => s.id === current);
     if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
     if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;
@@ -736,3 +736,62 @@
   new MutationObserver(init).observe(document.body, {childList: true, subtree: true}); init();
 })();
 
+// Lifetime: selecting a span, handoff or marker shows its detail under the
+// timeline, with a caret at the control. The selection survives refresh.
+(() => {
+  const picked = new Map(), opened = new Map();
+  function select(root, id, from) {
+    const key = root.dataset.lifetime;
+    if (id) picked.set(key, id); else picked.delete(key);
+    root.querySelectorAll('[data-lt-item]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ltItem === id)));
+    let card = null;
+    root.querySelectorAll('[data-lt-detail]').forEach(d => { d.hidden = d.dataset.ltDetail !== id; if (!d.hidden) card = d; });
+    const scroll = root.querySelector('.lt-scroll'), mark = id && scroll?.querySelector(`[data-lt-item="${CSS.escape(id)}"]`);
+    if (!card || !mark) return;
+    if (from === 'list') {
+      const sr = scroll.getBoundingClientRect(), mr = mark.getBoundingClientRect(), labels = root.querySelector('.lt-labels')?.offsetWidth || 0;
+      if (mr.left < sr.left + labels || mr.left > sr.right - 40) scroll.scrollBy({left: mr.left - sr.left - labels - 24, behavior: 'smooth'});
+      setTimeout(() => caret(root), 350);
+    }
+    caret(root);
+  }
+  function caret(root) {
+    const id = picked.get(root.dataset.lifetime), card = id && root.querySelector(`[data-lt-detail="${CSS.escape(id)}"]`);
+    const mark = id && root.querySelector(`.lt-scroll [data-lt-item="${CSS.escape(id)}"]`);
+    if (!card || !mark || card.hidden) return;
+    const cr = card.getBoundingClientRect(), mr = mark.getBoundingClientRect(), sr = root.querySelector('.lt-scroll').getBoundingClientRect();
+    const labels = root.querySelector('.lt-labels')?.offsetWidth || 0;
+    const x = Math.max(sr.left + labels, Math.min(sr.right, mark.matches('.lt-span') ? Math.max(mr.left, sr.left + labels) + 18 : mr.left + mr.width / 2));
+    card.style.setProperty('--caret', Math.max(14, Math.min(cr.width - 14, x - cr.left)) + 'px');
+  }
+  function init() {
+    document.querySelectorAll('[data-lifetime]').forEach(root => {
+      if (root._lifetimeReady) return;
+      root._lifetimeReady = true;
+      const key = root.dataset.lifetime, facts = root.querySelector('.lt-facts');
+      if (facts) { facts.open = opened.has(key) ? opened.get(key) : innerWidth < 701; facts.addEventListener('toggle', () => opened.set(key, facts.open)); }
+      root.querySelector('.lt-scroll')?.addEventListener('scroll', () => caret(root), {passive: true});
+      select(root, picked.get(key));
+    });
+  }
+  const ordered = root => [...root.querySelectorAll('.lt-facts [data-lt-item]')].map(b => b.dataset.ltItem);
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-lt-item]'), root = b?.closest('[data-lifetime]'); if (!root) return;
+    const id = b.dataset.ltItem, again = picked.get(root.dataset.lifetime) === id;
+    select(root, again ? null : id, b.closest('.lt-facts') ? 'list' : 'track');
+  });
+  document.addEventListener('keydown', e => {
+    const root = e.target.closest?.('[data-lifetime]');
+    if (!root || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input,textarea,select')) return;
+    if (e.key === 'Escape' && picked.has(root.dataset.lifetime)) { e.preventDefault(); select(root, null); return; }
+    if (!e.target.matches('[data-lt-item]') || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const ids = ordered(root), i = ids.indexOf(e.target.dataset.ltItem), next = ids[i + (e.key === 'ArrowRight' ? 1 : -1)];
+    if (!next) return;
+    e.preventDefault();
+    const inList = !!e.target.closest('.lt-facts');
+    select(root, next, inList ? 'list' : 'track');
+    root.querySelector(`${inList ? '.lt-facts' : '.lt-scroll'} [data-lt-item="${CSS.escape(next)}"]`)?.focus();
+  });
+  addEventListener('resize', () => document.querySelectorAll('[data-lifetime]').forEach(caret));
+  new MutationObserver(init).observe(document.body, {childList: true, subtree: true}); init();
+})();

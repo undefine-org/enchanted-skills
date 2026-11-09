@@ -7,9 +7,9 @@
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
             [dossier.runview :as rv] [dossier.horizon :as hz] [dossier.witness :as witness]
-            [dossier.milestones :as milestones] [dossier.claims :as claims]))
+            [dossier.milestones :as milestones] [dossier.claims :as claims] [dossier.lifetime :as lifetime]))
 
-(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones" "claims"
+(def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones" "claims" "lifetime"
                   "ontology_graph" "settings_graph" "code_graph" "settings_pages" "roster"})
 
 (defn- with-design
@@ -73,6 +73,7 @@
              "witness" (witness/witness-h nd)
              "milestones" (milestones/milestones-h nd)
              "claims" (claims/claims-h nd)
+             "lifetime" (lifetime/lifetime-h nd)
              "run" (phone-h nd)
              "horizons" (hz/horizons-h nd)
              (or (design/block-h nd) (ui/block->h nd))))
