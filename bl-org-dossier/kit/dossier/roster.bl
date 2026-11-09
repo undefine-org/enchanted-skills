@@ -71,7 +71,7 @@
    (let [ctx (context doc directory id options) path (:file ctx)]
     (global/trans (tuple (tuple :dossier/roster-note path) (erlang/self))
      (fn []
-      (let [text (File/read! path) stamp (subs (str (DateTime/utc_now)) 0 19)
+      (let [text (File/read! path) stamp (subs (String/replace (str (DateTime/utc_now)) (Regex/compile! "^~U\\[") "") 0 19)
             changed (model/note-text text task note decision stamp by)
             temporary (str path ".roster-tmp")]
        (File/write! temporary changed) (File/rename! temporary path)

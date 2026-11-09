@@ -1,0 +1,71 @@
+(ns dossier.roster-test
+ (:require [dossier.roster.model :as model] [dossier.roster :as roster]
+           [dossier.org :as org] [dossier.page :as page] [live.hiccup :as h] [bl.json :as json]))
+(def outline
+ (join "\n" ["#+TODO: TODO(t) DOING(i) WAIT(w) REVIEW(r) | DONE(d) DROP(x)"
+ "* Work" "** DOING R1 Parent" ":PROPERTIES:" ":ID: parent" ":OWNER: codex" ":END:"
+ "*** DONE A1 Child" ":PROPERTIES:" ":ID: child" ":END:"
+ "** WAIT R2 Sibling" "DEADLINE: <2026-11-10 Tue>" ":PROPERTIES:" ":ID: sibling" ":OWNER: othman" ":BLOCKED_BY: parent" ":END:"
+ "Waiting for a reviewed action." "#+begin_src beam-lisp :id example" "\"** DONE A9 Not a task\"" "#+end_src"
+ "** REVIEW R3 Review" ":PROPERTIES:" ":ID: review" ":END:" ""]))
+
+(deftest the-org-outline-owns-identities-hierarchy-and-workflow
+ (let [m (model/parse outline) [parent child sibling review] (:items m)]
+  (is (= 4 (count (:items m))))
+  (is (= ["parent" "child" "sibling" "review"] (mapv :id (:items m))))
+  (is (= ["child"] (:children parent)))
+  (is (= 1 (:child-done parent)))
+  (is (= "parent" (:parent child)))
+  (is (nil? (:parent sibling)))
+  (is (= [] (:children sibling)))
+  (is (= "2026-11-10" (:deadline sibling)))
+  (is (= "Waiting for a reviewed action." (:summary sibling)))
+  (is (= ["parent"] (:blockers sibling)))
+  (is (:blocked? sibling))
+  (is (= "REVIEW" (:state review)))
+  (is (= ["DONE" "DROP"] (get-in m [:keywords :done])))
+  (is (empty? (:errors m)))))
+
+(deftest reviewing-a-task-preserves-work-state-and-unrelated-source
+ (let [text (model/note-text outline "sibling" "Keep this evidence beside the task.\n** DONE injected" "Needs changes" "2026-11-09" "reviewer")
+       m (model/parse text) sibling (nth (:items m) 2)]
+  (is (= 4 (count (:items m))))
+  (is (= "WAIT" (:state sibling)))
+  (is (= "othman" (:owner sibling)))
+  (is (= "parent" (get-in sibling [:props "BLOCKED_BY"])))
+  (is (= "Keep this evidence beside the task. ** DONE injected" (get-in sibling [:props "REVIEW_NOTE"])))
+  (is (= "Needs changes" (get-in sibling [:props "REVIEW_DECISION"])))
+  (is (includes? text "#+begin_src beam-lisp :id example\n\"** DONE A9 Not a task\"\n#+end_src"))
+  (is (= (:raw (first (:items (model/parse outline)))) (:raw (first (:items m)))))
+  (is (try (model/note-text outline "missing" "bad" "Comment" "now" "actor") false (catch _ true)))))
+
+(defn scratch [f]
+ (let [root (str "/tmp/org-roster-test-" (erlang/unique_integer (list :positive)))]
+  (File/mkdir_p! root)
+  (try (f root) (finally (File/rm_rf! root)))))
+(deftest declared-source-confinement-and-authorized-task-note-roundtrip
+ (scratch (fn [root]
+  (File/write! (str root "/project.org") outline)
+  (let [doc (org/read-doc "* Work\n#+begin_roster :id work :source project.org\n#+end_roster\n")
+        options {:root root :can-write? true}
+        enriched (roster/enrich doc root options)
+        html (h/hiccup->html (page/page-h enriched "" ""))
+        request (json/encode {"roster" "work" "task" "sibling" "note" "Saved review" "decision" "Comment"})
+        saved (roster/submit-note! doc root options "reviewer" request)]
+   (is (includes? html "data-roster-row=\"sibling\""))
+   (is (includes? html "data-roster-note=\"work\""))
+   (is (= 200 (:status saved)))
+   (is (= "Saved review" (get-in (nth (:items (model/parse (File/read! (str root "/project.org")))) 2) [:props "REVIEW_NOTE"])))
+   (is (nil? (roster/resolve-file root root "../outside.org")))
+   (is (= 400 (:status (roster/submit-note! doc root options "reviewer" "invalid-json"))))
+   (is (= 400 (:status (roster/submit-note! doc root options "reviewer" (json/encode {"roster" "unknown" "task" "sibling" "note" "bad"})))))
+   (is (= 400 (:status (roster/submit-note! doc root options "reviewer" (json/encode {"roster" "work" "task" "../../outside" "note" "bad"})))))
+   (let [readonly (h/hiccup->html (page/page-h (roster/enrich doc root {:root root}) "" ""))]
+    (is (not (includes? readonly "data-roster-note=\"work\""))))))))
+
+(deftest wait-review-and-custom-states-are-not-lost-from-summary-counts
+ (let [doc (org/read-doc "* Roster\n** WAIT A1 Waiting\n** REVIEW A2 Review\n** DONE A3 Done\n")
+       html (h/hiccup->html (page/page-h doc "" ""))]
+  (is (includes? html "<span>wait</span>"))
+  (is (includes? html "<span>review</span>"))
+  (is (includes? html "<span>done</span>"))))

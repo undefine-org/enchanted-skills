@@ -5,8 +5,9 @@
 (defn- declaration [doc]
  (let [tokens (words (get-in doc [:meta :todo] "TODO NEXT DOING WAIT REVIEW BLOCKED | DONE DROP"))
        tokens (mapv (fn [s] (String/replace s (Regex/compile! "\\(.*\\)$") "")) tokens)
-       split-at (or (first (keep-indexed (fn [i x] (when (= "|" x) i)) tokens)) (dec (count tokens)))]
-  {:open (subvec tokens 0 split-at) :done (subvec tokens (min (count tokens) (inc split-at)))}))
+       bar (first (keep-indexed (fn [i x] (when (= "|" x) i)) tokens))
+       split-at (or bar (dec (count tokens)))]
+  {:open (subvec tokens 0 split-at) :done (subvec tokens (if bar (inc split-at) split-at))}))
 (defn links [text]
  (vec (for [m (Regex/scan (Regex/compile! "\\[\\[file:([^]\\n]+)\\](?:\\[([^]\\n]*)\\])?\\]") (str text))]
         {:path (nth m 1) :label (or (nth m 2 nil) (nth m 1))})))
@@ -32,20 +33,22 @@
                 named (Regex/run (Regex/compile! "^([A-Z]+[0-9]+[a-z]?)\\s+(.*)$") title)
                 id (or (get props "ID") (nth named 1 nil) (str "line-" (inc (:line h))))
                 ancestors (reduce (fn [out x] (conj (vec (filter (fn [a] (< (:level a) (:level x))) out)) x)) [] (subvec headings 0 i))
-                parent (last (filter (fn [x] (heading-state x states)) ancestors))
+                parent (last (filter (fn [x] (and (< (:level x) (:level h)) (heading-state x states))) ancestors))
                 parent-title (when parent (Regex/run (Regex/compile! "^([A-Z]+[0-9]+[a-z]?)\\s+") (:title parent)))
                 dates (into {} (for [m (Regex/scan (Regex/compile! "(DEADLINE|SCHEDULED|CLOSED):\\s*[<\\[]([0-9]{4}-[0-9]{2}-[0-9]{2})") raw)] [(nth m 1) (nth m 2)]))]
            {:id id :state state :title (or (get props "ROSTER_TITLE") (nth named 2 nil) title)
             :original-title title :line (:line h) :end next-line :level (:level h) :props props
             :owner (get props "OWNER" "Unassigned") :area (get props "AREA" "Other")
             :priority (or (get props "PRIORITY") (when priority (nth priority 1)) "P2")
-            :parent (nth parent-title 1 nil) :done? (contains? (set (:done ks)) state)
+            :parent-line (:line parent) :parent (nth parent-title 1 nil) :done? (contains? (set (:done ks)) state)
             :dropped? (= "DROP" state) :deadline (get dates "DEADLINE") :closed (get dates "CLOSED")
             :next (get props "NEXT_ACTION") :outcome (get props "OUTCOME")
-            :summary (or (get props "OUTCOME") (:text (first (filter (fn [n] (= :para (:t n))) nodes))))
+            :summary (or (get props "OUTCOME") (:text (first (filter (fn [n] (and (= :para (:t n)) (not (Regex/run (Regex/compile! "^(CLOSED|DEADLINE|SCHEDULED):") (:text n))))) nodes))))
             :raw raw :blocked-by (words (get props "BLOCKED_BY"))
             :later? (or (= "later" (String/downcase (get props "HORIZON" ""))) (= "P3" (get props "PRIORITY")))
             :proof-links (links (get props "PROOF" ""))}))) headings))
+       line-ids (into {} (map (fn [x] [(:line x) (:id x)]) items))
+       items (mapv (fn [x] (assoc x :parent (get line-ids (:parent-line x)))) items)
        by-id (into {} (map (fn [x] [(:id x) x]) items))
        items (mapv (fn [item]
         (let [missing (filter (fn [id] (not (contains? by-id id))) (:blocked-by item))

@@ -13,7 +13,7 @@
 (ns serve
   (:require [web] [live.hiccup :as h] [bl.json :as json]
             [dossier.org :as o] [dossier.page :as pg] [dossier.answer :as ans] [dossier.film :as film]
-            [dossier.feedback :as feedback] [dossier.witness :as witness]))
+            [dossier.feedback :as feedback] [dossier.witness :as witness] [dossier.roster :as roster]))
 
 (defn- arg-path []
   (let [a (first (BeamLisp/argv))]
@@ -25,21 +25,26 @@
   (File/read! (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) name)))
 
 (defn- rev [text]
- (str (erlang/phash2 [text (mapv :data (filter (fn [node] (= "witness" (:lang node)))
+ (str (erlang/phash2 [text (mapv :data (filter (fn [node] (contains? #{"witness" "roster"} (:lang node)))
                           (:nodes (read-doc text))))])))
 
 ;; a film block's recorded run is read from disk here, so the page stays pure
-(defn- read-doc [text] (witness/enrich (film/enrich (o/read-doc text) (Path/dirname doc-path)) (Path/dirname doc-path)))
+(defn- roster-options [conn]
+ {:root (or (System/get_env "DOSSIER_ROSTER_ROOT") (Path/dirname doc-path))
+  :can-write? (and conn (owner-ok? conn))})
+(defn- read-doc [text & [conn]]
+ (roster/enrich (witness/enrich (film/enrich (o/read-doc text) (Path/dirname doc-path)) (Path/dirname doc-path))
+               (Path/dirname doc-path) (roster-options conn)))
 
 (defn- owner-ok? [conn]
   (let [owner (System/get_env "DOSSIER_OWNER")]
     (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
 
-(defn- full-page [text]
-  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text) (asset "style.css") (asset "live.js")))))
+(defn- full-page [text conn]
+  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text conn) (str (asset "style.css") (asset "roster.css")) (str (asset "live.js") (asset "roster.js"))))))
 
-(defn- doc-json [text]
-  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (read-doc text))))})
+(defn- doc-json [text conn]
+  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (read-doc text conn))))})
 
 (defn- post-answer [conn]
   (if (not (owner-ok? conn))
@@ -51,14 +56,27 @@
       (web/json conn (:status result) (:body result)))))
 
 (defn router [conn]
- (let [match (Regex/run (Regex/compile! "^/witness-media/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") (web/path conn))]
-  (if match
+ (let [roster-media (Regex/run (Regex/compile! "^/roster-media/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") (web/path conn))
+       match (Regex/run (Regex/compile! "^/witness-media/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") (web/path conn))]
+  (cond
+   roster-media
+   (if-let [file (roster/media-path (o/read-doc (File/read! doc-path)) (Path/dirname doc-path) (nth roster-media 1) (nth roster-media 2) (nth roster-media 3) (roster-options conn))]
+    (web/bytes (web/resp-header conn "cache-control" "private, no-store") "image/png" (File/read! file))
+    (web/text conn 404 "Recorded frame unavailable"))
+   (and (= "/roster-note" (web/path conn)) (= "post" (web/method conn)))
+   (if-not (owner-ok? conn) (web/json conn 403 {:error "Only the dossier owner can save a task review"})
+    (let [read (web/read-body-limited* conn 16384 10000)]
+     (if (:error read) (web/json (:conn read) 413 {:error "Note too large"})
+      (let [result (roster/submit-note! (o/read-doc (File/read! doc-path)) (Path/dirname doc-path) (roster-options conn)
+                     (or (System/get_env "DOSSIER_HANDLE") "owner") (:body read))]
+       (web/json (:conn read) (:status result) (:body result))))))
+   match
    (if-let [path (witness/media-path (o/read-doc (File/read! doc-path)) (Path/dirname doc-path) (nth match 1) (nth match 2))]
     (web/bytes (web/resp-header conn "cache-control" "private, no-store") "image/png" (File/read! path))
     (web/text conn 404 "Recorded frame unavailable"))
-   (web/route conn
-    [:get "/"] (web/html conn (full-page (File/read! doc-path)))
-    [:get "/doc"] (web/json conn (doc-json (File/read! doc-path)))
+   :else (web/route conn
+    [:get "/"] (web/html conn (full-page (File/read! doc-path) conn))
+    [:get "/doc"] (web/json conn (doc-json (File/read! doc-path) conn))
     [:get "/rev"] (web/json conn {:rev (rev (File/read! doc-path))})
     [:get "/src"] (web/text conn (File/read! doc-path))
     [:get "/answers"] (web/json conn (vec (map (fn [i] (into {} (for [[k v] i :when v] [(name k) v])))

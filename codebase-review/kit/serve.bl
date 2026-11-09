@@ -2,18 +2,32 @@
 (ns codebase-review.serve
  (:require [web] [live.hiccup :as h] [bl.json :as json] [codebase-review.blocks :as review]
            [dossier.org :as org] [dossier.page :as page] [dossier.answer :as answer]
-           [dossier.feedback :as feedback] [dossier.film :as film]))
+           [dossier.feedback :as feedback] [dossier.film :as film] [dossier.roster :as roster]))
 (def path (Path/expand (or (first (BeamLisp/argv)) "codebase-review/examples/review.bl.org")))
 (def base (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/projects/enchanted-skills/bl-org-dossier/kit")))
 (def kit (or (System/get_env "REVIEW_KIT_DIR") (Path/expand "~/projects/enchanted-skills/codebase-review/kit")))
-(defn document [text] (review/enrich (film/enrich (org/read-doc text) (Path/dirname path))))
-(defn revision [text] (str (erlang/phash2 text)))
+(defn roster-options [request]
+ {:root (or (System/get_env "DOSSIER_ROSTER_ROOT") (Path/dirname path)) :can-write? (and request (owner? request))})
+(defn document [text & [request]]
+ (roster/enrich (review/enrich (film/enrich (org/read-doc text) (Path/dirname path))) (Path/dirname path) (roster-options request)))
+(defn revision [text] (str (erlang/phash2 [text (mapv :data (:nodes (document text)))])))
 (defn owner? [request]
  (let [owner (System/get_env "DOSSIER_OWNER")]
   (and (not (blank? owner)) (= owner (web/req-header request "tailscale-user-login")))))
 (defn handler [request]
- (let [route (web/path request) text (File/read! path)]
+ (let [route (web/path request) text (File/read! path)
+       media (Regex/run (Regex/compile! "^/roster-media/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") route)]
   (cond
+   media (if-let [file (roster/media-path (org/read-doc text) (Path/dirname path) (nth media 1) (nth media 2) (nth media 3) (roster-options request))]
+           (web/bytes (web/resp-header request "cache-control" "private, no-store") "image/png" (File/read! file))
+           (web/text request 404 "Recorded frame unavailable"))
+   (and (= route "/roster-note") (= "post" (web/method request)))
+    (if-not (owner? request) (web/json request 403 {:error "Only the dossier owner can save task reviews"})
+     (let [read (web/read-body-limited* request 16384 10000)]
+      (if (:error read) (web/json (:conn read) 413 {:error "Note too large"})
+       (let [result (roster/submit-note! (org/read-doc text) (Path/dirname path) (roster-options request)
+                         (or (System/get_env "DOSSIER_HANDLE") "owner") (:body read))]
+        (web/json (:conn read) (:status result) (:body result))))))
    (and (= route "/answer") (= "post" (web/method request)))
     (if (owner? request)
      (let [[body req] (web/read-body* request)
@@ -22,11 +36,11 @@
       (web/json req (:status result) (:body result)))
      (web/json request 403 {:error "Only the configured dossier owner may answer"}))
    (= route "/") (web/html request (str "<!doctype html>"
-     (h/hiccup->html (page/page-h (document text)
-       (str (File/read! (str base "/style.css")) (File/read! (str kit "/review.css")))
-       (File/read! (str base "/live.js"))))))
+     (h/hiccup->html (page/page-h (document text request)
+       (str (File/read! (str base "/style.css")) (File/read! (str kit "/review.css")) (File/read! (str base "/roster.css")))
+       (str (File/read! (str base "/live.js")) (File/read! (str base "/roster.js")))))))
    (= route "/rev") (web/json request {:rev (revision text)})
-   (= route "/doc") (web/json request {:rev (revision text) :html (join "" (map h/hiccup->html (page/doc-h (document text))))})
+   (= route "/doc") (web/json request {:rev (revision text) :html (join "" (map h/hiccup->html (page/doc-h (document text request))))})
    (= route "/src") (web/text request text)
    (= route "/answers") (web/json request (vec (page/feedback-items (document text))))
    :else (web/text request 404 "Not found"))))

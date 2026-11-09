@@ -4,12 +4,13 @@
   const q = (g, s) => g.querySelector(s);
   const qa = (g, s) => [...g.querySelectorAll(s)];
   function state(g) {
-    if (!states.has(g.dataset.roster)) states.set(g.dataset.roster, { selected: g.dataset.rosterStart, filter: 'all', area: '', search: '', history: [], drafts: new Map(), listOpen: false });
+    if (!states.has(g.dataset.roster)) states.set(g.dataset.roster, { selected: g.dataset.rosterStart, filter: g.dataset.rosterFilter || 'open', area: '', search: '', history: [], drafts: new Map(), listOpen: false });
     return states.get(g.dataset.roster);
   }
   function matches(row, filter) {
     const d = row.dataset;
     switch (filter) {
+      case 'open': return d.done !== 'true';
       case 'needs': return d.needsYou === 'true';
       case 'ready': return d.done !== 'true' && d.blocked !== 'true' && d.later !== 'true';
       case 'blocked': return d.blocked === 'true';
@@ -54,6 +55,7 @@
   function init() {
     qa(document, '[data-roster]').forEach(g => {
       if (g.dataset.rosterReady) return; g.dataset.rosterReady = 'true';
+      if (!q(g, '[data-roster-search]')) return;
       const s = state(g);
       q(g, '[data-roster-search]').value = s.search; q(g, '[data-roster-area]').value = s.area;
       s.drafts.forEach((draft, task) => {
@@ -61,6 +63,8 @@
         f.elements.note.value = draft.note; f.elements.decision.value = draft.decision; f.closest('details').open = true;
       });
       paint(g, { follow: true });
+      const activeRow = q(g, `[data-roster-row="${CSS.escape(s.selected || '')}"]`), list = q(g, '.or-work-list');
+      if (activeRow && !activeRow.hidden) list.scrollTop = activeRow.offsetTop - list.offsetTop - 70;
       q(g, '[data-roster-search]').addEventListener('input', e => { s.search = e.target.value; paint(g); });
       q(g, '[data-roster-area]').addEventListener('change', e => { s.area = e.target.value; paint(g); });
       q(g, '[data-roster-filter-select]')?.addEventListener('change', e => { s.filter = e.target.value; paint(g); });
@@ -68,6 +72,7 @@
         const filter = e.target.closest('[data-roster-filter-to]'); if (filter) { s.filter = filter.dataset.rosterFilterTo; paint(g); }
         const target = e.target.closest('[data-roster-to]'); if (target) choose(g, target.dataset.rosterTo);
         if (e.target.closest('[data-roster-back]') && s.history.length) choose(g, s.history.pop(), false);
+        if (e.target.closest('[data-roster-close-list]')) { s.listOpen = false; paint(g); q(g, '[data-roster-picker]').focus({ preventScroll: true }); }
         if (e.target.closest('[data-roster-picker]')) { s.listOpen = !s.listOpen; paint(g); if (s.listOpen) q(g, '[data-roster-area]').focus({ preventScroll: true }); }
         const image = e.target.closest('[data-roster-image]');
         if (image) {
