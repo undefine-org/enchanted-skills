@@ -6,7 +6,7 @@
   let rev = null, busy = false;
   const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); };
   const stamp = (s) => { $('#stamp').textContent = s; };
-  const editing = () => { const a = document.activeElement; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
+  const editing = () => { if (document.querySelector('form.or-note-form[data-saving]')) return true; const a = document.activeElement; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
 
   // Prototype navigation, inspection and expansion belong to each graph.
   // The same state survives a file refresh; no prototype action writes data.
@@ -293,7 +293,7 @@
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
-    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,[data-witness],[data-milestones]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones]') || e.metaKey || e.ctrlKey || e.altKey) return;
     const list = secs(), i = list.findIndex(s => s.id === current);
     if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
     if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;

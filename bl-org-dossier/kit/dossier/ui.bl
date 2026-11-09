@@ -166,9 +166,9 @@
      [:div.fb-opts
       (for [[v label] opts]
         [:button {:type "button" :class (if (= v ans) "opt on" "opt") :data-v v} label])]
-     [:textarea {:name "note" :rows "2" :placeholder "Anything Claude should know (optional)"} (or (:note a) "")]
+     [:textarea {:name "note" :rows "2" :placeholder (or (:note-placeholder a) "Anything Claude should know (optional)")} (or (:note a) "")]
      [:div.fb-row
-      [:button.send {:type "submit"} (if ans "Update" "Send to Claude")]
+      [:button.send {:type "submit"} (or (:submit-label a) (if ans "Update" "Send to Claude"))]
       [:span.fb-state (if ans (str "✓ answered " (or (:at a) "")) "awaiting you")]]]))
 
 ; ─── prose components ──────────────────────────────────────────────────────

@@ -10,7 +10,7 @@
             [dossier.milestones :as milestones]))
 
 (def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones"
-                  "ontology_graph" "settings_graph" "code_graph" "settings_pages"})
+                  "ontology_graph" "settings_graph" "code_graph" "settings_pages" "roster"})
 
 (defn- with-design
   "`#+design: NAME` draws every screen, run and desk without its own :design in that language."
@@ -101,7 +101,7 @@
   (let [kws (keep :todo (filter (fn [nd] (= :heading (:t nd))) nodes))
         counts (frequencies kws)
         total (max 1 (count kws))
-        order ["DONE" "DOING" "NEXT" "TODO" "BLOCKED" "DROP"]]
+        order (vec (distinct (concat ["DONE" "DOING" "NEXT" "WAIT" "REVIEW" "TODO" "BLOCKED" "DROP"] (sort (keys counts)))))]
     (when (seq kws)
       (list
         [:div.tiles (for [k order :when (get counts k)] [:div.tile [:b (get counts k)] [:span (lower-case k)]])]

@@ -1,0 +1,82 @@
+; Trusted host enrichment for an Org roster; browser input names declared IDs only.
+(ns dossier.roster
+ (:require [dossier.org :as org] [dossier.roster.model :as model]
+           [dossier.roster.view :as view] [dossier.witness :as witness] [bl.json :as json]))
+
+(defn- real [path]
+ (let [r (System/cmd "realpath" (list "-e" path))] (when (= 0 (elem r 1)) (trim (elem r 0)))))
+(defn resolve-file
+ "Only a regular declared file under the host's trusted root, including after symlink resolution."
+ [root directory path]
+ (when (and (string? path) (not (blank? path)))
+  (let [root (real root) file (real (Path/expand (if (starts-with? path "/") path (Path/join directory path))))]
+   (when (and root file (starts-with? file (str root "/")) (File/regular? file)) file))))
+(defn- block [doc id]
+ (first (filter (fn [n] (and (= "roster" (:lang n)) (= id (get-in n [:attrs :id])))) (:nodes doc))))
+(defn context [doc directory id options]
+ (let [node (block doc id) source (get-in node [:attrs :source]) root (Path/expand (or (:root options) directory))
+       file (resolve-file root directory source)]
+  (when-not (and node file (ends-with? file ".org")) (throw (ex-info "The roster source must be an Org file inside the configured root" {:id id})))
+  (let [text (File/read! file)]
+   {:node node :root root :file file :directory (Path/dirname file) :text text :model (model/parse text) :resolve (fn [p] (resolve-file root (Path/dirname file) p))})))
+(defn witness-node [id item]
+ (when-let [run (get-in item [:props "WITNESS"])]
+  {:t :block :lang "witness" :attrs {:id (:id item) :title (get-in item [:props "PROOF_TITLE"] "Recorded journey")
+    :run run :frames (get-in item [:props "FRAMES"]) :scope (get-in item [:props "PROOF_SCOPE"])
+    :src (str "/roster-media/" id) :feedback "false"}}))
+(defn- prepare-item [id item ctx options]
+ (let [root (:root ctx) directory (:directory ctx)
+       declarations (mapv (fn [ref] (assoc ref :available? (boolean (resolve-file root directory (:path ref))))) (:proof-links item))
+       wn (witness-node id item)
+       safe-witness? (and wn (resolve-file root directory (get-in wn [:attrs :run]))
+                         (when-let [frames (get-in wn [:attrs :frames])]
+                          (let [resolved (real (Path/expand (Path/join directory frames)))]
+                           (and resolved (starts-with? resolved (str (real root) "/"))))))
+       wn (when safe-witness? (first (:nodes (witness/enrich {:nodes [wn]} directory))))
+       projection (when-let [load (:evidence options)] (load item ctx))]
+  (merge item {:proof-links declarations :witness wn :proofs (vec (:proofs projection))
+               :fingerprint (:fingerprint projection) :proof-date (:date projection)})))
+(defn enrich
+ ([doc directory] (enrich doc directory {}))
+ ([doc directory options]
+  (update doc :nodes (fn [nodes]
+   (mapv (fn [node]
+    (if-not (= "roster" (:lang node)) node
+     (try
+      (let [id (get-in node [:attrs :id]) ctx (context doc directory id options)
+            data (update (:model ctx) :items (fn [items] (mapv (fn [item] (prepare-item id item ctx options)) items)))]
+       (assoc node :render-block view/roster-h :data (assoc data :source (get-in node [:attrs :source])
+                                    :can-write? (boolean (:can-write? options))
+                                    :source-sha256 (String/downcase (Base/encode16 (crypto/hash :sha256 (:text ctx)))))))
+      (catch error (assoc node :data {:items [] :errors [(ex-message error)]}))))) nodes)))))
+(defn media-path [doc directory id task file options]
+ (try
+  (let [ctx (context doc directory id options) item (first (filter (fn [x] (= task (:id x))) (get-in ctx [:model :items])))
+        prepared (when item (prepare-item id item ctx options)) wn (:witness prepared)]
+   (when wn
+    (when-let [path (witness/media-path {:nodes [(dissoc wn :data)]} (:directory ctx) task file)]
+     (resolve-file (:root ctx) (:directory ctx) path))))
+  (catch _ nil)))
+(defn submit-note!
+ "Host must authorize the caller. A note patches one canonical task drawer, never its TODO state."
+ [doc directory options by body]
+ (try
+  (when (> (erlang/byte_size body) 16384) (throw (ex-info "Note is too large" {})))
+  (let [request (json/decode body) id (get request "roster") task (get request "task")
+        note (get request "note" "") decision (get request "decision" "Comment")]
+   (when-not (and (string? id) (string? task) (< (count id) 100) (< (count task) 100)
+                  (string? note) (<= (count note) 12000) (string? decision)
+                  (contains? #{"Comment" "Looks right" "Needs changes"} decision))
+    (throw (ex-info "Invalid review fields" {})))
+   (let [ctx (context doc directory id options) path (:file ctx)]
+    (global/trans (tuple (tuple :dossier/roster-note path) (erlang/self))
+     (fn []
+      (let [text (File/read! path) stamp (subs (str (DateTime/utc_now)) 0 19)
+            changed (model/note-text text task note decision stamp by)
+            temporary (str path ".roster-tmp")]
+       (File/write! temporary changed) (File/rename! temporary path)
+       {:status 200 :body {:ok true :task task :note note :decision decision :at stamp
+                          :rev (str (erlang/phash2 changed))}})))))
+  (catch error {:status 400 :body {:error (ex-message error)}})))
+
+(defn roster-h [node] (view/roster-h node))

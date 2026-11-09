@@ -1,0 +1,75 @@
+; An Org outline projected as work. Source headings and drawers remain authoritative.
+(ns dossier.roster.model (:require [dossier.org :as org]))
+
+(defn words [s] (vec (remove blank? (Regex/split (Regex/compile! "\\s+") (trim (str (or s "")))))))
+(defn- declaration [doc]
+ (let [tokens (words (get-in doc [:meta :todo] "TODO NEXT DOING WAIT REVIEW BLOCKED | DONE DROP"))
+       tokens (mapv (fn [s] (String/replace s (Regex/compile! "\\(.*\\)$") "")) tokens)
+       split-at (or (first (keep-indexed (fn [i x] (when (= "|" x) i)) tokens)) (dec (count tokens)))]
+  {:open (subvec tokens 0 split-at) :done (subvec tokens (min (count tokens) (inc split-at)))}))
+(defn links [text]
+ (vec (for [m (Regex/scan (Regex/compile! "\\[\\[file:([^]\\n]+)\\](?:\\[([^]\\n]*)\\])?\\]") (str text))]
+        {:path (nth m 1) :label (or (nth m 2 nil) (nth m 1))})))
+(defn- heading-state [h states]
+ (or (:todo h) (when (contains? states (first (words (:title h)))) (first (words (:title h))))))
+(defn parse [text]
+ (let [doc (org/read-doc text) ks (declaration doc) states (set (concat (:open ks) (:done ks)))
+       headings (vec (filter (fn [n] (= :heading (:t n))) (:nodes doc)))
+       lines (vec (split text "\n"))
+       items
+       (vec (keep-indexed
+        (fn [i h]
+         (when-let [state (heading-state h states)]
+          (let [next-line (or (:line (nth headings (inc i) nil)) (count lines))
+                ; Nodes inside this heading are bounded by the next real heading, never by text in a code cell.
+                nodes (take-while (fn [n] (not= :heading (:t n)))
+                        (rest (drop-while (fn [n] (not (and (= :heading (:t n)) (= (:line h) (:line n))))) (:nodes doc))))
+                props (into {} (map (fn [[k v]] [(upper-case k) v]) (mapcat :pairs (filter (fn [n] (= :props (:t n))) nodes))))
+                raw (join "\n" (subvec lines (:line h) next-line))
+                title (String/replace (:title h) (Regex/compile! (str "^" state "\\s+")) "")
+                priority (Regex/run (Regex/compile! "^\\[#([A-Z])\\]\\s+") title)
+                title (String/replace title (Regex/compile! "^\\[#[A-Z]\\]\\s+") "")
+                named (Regex/run (Regex/compile! "^([A-Z]+[0-9]+[a-z]?)\\s+(.*)$") title)
+                id (or (get props "ID") (nth named 1 nil) (str "line-" (inc (:line h))))
+                ancestors (reduce (fn [out x] (conj (vec (filter (fn [a] (< (:level a) (:level x))) out)) x)) [] (subvec headings 0 i))
+                parent (last (filter (fn [x] (heading-state x states)) ancestors))
+                parent-title (when parent (Regex/run (Regex/compile! "^([A-Z]+[0-9]+[a-z]?)\\s+") (:title parent)))
+                dates (into {} (for [m (Regex/scan (Regex/compile! "(DEADLINE|SCHEDULED|CLOSED):\\s*[<\\[]([0-9]{4}-[0-9]{2}-[0-9]{2})") raw)] [(nth m 1) (nth m 2)]))]
+           {:id id :state state :title (or (get props "ROSTER_TITLE") (nth named 2 nil) title)
+            :original-title title :line (:line h) :end next-line :level (:level h) :props props
+            :owner (get props "OWNER" "Unassigned") :area (get props "AREA" "Other")
+            :priority (or (get props "PRIORITY") (when priority (nth priority 1)) "P2")
+            :parent (nth parent-title 1 nil) :done? (contains? (set (:done ks)) state)
+            :dropped? (= "DROP" state) :deadline (get dates "DEADLINE") :closed (get dates "CLOSED")
+            :next (get props "NEXT_ACTION") :outcome (get props "OUTCOME")
+            :summary (or (get props "OUTCOME") (:text (first (filter (fn [n] (= :para (:t n))) nodes))))
+            :raw raw :blocked-by (words (get props "BLOCKED_BY"))
+            :later? (or (= "later" (String/downcase (get props "HORIZON" ""))) (= "P3" (get props "PRIORITY")))
+            :proof-links (links (get props "PROOF" ""))}))) headings))
+       by-id (into {} (map (fn [x] [(:id x) x]) items))
+       items (mapv (fn [item]
+        (let [missing (filter (fn [id] (not (contains? by-id id))) (:blocked-by item))
+              blockers (vec (filter (fn [id] (not (:done? (get by-id id)))) (:blocked-by item)))
+              children (filter (fn [x] (= (:id item) (:parent x))) items)]
+         (assoc item :blockers blockers :missing-blockers (vec missing)
+                :blocked? (boolean (and (not (:done? item)) (or (seq blockers) (contains? #{"WAIT" "BLOCKED"} (:state item)))))
+                :children (mapv :id children) :child-count (count children) :child-done (count (filter :done? children))))) items)
+       duplicates (for [[id n] (frequencies (map :id items)) :when (> n 1)] (str "Duplicate task ID: " id))
+       errors (vec (concat duplicates (for [item items id (:missing-blockers item)] (str (:id item) " depends on missing task " id))))]
+  {:items items :keywords ks :counts (frequencies (map :state items)) :errors errors :title (get-in doc [:meta :title])}))
+
+(defn note-text
+ "Patch only one task's review properties. Status, evidence and surrounding source are preserved."
+ [text id note decision stamp by]
+ (let [model (parse text) item (first (filter (fn [x] (= id (:id x))) (:items model)))]
+  (when (or (nil? item) (seq (:errors model))) (throw (ex-info "Task is missing or its roster needs attention" {:id id})))
+  (let [lines (vec (split text "\n")) from (inc (:line item)) to (:end item)
+        drawer (first (filter (fn [i] (= ":PROPERTIES:" (trim (nth lines i)))) (range from to)))
+        end (when drawer (first (filter (fn [i] (= ":END:" (trim (nth lines i)))) (range (inc drawer) to))))
+        changes [["REVIEW_NOTE" note] ["REVIEW_DECISION" decision] ["REVIEW_AT" stamp] ["REVIEW_BY" by]]
+        review? (fn [l] (some? (Regex/run (Regex/compile! "^\\s*:(REVIEW_NOTE|REVIEW_DECISION|REVIEW_AT|REVIEW_BY):") l)))
+        added (mapv (fn [[k v]] (str ":" k ": " (trim (String/replace (str v) (Regex/compile! "[\\r\\n]+") " ")))) changes)]
+   (when (and drawer (nil? end)) (throw (ex-info "Task property drawer is not closed" {:id id})))
+   (join "\n" (if drawer
+    (concat (subvec lines 0 (inc drawer)) (remove review? (subvec lines (inc drawer) end)) added (subvec lines end))
+    (concat (subvec lines 0 from) [":PROPERTIES:"] added [":END:"] (subvec lines from)))))))

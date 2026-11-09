@@ -1,0 +1,189 @@
+; Pure, source-backed roster renderers. Work, proof and the next action share one place.
+(ns dossier.roster.view (:require [dossier.ui :as ui] [dossier.witness :as witness]))
+
+(def state-labels {"DONE" "Complete" "DROP" "Superseded" "DOING" "In progress" "NEXT" "Up next" "WAIT" "Waiting" "BLOCKED" "Blocked" "TODO" "Planned" "REVIEW" "In review"})
+(defn- safe-url [s]
+ (when (and (string? s) (not (includes? s "\\"))
+            (or (and (starts-with? s "/") (not (starts-with? s "//"))) (starts-with? s "https://"))) s))
+(defn- initial [s] (upper-case (subs (str s) 0 (min 1 (count (str s))))))
+(defn- state-h [item]
+ [:span {:class (str "or-state " (lower-case (:state item)))} [:i] (get state-labels (:state item) (:state item))])
+(defn ^{:ui {:id "roster-proof" :family "Progress" :title "Evidence beside the work"
+ :use "Present a recorded measurement and its scope without implying live readiness."
+ :examples [{:state "Recorded measurement" :args [{:kind "Real provider" :title "Prefix reuse" :value "95.7%" :label "cached input" :fraction 0.957 :scope "Synthetic input · recorded experiment" :metrics [["Cached" "4,096"] ["Input" "4,279"]]}]}
+            {:state "Missing evidence" :args [{:kind "Unverified" :title "No recorded run" :scope "Qualify the provider before activating it."}]}]}}
+ proof-card [proof]
+ [:section {:class (str "or-proof " (if (:value proof) "measured" "")) :data-ui-component "roster-proof"}
+  [:div.or-proof-top [:span.or-eyebrow (ui/ico "eye") (:kind proof)]
+   (when (:date proof) [:span.or-date (:date proof)])]
+  [:h4 (:title proof)]
+  (when (:value proof)
+   [:div.or-measure [:strong (:value proof)] [:span (:label proof)]])
+  (when (number? (:fraction proof))
+   [:div.or-meter {:role "img" :aria-label (str (:value proof) " " (:label proof))}
+    [:i {:style (str "width:" (* 100 (min 1 (max 0 (:fraction proof)))) "%")}]
+    [:span.or-meter-end]])
+  (when (seq (:metrics proof))
+   [:dl.or-measure-facts (for [[label value] (:metrics proof)] [:div [:dt label] [:dd value]])])
+  (when (:scope proof) [:p.or-scope (:scope proof)])])
+(defn- preview-h [item]
+ (when-let [url (safe-url (get-in item [:props "PREVIEW"]))]
+  [:details.or-current-view
+   [:summary (ui/ico "grid") "Current source view" [:span "Open preview"]]
+   [:p.or-scope (get-in item [:props "PREVIEW_SCOPE"] "Source-backed preview; its implementation scope is recorded on this task.")]
+   [:iframe {:data-roster-preview url :title (str (:title item) " — current source view") :loading "lazy"}]
+   [:a.or-text-link {:href url :target "_blank" :rel "noopener"} "Open full size " (ui/ico "next")]]))
+(defn- browser-proof [item]
+ (when-let [node (:witness item)]
+  (let [claims (get-in node [:data :claims]) target (get-in item [:props "PROOF_STEP"])
+        claim (or (first (filter (fn [c] (= (str (:step c)) target)) claims)) (first (filter :available? claims)))
+        count (count claims)]
+   [:section.or-browser-proof
+    [:div.or-proof-top [:span.or-eyebrow (ui/ico "eye") "Browser witness"]
+     [:span.or-proof-count (str count " claims")]]
+    (if (:available? claim)
+     [:button.or-proof-image {:type "button" :data-roster-image (:src claim) :data-roster-caption (:message claim)
+                              :aria-label (str "Enlarge recorded evidence: " (:message claim))}
+      [:img {:src (:src claim) :alt (:message claim) :loading "lazy"}]
+      [:span (ui/ico "search") "Inspect recorded frame"]]
+     [:div.or-no-image (ui/ico "eye") "Recorded frame unavailable"])
+    (when claim [:p.or-claim (ui/ico "check") (:message claim)])
+    [:p.or-scope (or (get-in node [:attrs :scope]) "Recorded evidence; not a live application session.")]
+    [:details.or-all-claims [:summary "Browse all claims" [:span (str count)]] (witness/witness-h node)]])))
+(defn- task-note [roster-id item can-write?]
+ [:details.or-note {:open (some? (get-in item [:props "REVIEW_NOTE"]))}
+  [:summary (ui/ico "comment") "Your ideas on this task"
+   (when (get-in item [:props "REVIEW_NOTE"]) [:span.or-saved "Saved"])]
+  (if can-write?
+   [:form.or-note-form {:data-roster-note roster-id :data-task (:id item)}
+    [:label {:for (str "note-" roster-id "-" (:id item))} "What should change?"]
+    [:textarea {:id (str "note-" roster-id "-" (:id item)) :name "note" :rows 3 :maxlength 12000
+                :placeholder "A correction, an idea, a different priority…"} (get-in item [:props "REVIEW_NOTE"] "")]
+    [:div.or-note-actions
+     [:select {:name "decision" :aria-label "Review decision"}
+      (for [label ["Comment" "Looks right" "Needs changes"]]
+       [:option {:value label :selected (= label (get-in item [:props "REVIEW_DECISION"] "Comment"))} label])]
+     [:button {:type "submit"} "Save note " (ui/ico "next")]]
+    [:p.or-save-state {:role "status"} (when-let [stamp (get-in item [:props "REVIEW_AT"])] (str "Saved " stamp))]]
+   [:p.or-scope (or (get-in item [:props "REVIEW_NOTE"]) "Only the dossier owner can save a review.")])])
+(defn- references-h [item]
+ [:details.or-references
+  [:summary (ui/ico "file") "Source & technical record" [:span (:id item)]]
+  [:p.or-scope (str "Canonical Org heading · line " (inc (:line item))) ]
+  (when (seq (:proof-links item))
+   [:ul (for [ref (:proof-links item)] [:li [:span (if (:available? ref) "● " "○ ") (:label ref)] [:code (:path ref)]])])
+  [:pre (:raw item)]])
+(defn ^{:ui {:id "roster-task" :family "Progress" :title "A task, its proof and next action"
+ :use "Keep implementation, recorded verification, live qualification and owner feedback in one task view."
+ :examples [{:state "Waiting for access" :args ["example" {:id "R1" :state "WAIT" :title "Qualify a connection" :area "Models" :owner "Operator" :props {} :blockers [] :proofs [] :line 0 :raw "** WAIT Qualify a connection" :next "Activate the reviewed route."} false]}]}}
+ task-card [roster-id item can-write?]
+ [:article.or-task {:data-roster-detail (:id item) :data-ui-component "roster-task" :tabindex "-1"}
+  [:header.or-task-head
+   [:div.or-task-path [:span (:area item)] [:i "/"] [:span (:id item)]
+    [:button.or-back {:type "button" :data-roster-back true :hidden true} "← Back"]]
+   [:div.or-task-heading [:h2 (:title item)] (state-h item)]
+   (when (:summary item) [:p.or-outcome (:summary item)])
+   [:div.or-person-line
+    [:span.or-avatar (initial (:owner item))] [:span (:owner item)] [:span.or-dot "·"] [:span (:priority item)]
+    (when (:deadline item) [:span.or-deadline (ui/ico "calendar") (:deadline item)])]]
+  (when (or (get-in item [:props "BUILD"]) (get-in item [:props "LIVE"]))
+   [:div.or-signals
+    (for [[label value icon] [["Built" (get-in item [:props "BUILD"] "Not recorded") "grid"]
+                              ["Checked" (get-in item [:props "CHECKED"] "References only") "eye"]
+                              ["Live" (get-in item [:props "LIVE"] "Not qualified") "link"]]]
+     [:div [:span (ui/ico icon) label] [:strong value]])])
+  [:div.or-task-body
+   [:div.or-evidence-column
+    [:div.or-section-label [:span "Evidence"] [:span (if (seq (:proofs item)) (str (count (:proofs item)) " records") "Source references")]]
+    (map proof-card (:proofs item))
+    (browser-proof item)
+    (when-let [video (safe-url (get-in item [:props "FILM"]))]
+     [:section.or-film [:span.or-eyebrow (ui/ico "play") "Recorded journey"]
+      [:video {:controls true :preload "none" :src video :aria-label (str (:title item) " recorded film")}]
+      [:p.or-scope (get-in item [:props "PROOF_SCOPE"] "Recorded scenario; scope is stated in the source.")]])
+    (when (and (empty? (:proofs item)) (nil? (:witness item)) (nil? (get-in item [:props "FILM"])))
+     [:div.or-reference-proof (ui/ico "file")
+      [:div [:strong (if (:done? item) "Completion references recorded" "Qualification still ahead")]
+       [:p (if (:done? item) "Open the source record for the scoped completion evidence." "No recorded outcome is attached to this task yet.")]]])
+    (preview-h item)]
+   [:aside.or-action-column
+    [:section.or-next
+     [:span.or-eyebrow (ui/ico "next") (if (:done? item) "Outcome" "Next move")]
+     [:h3 (or (:next item) (if (:done? item) "Scoped work recorded" "Define the next action"))]
+     (when (seq (:blockers item))
+      [:div.or-dependencies [:span "Depends on"]
+       (for [id (:blockers item)] [:button {:type "button" :data-roster-to id} (ui/ico "lock") id (ui/ico "next")])])
+     (when (pos? (or (:child-count item) 0))
+      [:p.or-child-progress (str (:child-done item) " / " (:child-count item) " child tasks complete")])]
+    (task-note roster-id item can-write?)
+    (references-h item)]]])
+
+(defn- row-h [item who start]
+ [:button.or-work-row {:type "button" :data-roster-to (:id item) :data-roster-row (:id item)
+  :data-state (:state item) :data-area (:area item) :data-owner (:owner item)
+  :data-blocked (str (boolean (:blocked? item))) :data-done (str (boolean (:done? item)))
+  :data-dropped (str (boolean (:dropped? item))) :data-later (str (boolean (:later? item)))
+  :data-needs-you (str (and (not (:done? item)) (not (:later? item)) (contains? who (:owner item))))
+  :data-search (lower-case (str (:id item) " " (:title item) " " (:owner item) " " (:area item)))
+  :aria-pressed (= start (:id item))}
+  [:span {:class (str "or-work-mark " (lower-case (:state item)))} (ui/ico (cond (:dropped? item) "x" (:done? item) "check" (:blocked? item) "lock" :else "clock"))]
+  [:span.or-work-name [:strong (:title item)] [:small (:id item) " · " (get state-labels (:state item) (:state item))]]
+  [:span.or-work-arrow (ui/ico "next")]])
+(defn roster-h [node]
+ (let [a (:attrs node) data (:data node) items (:items data) who (set (Regex/split (Regex/compile! "\\s+") (get a :who "othman hotel")))
+       start (or (:start a) (:id (first (filter (fn [i] (not (:done? i))) items))) (:id (first items)))
+       complete (count (filter (fn [i] (and (:done? i) (not (:dropped? i)))) items))
+       open (count (remove :done? items)) dropped (count (filter :dropped? items))
+       groups (sort (distinct (map :area items))) can-write? (:can-write? data)]
+  [:section.org-roster {:id (str "roster-" (:id a)) :data-roster (:id a) :data-roster-start start
+                        :data-roster-filter "all" :data-ui-component "org-roster"}
+   [:header.or-overview
+    [:div.or-overview-title [:span.or-eyebrow (or (:eyebrow a) "Delivery / Org source")]
+     [:h1 (or (:title a) "Progress, in plain sight.")]
+     [:p "The work. The evidence. The next move."]]
+    [:div.or-overview-counts
+     [:div [:strong complete] [:span "complete"]]
+     [:div [:strong open] [:span "open"]]
+     [:a.or-approval-link {:href (str "#roster-approval-" (:id a))} (ui/ico "comment") "Review this roster " (ui/ico "next")]]]
+   [:div.or-progress-strip {:aria-label (str complete " complete, " open " open, " dropped " superseded; task counts, not production readiness")}
+    (for [state (concat (get-in data [:keywords :done]) (get-in data [:keywords :open]))
+          :let [n (get-in data [:counts state] 0)] :when (pos? n)]
+     [:span {:class (str "or-progress-segment " (lower-case state)) :title (str state ": " n)
+             :style (str "flex:" n)}])]
+   (if (seq (:errors data))
+    [:div.or-errors {:role "alert"} [:strong "The roster needs attention"] [:ul (map (fn [e] [:li e]) (:errors data))]]
+    [:div
+     [:div.or-toolbar
+      [:nav.or-filters {:aria-label "Filter work"}
+       (for [[key label] [["all" "All work"] ["needs" "Needs you"] ["ready" "Ready"] ["blocked" "Blocked"] ["done" "Done"] ["later" "Later"]]]
+        [:button {:type "button" :data-roster-filter-to key :aria-pressed (= key "all")} label [:span {:data-roster-filter-count key}]])]
+      [:label.or-mobile-filter [:select {:data-roster-filter-select true :aria-label "Filter work"}
+       (for [[key label] [["all" "All work"] ["needs" "Needs you"] ["ready" "Ready"] ["blocked" "Blocked"] ["done" "Done"] ["later" "Later"]]] [:option {:value key} label])]]
+      [:label.or-search (ui/ico "search") [:input {:type "search" :data-roster-search true :placeholder "Find a task…" :aria-label "Search roster tasks"}]]]
+     [:div.or-layout
+      [:nav.or-index {:aria-label "Tasks"}
+       [:div.or-index-head [:span "Workstreams"] [:span {:data-roster-visible-count true} (count items)]]
+       [:label.or-area-label "Workstream" [:select {:data-roster-area true :aria-label "Filter by workstream"}
+        [:option {:value ""} "Every workstream"] (for [group groups] [:option {:value group} group])]]
+       [:div.or-work-list
+        (for [group groups]
+         [:section.or-work-group {:data-roster-group group}
+          [:h3 group [:span (count (filter (fn [i] (= group (:area i))) items))]]
+          (map (fn [i] (row-h i who start)) (sort-by (fn [i] [(:priority i) (:id i)]) (filter (fn [i] (= group (:area i))) items)))])
+        [:div.or-empty {:hidden true :data-roster-empty true} (ui/ico "search") [:strong "No matching work"] [:span "Try another filter or a shorter search."]]]]
+      [:div.or-detail-region
+       [:button.or-mobile-picker {:type "button" :data-roster-picker true :aria-expanded false} (ui/ico "list") [:span "Choose a task"] (ui/ico "down")]
+       [:p.or-result-status {:role "status" :data-roster-result-status true}]
+       (for [item items]
+        [:div {:data-roster-panel (:id item) :hidden (not= start (:id item))} (task-card (:id a) item can-write?)])
+       [:div.or-filter-empty {:hidden true :data-roster-filter-empty true} [:h2 "A clear list."] [:p "No work matches this view."]]]]
+     [:footer.or-source-line [:span (ui/ico "file") (:source data)]
+      [:span (str (count items) " tasks · " dropped " superseded")]
+      [:span (ui/ico "check") "Live from Org"]]])
+   [:section.or-approval {:id (str "roster-approval-" (:id a))}
+    [:div [:span.or-eyebrow "Your call"] [:h2 "Does this make the work clear?"] [:p "Approve the roster or tell us what should change."]]
+    (ui/feedback-h (assoc a :submit-label "Save review" :note-placeholder "Your feedback on this roster…")
+      [["approve" "Approve this roster"] ["rework" "Request changes"]] "Roster review")]
+   [:dialog.or-lightbox {:data-roster-lightbox true :aria-label "Recorded evidence"}
+    [:form {:method "dialog"} [:button {:type "submit" :aria-label "Close recorded evidence"} (ui/ico "x")]]
+    [:img {:data-roster-lightbox-image true :alt "Recorded evidence"}] [:p {:data-roster-lightbox-caption true}]]]))

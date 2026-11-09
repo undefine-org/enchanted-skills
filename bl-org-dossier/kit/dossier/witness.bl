@@ -86,4 +86,4 @@
       [:button {:type "button" :data-witness-move "1" :disabled (= 1 (count claims))} "Next →"]]
      [:p.witness-footnote "Recorded evidence · open a frame at full size. These controls do not operate the application."]]
     [:p.witness-no-frame (if (= state "invalid") "Check the run, frames and block declaration." "The scenario has no recorded claims yet.")])
-   (ui/feedback-h a [["love" "Clear"] ["rework" "Needs another scenario"]] "What should the next run show?")]))
+   (when (not= "false" (:feedback a)) (ui/feedback-h a [["love" "Clear"] ["rework" "Needs another scenario"]] "What should the next run show?"))]))
