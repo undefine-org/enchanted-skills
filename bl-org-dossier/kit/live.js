@@ -6,7 +6,7 @@
   let rev = null, busy = false;
   const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); };
   const stamp = (s) => { $('#stamp').textContent = s; };
-  const editing = () => { if (document.querySelector('form.or-note-form[data-saving]')) return true; const a = document.activeElement; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
+  const editing = () => { if (document.querySelector('form.or-note-form[data-saving]')) return true; const a = document.activeElement; if (a?.closest('.org-roster') && a.matches('input,textarea,select')) return true; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
 
   // Prototype navigation, inspection and expansion belong to each graph.
   // The same state survives a file refresh; no prototype action writes data.

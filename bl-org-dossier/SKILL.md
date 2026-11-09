@@ -550,7 +550,7 @@ Custom hosts serve the declared `/roster-media/ROSTER/TASK/frame-N.png` through
 through `submit-note!`. HTTP input only names roster/task IDs; it never names
 files or executable code. Include `roster.css` and `roster.js` alongside the
 standard assets. Live revisions include enriched roster data, so source/evidence
-changes refresh open views. Selection, filters, review drafts and focus survive
+changes refresh open views. Selection, filters and review drafts survive
 ordinary refresh. Embed source views as local previews, not provider actions.
 
 Before publishing, use the actual UI on phone and desktop in both themes.
@@ -558,3 +558,9 @@ Inspect measured bars, proof enlargement, gallery controls, dependency/back
 navigation, empty filters, task-picker close, saved/reloaded notes, live draft
 preservation, denied writes and a disposable roster approval. Keep the real
 approval unanswered until the owner decides.
+
+Parsed task models use a bounded content-hash cache; source edits invalidate it.
+Evidence projections may memoize records only within a request. Authentication
+and viewer permissions are resolved per request and never cached in task models.
+Browser note writes include a task version; a conflicting edit returns 409 and
+keeps the draft, preserving the newer source instead of overwriting it.
