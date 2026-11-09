@@ -109,6 +109,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `milestones :id :title :start` | `milestone ID \| state \| title \| lane`, then `needs`, `step`, `check`, `gate` | clickable map and one milestone's steps, dependencies, completion criteria and access gates; selection survives live refresh; feedback remains explicit |
 | `roster :id :source :title :start :who` | Ordinary Org task headings and their drawers, read from `:source` by the connected review host | A live work list with filters, inline evidence, blockers, next action, task notes and explicit roster approval; see Org-native rosters below |
 | `witness :id :title :run :frames` | optional `:scope` describes what was exercised | actual Scenario Runner claims paired with their recorded browser frames, one at a time; timestamp, verdicts, full-size frame link and feedback; no fabricated movie |
+| `claims :id :title [:src "/views"] [:lang fr]` | `group Title`, then `claim ID \| phase \| desks \| text \| source \| screens` (desks comma-separated, screens space-separated view ids, may be empty) | a filterable ledger of a proposal's promises: coverage per phase (claims with ≥1 screen / all), phase and desk filters, source and desk chips; a screen chip opens `SRC?view=ID` in a dialog; a claim with no screen reads as an open promise; answerable. See *Claims and a contract's lifetime* |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`
 passes the file in `(BeamLisp/argv)`, so a cell can read its own block and turn it into
@@ -160,7 +161,7 @@ Icons: `@name` anywhere in a screen or desk line draws a line icon — `home mat
 search plus send file word check x alert clock user bot chat comment link seal eye edit version diff filter more back next
 down up bell wait calendar scale flag play undo lock attach grid list board split spark`. Prefer an icon to a word for kinds of things.
 
-Answerable blocks: `ask decision screen screen_graph run desk job schema procedure film horizons`. Each needs a unique `:id`.
+Answerable blocks: `ask decision screen screen_graph run desk job schema procedure film horizons witness milestones claims`. Each needs a unique `:id`.
 
 ### Screen graphs
 
@@ -316,7 +317,7 @@ the reader's draft and reports the HTTP failure instead of a JSON parser error.
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,
-`kit/dossier/{org,attrs,ui,page,answer,design}.bl` (pure), `kit/dossier/design/*.bl.org`,
+`kit/dossier/{org,attrs,ui,page,answer,design,claims}.bl` (pure), `kit/dossier/design/*.bl.org`,
 `kit/style.css`, `kit/live.js`.
 Tests: `bl test -p ~/.claude/skills/bl-org-dossier/kit kit/test/kit_test.bl`.
 A new component = one `-h` fn in `ui.bl`, a case in `block->h`, CSS, a needle in the test.
@@ -492,6 +493,30 @@ Inspect milestone selection, dependency navigation, frame stepping, keyboard
 arrows, live-refresh continuity, phone overflow and both themes in a real
 browser. Save a reaction on a disposable dossier to verify the authorized path.
 
+
+
+## Claims projected onto screens
+
+Use `claims` to project every claim of a commercial proposal onto the screens
+that show it. `:src` names a same-origin screen host (`/views`): each screen
+chip opens `SRC?view=ID` in a dialog (Escape or × closes it and focus returns
+to the chip). Without `:src` screens are named, not opened. Coverage counts a
+claim as shown when it names at least one screen; a claim with none stays an
+open promise (dashed edge, « no screen yet »). Phase and desk filters are local
+and survive live refresh. `:lang fr` gives French labels and feedback.
+
+```org
+#+begin_claims :id promesses :title "Ce que la proposition promet" :src "/views" :lang fr
+group Pilotage
+claim C1 | p1 | direction, travaux | Un tableau de bord par affaire | P p. 8 | affaire-board affaire-list
+claim C2 | next | achats | Les commandes suivent le budget de l'affaire | P p. 12 |
+#+end_claims
+```
+
+Phase tones: `p1` slate, `next` ochre, `p2` plum, `now` sage, `later`
+mocha, or a palette name (`sage clay slate ochre plum mocha`). The phase name is always
+written next to its colour. Duplicate IDs and claims without text are
+authoring errors shown in place of the block.
 
 ## Org-native rosters
 

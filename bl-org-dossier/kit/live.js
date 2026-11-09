@@ -6,7 +6,7 @@
   let rev = null, busy = false;
   const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); };
   const stamp = (s) => { $('#stamp').textContent = s; };
-  const editing = () => { if (document.querySelector('form.or-note-form[data-saving]')) return true; const a = document.activeElement; if (a?.closest('.org-roster') && a.matches('input,textarea,select')) return true; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
+  const editing = () => { if (document.querySelector('form.or-note-form[data-saving]') || document.querySelector('dialog[open]')) return true; const a = document.activeElement; if (a?.closest('.org-roster') && a.matches('input,textarea,select')) return true; return a && a.tagName === 'TEXTAREA' && a.value.trim() !== (a.defaultValue || '').trim(); };
 
   // Prototype navigation, inspection and expansion belong to each graph.
   // The same state survives a file refresh; no prototype action writes data.
@@ -293,7 +293,7 @@
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
-    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones],[data-claims]') || e.metaKey || e.ctrlKey || e.altKey) return;
     const list = secs(), i = list.findIndex(s => s.id === current);
     if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
     if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;
@@ -659,3 +659,80 @@
   });
   new MutationObserver(init).observe(document.body,{childList:true,subtree:true}); init();
 })();
+
+// Claims: phase/desk filters are local and survive refresh; a screen chip opens
+// that same-origin view in a dialog and returns focus to the chip on close.
+(() => {
+  const filters = new Map();
+  let opener = null;
+  const stateOf = root => { if (!filters.has(root.dataset.claims)) filters.set(root.dataset.claims, {phase: '', desk: '', open: false}); return filters.get(root.dataset.claims); };
+  function apply(root) {
+    const s = stateOf(root), rows = [...root.querySelectorAll('.cl-row')];
+    let shown = 0;
+    rows.forEach(r => {
+      const ok = (!s.phase || r.dataset.phase === s.phase) && (!s.desk || r.dataset.desks.split('|').includes(s.desk)) && (!s.open || r.dataset.open === '1');
+      r.hidden = !ok; if (ok) shown++;
+    });
+    root.querySelectorAll('[data-claims-group]').forEach(g => { g.hidden = !g.querySelector('.cl-row:not([hidden])'); });
+    root.querySelectorAll('[data-claims-filter]').forEach(b => {
+      const k = b.dataset.claimsFilter;
+      b.setAttribute('aria-pressed', String(k === 'open' ? s.open : s[k] === b.dataset.value));
+    });
+    const out = root.querySelector('[data-claims-showing]');
+    if (out) out.textContent = `${shown} / ${rows.length} ${out.dataset.claimsShowing}`;
+    const empty = root.querySelector('.cl-empty'); if (empty) empty.hidden = shown > 0;
+  }
+  function frameURL(root, view) {
+    const url = new URL(root.dataset.claimsSrc, location.href);
+    if (url.origin !== location.origin) throw Error('Claim screens must be same-origin');
+    url.searchParams.set('view', view); return url;
+  }
+  function showView(root, dlg, view) {
+    const url = frameURL(root, view), f = dlg.querySelector('iframe');
+    f.src = url.href; f.title = view; dlg.querySelector('.cl-dlg-out').href = url.href;
+    dlg.querySelectorAll('[data-claims-switch]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.claimsSwitch === view)));
+  }
+  function openView(root, button) {
+    const dlg = root.querySelector('dialog.cl-dialog'), row = button.closest('.cl-row');
+    if (!dlg || !row) return;
+    opener = {root: root.dataset.claims, claim: button.dataset.claim, view: button.dataset.claimsView};
+    dlg.querySelector('[data-claims-dlg-id]').textContent = button.dataset.claim;
+    dlg.querySelector('[data-claims-dlg-text]').textContent = row.querySelector('.cl-text').textContent;
+    const nav = dlg.querySelector('.cl-dlg-views');
+    nav.replaceChildren(...[...row.querySelectorAll('[data-claims-view]')].map(b => {
+      const x = document.createElement('button'); x.type = 'button'; x.dataset.claimsSwitch = b.dataset.claimsView; x.textContent = b.dataset.claimsView; return x;
+    }));
+    nav.hidden = nav.children.length < 2;
+    showView(root, dlg, button.dataset.claimsView);
+    if (!dlg.open) dlg.showModal();
+    dlg.querySelector('[data-claims-close]').focus();
+  }
+  function init() {
+    document.querySelectorAll('[data-claims]').forEach(root => {
+      if (root._claimsReady) return;
+      root._claimsReady = true; apply(root);
+      const dlg = root.querySelector('dialog.cl-dialog'); if (!dlg) return;
+      const f = dlg.querySelector('iframe');
+      f.addEventListener('load', () => { try { const t = document.documentElement.dataset.theme, d = f.contentDocument; if (t) d.documentElement.dataset.theme = t; else delete d.documentElement.dataset.theme; } catch {} });
+      dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+      dlg.addEventListener('close', () => {
+        f.src = 'about:blank';
+        const o = opener; opener = null; if (!o) return;
+        const r = document.querySelector(`[data-claims="${CSS.escape(o.root)}"]`);
+        r?.querySelector(`[data-claim="${CSS.escape(o.claim)}"][data-claims-view="${CSS.escape(o.view)}"]`)?.focus();
+      });
+    });
+  }
+  document.addEventListener('click', e => {
+    const c = e.target.closest('[data-claims-filter],[data-claims-view],[data-claims-switch],[data-claims-close]');
+    const root = c?.closest('[data-claims]'); if (!root) return;
+    if (c.hasAttribute('data-claims-close')) { c.closest('dialog').close(); return; }
+    if (c.hasAttribute('data-claims-switch')) { if (opener) opener.view = c.dataset.claimsSwitch; showView(root, c.closest('dialog'), c.dataset.claimsSwitch); return; }
+    if (c.hasAttribute('data-claims-view')) { openView(root, c); return; }
+    const s = stateOf(root), k = c.dataset.claimsFilter;
+    if (k === 'open') s.open = !s.open; else s[k] = s[k] === c.dataset.value ? '' : c.dataset.value;
+    apply(root);
+  });
+  new MutationObserver(init).observe(document.body, {childList: true, subtree: true}); init();
+})();
+

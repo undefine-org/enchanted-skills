@@ -8,7 +8,7 @@
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
             [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]
-            [dossier.ui :as ui] [dossier.tone]))
+            [dossier.ui :as ui] [dossier.tone] [dossier.claims :as claims]))
 
 (deftest a-screen-graph-can-branch-and-take-feedback
   (let [lines ["#+design: forest" "* Walk"
@@ -262,3 +262,25 @@
    (is (includes? html "class=\"sg-toolbar\""))
    (doseq [action ["back" "highlight" "mode" "inspect" "expand" "reset"]]
     (is (includes? html (str "data-" backend "-" action "=\"true\"")))))))
+
+(deftest claims-project-each-promise-onto-its-screens
+  (let [doc (o/read-doc (join "\n" ["* C" "#+begin_claims :id cl :title \"Promises\" :src \"/views\""
+                                    "group Steering"
+                                    "claim C1 | p1 | direction, works | A board per contract | P p. 8 | board list"
+                                    "claim C2 | next | purchasing | Orders follow the <budget> | P p. 12 |"
+                                    "#+end_claims"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["data-claims=\"cl\"" "data-claims-filter=\"phase\"" "data-value=\"next\"" "data-desks=\"direction|works\""
+                    "data-claims-view=\"board\"" "cl-row tone-next open" "no screen yet" "<b>1</b> open promises" "<dialog"
+                    "&lt;budget&gt;" "data-id=\"cl\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (= ["cl"] (map :id (pg/feedback-items doc)))))
+  (is (seq (:errors (claims/parse ["claim C1 | p1 | x"]))))
+  (is (seq (:errors (claims/parse ["claim C1 | p1 | a | t" "claim C1 | p1 | a | again"]))))
+  ;; without a screen host, screens are named but never opened
+  (let [html (h/hiccup->html (claims/claims-h {:attrs {:id "x"} :body ["claim A | p1 | ops | t | P | home"]}))]
+    (is (includes? html "cl-screen"))
+    (is (not (includes? html "data-claims-view")))
+    (is (not (includes? html "<dialog"))))
+  (is (not (includes? (h/hiccup->html (claims/claims-h {:attrs {:id "x" :src "//evil.example"} :body ["claim A | p1 | ops | t | P | home"]})) "<iframe"))))
+
