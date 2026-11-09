@@ -73,7 +73,7 @@
 (defn- browser-proof [item]
  (when-let [node (:witness item)]
   (let [claims (get-in node [:data :claims]) target (get-in item [:props "PROOF_STEP"])
-        claim (or (first (filter (fn [c] (= (str (:step c)) target)) claims)) (first (filter :available? claims)))
+        claim (or (first (filter (fn [c] (= (str (:step c)) target)) claims)) (first (filter :available? claims)) (first claims))
         count (count claims)]
    [:section.or-browser-proof
     [:div.or-proof-top [:span.or-eyebrow (ui/ico "eye") "Browser check"]
@@ -84,7 +84,12 @@
       [:img {:src (:src claim) :alt (:message claim) :loading "lazy"}]
       [:span (ui/ico "search") "Enlarge"]]
      [:div.or-no-image (ui/ico "eye") "Recorded frame unavailable"])
-    (when claim [:p.or-claim (ui/ico "check") (:message claim)])
+    (when claim
+     [:p.or-claim {:data-verdict (:verdict claim)}
+      (ui/ico (if (contains? #{"witnessed" "proven"} (:verdict claim)) "check" "alert"))
+      [:span (cond (= "refuted" (:verdict claim)) "Failed: "
+                   (not (contains? #{"witnessed" "proven"} (:verdict claim))) "Unverified: " :else "")
+       (or (get-in item [:props "PROOF_CAPTION"]) (:message claim))]])
     (when (seq (:proofs item))
      [:div.or-proof-summary (for [proof (:proofs item)]
        [:div

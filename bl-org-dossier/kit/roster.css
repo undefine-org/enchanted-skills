@@ -46,3 +46,4 @@
 @media(min-width:760px){.or-stream[open]{grid-column:1/-1}.or-stream[open]>.or-tree{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 18px;max-height:300px}.or-stream[open]>summary .or-stream-progress{width:100px}}
 @media(min-width:760px) and (max-width:1100px){.or-stream[open]>.or-tree{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .or-proof-summary .or-measure-facts{display:flex;gap:24px;width:100%;border:0;padding:0;margin:0}.or-proof-summary .or-measure-facts>div{display:block}.or-proof-summary .or-measure-facts dd{font-size:19px}.or-proof-summary:empty{display:none}
+.or-claim[data-verdict=refuted] svg,.or-claim[data-verdict=unknown] svg{color:var(--ochre)}

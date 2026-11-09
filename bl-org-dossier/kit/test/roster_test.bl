@@ -1,6 +1,6 @@
 (ns dossier.roster-test
  (:require [dossier.roster.model :as model] [dossier.roster :as roster]
-           [dossier.org :as org] [dossier.page :as page] [live.hiccup :as h] [bl.json :as json]))
+           [dossier.org :as org] [dossier.page :as page] [dossier.roster.view :as view] [live.hiccup :as h] [bl.json :as json]))
 (def outline
  (join "\n" ["#+TODO: TODO(t) DOING(i) WAIT(w) REVIEW(r) | DONE(d) DROP(x)"
  "* Work" "** DOING R1 Parent" ":PROPERTIES:" ":ID: parent" ":OWNER: codex" ":END:"
@@ -100,3 +100,13 @@
     (is (includes? html "Reliability: 1 done, 1 open, 0 dropped"))
     (is (includes? html "data-roster-to=\"parent\">Parent"))
     (is (includes? html "Waiting for")))))))
+
+(deftest failed-recorded-checks-keep-their-verdict-when-captioned
+ (let [item {:id "R1" :title "A recorded check" :state "DOING" :owner "codex" :line 1 :raw "** DOING R1"
+             :props {"PROOF_CAPTION" "A shorter caption"} :proofs []
+             :witness {:attrs {:id "R1" :feedback "false"} :data {:state "refuted" :world "browser"
+                       :claims [{:step 1 :message "The original check failed" :verdict "refuted" :available? false}]}}}
+       html (h/hiccup->html (view/task-card "review" item false))]
+  (is (includes? html "data-verdict=\"refuted\""))
+  (is (includes? html "Failed: A shorter caption"))
+  (is (includes? html "The original check failed"))))

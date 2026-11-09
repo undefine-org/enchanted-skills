@@ -527,6 +527,7 @@ Existing properties: `OWNER`, `PRIORITY`, `AREA`, `BLOCKED_BY`, `COMMIT`,
 | Property | Meaning |
 |---|---|
 | `ROSTER_TITLE`, `OUTCOME` | Short title and the person's outcome; full source stays in details |
+| `PROOF_CAPTION` | Short screenshot caption; the original check and verdict remain in All checks |
 | `NEXT_ACTION`, `ACTION_OWNER` | Concrete next move and its responsible person (defaults to OWNER) |
 | `HORIZON: later` | Deferred work; P3 also appears under Later |
 | `BUILD`, `CHECKED`, `LIVE` | Explicit, separately scoped implementation/check/live labels |
