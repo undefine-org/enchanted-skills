@@ -49,3 +49,5 @@
 .or-claim[data-verdict=refuted] svg,.or-claim[data-verdict=unknown] svg{color:var(--ochre)}
 /* The programmatic reading target is not an interactive control. */
 .or-task:focus{outline:none}
+/* The unlayered roster reset must preserve contrasting feedback foregrounds. */
+.org-roster .fb-opts .opt.on,.org-roster .fb-row .send{color:var(--bg)}
