@@ -1,0 +1,46 @@
+#+title: Une proposition à relire ensemble
+#+subtitle: Fixture littérale du kit — aucune donnée client
+#+language: fr
+
+* Le parcours
+Le lecteur peut discuter chaque passage sans préparer le document.
+
+La qualification doit être expliquée au client avant la présélection.
+
+#+begin_claims :id promises :title "Les promesses" :lang fr
+claim C1 | p1 | sales | Expliquer la qualification | Fixture | first
+#+begin_comment
+- Review :: fixture-nested
+- Author :: Source
+- Target :: block:promises
+- State :: open
+
+Qui valide cette qualification ?
+#+end_comment
+claim C2 | p1 | sales | Conserver les réponses du lecteur | Fixture | second
+#+end_claims
+
+#+begin_ask :id approval :title "La proposition est-elle prête ?" :options "Oui|À revoir"
+Les commentaires ne choisissent aucune réponse à cette question.
+#+end_ask
+
+* L’application
+#+begin_screen_graph :id prototype :title "Une navigation réelle" :start first
+view first | Qualification
+bar Qualification
+msg sales | Cette consultation doit être qualifiée.
+go second | Ouvrir la présélection
+view second | Présélection
+bar Présélection
+msg sales | Vérifier les pièces avant de décider.
+go first | Revenir à la qualification
+#+end_screen_graph
+
+* Catalogue accepté
+#+begin_terms
+review.trigger | Bouton discret sur chaque passage ; visible au survol, au focus et sur téléphone ; compteur des fils ouverts.
+review.panel | Panneau latéral sur ordinateur, feuille sur téléphone ; filtres ouverts, résolus, tous et auteur ; fermeture et retour au passage.
+review.thread | Auteur, date, contexte cité, réponses et résolution ; cible modifiée signalée sans rattachement silencieux.
+review.composer | Commentaire et réponse ; brouillon conservé, attente, succès confirmé, échec et lecture seule explicites.
+review.annotation | Sélection de texte ou élément d’un écran ; mode explicite préservant la navigation normale ; contexte de vue conservé.
+#+end_terms

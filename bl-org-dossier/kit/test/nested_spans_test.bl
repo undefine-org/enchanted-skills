@@ -1,0 +1,26 @@
+(ns bl.doc.nested-spans-test (:require [bl.doc.spans :as sp]))
+
+(deftest nested-blocks-retain-absolute-source-ranges
+  (let [lines ["before" "#+begin_claims" "claim C1" "#+BEGIN_COMMENT" "note" "#+END_COMMENT"
+               "#+begin_quote" "#+begin_comment" "other" "#+end_comment" "#+end_quote" "#+end_claims" "after"]
+        spans (sp/spans lines :org)
+        parent (second spans) children (:children parent)]
+    (is (= [:prose :block :prose] (mapv :kind spans)))
+    (is (= [1 12] [(:from parent) (:to parent)]))
+    (is (= ["comment" "quote"] (mapv :lang children)))
+    (is (= [3 6] [(:from (first children)) (:to (first children))]))
+    (is (= 7 (:from (first (:children (second children))))))))
+
+(deftest literal-bodies-do-not-produce-nested-cells
+  (doseq [kind ["comment" "example" "export" "verse" "src text"]]
+    (let [closing (first (split kind " "))
+          s (first (sp/spans [(str "#+begin_" kind) "#+begin_src beam-lisp" "(throw :never)"
+                             "#+end_src" (str "#+end_" closing)] :org))]
+      (is (empty? (:children s))))))
+
+(deftest unclosed-children-stay-within-their-parent
+  (let [outer (first (sp/spans ["#+begin_quote" "#+begin_comment" "still typing" "#+end_quote" "outside"] :org))
+        inner (first (:children outer))]
+    (is (= true (:open? inner)))
+    (is (= 3 (:to inner)))
+    (is (= 4 (:to outer)))))
