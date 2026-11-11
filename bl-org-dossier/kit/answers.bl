@@ -8,7 +8,8 @@
   (:require [dossier.org :as o] [dossier.page :as pg]))
 
 (def path (Path/expand (first (BeamLisp/argv))))
-(def items (pg/feedback-items (o/read-doc (File/read! path))))
+(def doc (o/read-doc (File/read! path)))
+(def items (pg/feedback-items doc))
 (def done (filter :answer items))
 (def open (filter (fn [i] (nil? (:answer i))) items))
 
@@ -19,3 +20,12 @@
   (when (:note i) (println (str "      note: " (:note i)))))
 (when (seq open)
   (println (str "  waiting: " (join ", " (map :id open)))))
+
+(when (seq (:comments doc))
+  (println (str "\n  " (count (:comments doc)) " review comments:"))
+  (doseq [note (:comments doc)]
+    (println (str "  " (:id note) " · " (:author note) " · " (:state note) " · " (:target note)
+                  (when (:view note) (str " / " (:view note)))
+                  (when (:replyTo note) (str " → " (:replyTo note)))
+                  (when (:detached note) " [passage changed]")))
+    (println (str "      " (:body note)))))

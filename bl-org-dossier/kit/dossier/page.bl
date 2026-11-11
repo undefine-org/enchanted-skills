@@ -7,7 +7,7 @@
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
             [dossier.runview :as rv] [dossier.horizon :as hz] [dossier.witness :as witness]
-            [dossier.milestones :as milestones] [dossier.claims :as claims] [dossier.lifetime :as lifetime]))
+            [dossier.milestones :as milestones] [dossier.claims :as claims] [dossier.lifetime :as lifetime] [dossier.review.ui :as review]))
 
 (def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones" "claims" "lifetime"
                   "ontology_graph" "settings_graph" "code_graph" "settings_pages" "roster"})
@@ -32,10 +32,12 @@
              (assoc nd :proc (get procs (:procedure (:attrs nd))))
              nd)))))
 
-(defn- phone-h [b]
+(defn- phone-tree [b]
   (if (= "run" (:lang b))
     (if (:proc b) (rv/run-h b (:proc b)) [:pre.block (str "run: no procedure " (:procedure (:attrs b)) " in this document")])
     (ui/screen-h b)))
+
+(defn- phone-h [b] (review/decorate b (phone-tree b)))
 
 (defn- group-screens
   "Consecutive screen and run blocks (blank prose between them aside) as one strip."
@@ -51,7 +53,7 @@
 
 (defn- todo-chip [k] (when k [:span {:class (str "kw " k)} k]))
 
-(defn- node->h [nd]
+(defn- node-tree [nd]
   (case (:t nd)
     :heading (let [tag (keyword (str "h" (min 6 (inc (:level nd)))))]
                [tag {:id (ui/slug (:title nd))}
@@ -87,6 +89,8 @@
             [:pre.src (:code nd)]]]
     :code [:pre {:class (str "code " (:lang nd))} (:body nd)]
     nil))
+
+(defn- node->h [nd] (review/decorate nd (node-tree nd)))
 
 (defn- sections
   "Nodes split at level-1 headings: [{:head h :nodes […]} …]."
@@ -203,9 +207,14 @@
     [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
     (for [href (design/font-links doc)] [:link {:rel "stylesheet" :href href}])
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
+    [:link {:rel "stylesheet" :href "review.css"}]
     [:style css (design/css)]]
    [:body
-    [:div.live [:i] [:span#stamp (ui/tr "live")] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} (ui/tr "theme")]]
+    [:div.live [:i] [:span#stamp (ui/tr "live")] [:a {:href "src"} "source .bl.org"] [:button#theme {:type "button"} (ui/tr "theme")]
+     [:button#review-toggle {:type "button" :aria-controls "dossier-review" :aria-expanded "false"}
+      (if (= "fr" (get-in doc [:meta :language])) "Commentaires" "Comments")]]
     [:main#doc (doc-h doc)]
     [:div#toast]
-    [:script js]]])
+    (review/shell (get-in doc [:meta :language]))
+    [:script js]
+    [:script {:src "review.js" :defer true}]]])

@@ -1,0 +1,32 @@
+; The same review controls decorate every dossier renderer.
+(ns dossier.review.ui (:require [dossier.ui :as ui]))
+
+(defn decorate [node tree]
+  (if (or (nil? tree) (= :props (:t node)) (nil? (:review-target node))) tree
+    (let [tag (first tree)]
+      (if-not (and (vector? tree) (or (keyword? tag) (string? tag))) tree
+        (let [has-attrs (map? (second tree)) attrs (if has-attrs (second tree) {})]
+          (into [tag (assoc attrs :data-review-target (:review-target node) :data-review-label (:review-label node) :data-review-ambiguous (when (:review-ambiguous node) "true"))]
+                (if has-attrs (drop 2 tree) (rest tree))))))))
+
+(defn shell [lang]
+  (let [fr (= "fr" lang)]
+    [:aside#dossier-review {:hidden true :role "dialog" :aria-modal "false" :aria-labelledby "review-heading"}
+     [:template#review-icon (ui/ico "comment")]
+     [:header.review-head [:h2#review-heading (if fr "Commentaires" "Comments")]
+      [:button {:type "button" :data-review-close true :aria-label (if fr "Fermer les commentaires" "Close comments")} "×"]]
+     [:div.review-controls
+      [:button {:type "button" :data-review-annotate true :aria-pressed "false"} (if fr "Annoter" "Annotate")]
+      [:label [:span.review-sr (if fr "État" "Status")]
+       [:select {:data-review-filter true} [:option {:value "open"} (if fr "Ouverts" "Open")]
+        [:option {:value "resolved"} (if fr "Résolus" "Resolved")] [:option {:value "all"} (if fr "Tous" "All")]]]
+      [:label [:span.review-sr (if fr "Auteur" "Author")]
+       [:select {:data-review-author true} [:option {:value ""} (if fr "Tous les auteurs" "All authors")]]]]
+     [:div.review-scroll [:div {:data-review-context true}] [:div {:data-review-list true}]]
+      [:form.review-compose
+       [:label {:for "review-body"} (if fr "Votre commentaire" "Your comment")]
+       [:textarea#review-body {:rows "4" :maxlength "12000"}]
+       [:div.review-compose-actions [:span {:data-review-draft true}]
+        [:button {:type "button" :data-review-cancel-reply true :hidden true} (if fr "Annuler la réponse" "Cancel reply")]
+        [:button {:type "submit"} (if fr "Envoyer" "Send")]]]
+     [:p.review-status {:role "status" :aria-live "polite"} (if fr "Chargement des commentaires…" "Loading comments…")]]))

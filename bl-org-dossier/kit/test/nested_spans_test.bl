@@ -1,4 +1,4 @@
-(ns bl.doc.nested-spans-test (:require [bl.doc.spans :as sp]))
+(ns bl.doc.nested-spans-test (:require [dossier.compat.spans :as sp]))
 
 (deftest nested-blocks-retain-absolute-source-ranges
   (let [lines ["before" "#+begin_claims" "claim C1" "#+BEGIN_COMMENT" "note" "#+END_COMMENT"
@@ -24,3 +24,8 @@
     (is (= true (:open? inner)))
     (is (= 3 (:to inner)))
     (is (= 4 (:to outer)))))
+
+(deftest dynamic-containers-expose-native-comment-children
+  (let [s (first (sp/spans ["#+begin: review" "#+begin_comment" "A note" "#+end_comment" "#+end:"] :org))]
+    (is (= :dynamic (:kind s)))
+    (is (= "comment" (:lang (first (:children s)))))))

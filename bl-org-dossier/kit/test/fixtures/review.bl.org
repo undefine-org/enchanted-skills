@@ -44,3 +44,16 @@ review.thread | Auteur, date, contexte cité, réponses et résolution ; cible m
 review.composer | Commentaire et réponse ; brouillon conservé, attente, succès confirmé, échec et lecture seule explicites.
 review.annotation | Sélection de texte ou élément d’un écran ; mode explicite préservant la navigation normale ; contexte de vue conservé.
 #+end_terms
+
+* Vérification du kit
+#+begin_matrix
+Contrat | Vérification observée le 11 novembre 2026
+Lecture et écriture | 295 assertions réussies : kit, réponses, commentaires et blocs imbriqués
+Concurrence | Deux vérifications Python : verrou entre processus et refus d’une écriture périmée
+Navigateur | 11 parcours réussis sur un dossier jetable, avec le véritable hôte et ses rendus source
+Identités | Un lecteur autorisé commente ; seuls les droits du propriétaire permettent une approbation
+Source Org | Indentation, accents, arabe, virgules et délimiteurs restent des données ; aucun commentaire n’exécute du code
+Navigation | Une écriture de commentaire conserve la révision du contenu et la vue ouverte
+Présentation | Captures ordinateur et téléphone inspectées ; fil défilant et zone de saisie toujours accessible
+Hôte générique | Lecture, écriture, refus anonymes, approbation propriétaire et ressources vérifiés par HTTP réel
+#+end_matrix

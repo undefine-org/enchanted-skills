@@ -316,6 +316,17 @@ after their own authentication; it returns explicit JSON outcomes for valid,
 invalid, oversized and failed writes. Check that an empty/error response keeps
 the reader's draft and reports the HTTP failure instead of a JSON parser error.
 
+## Comments anywhere
+
+The kit supplies shared passage, text-selection and same-origin mockup comments
+without preparing existing documents. Comments and replies are native Org
+COMMENT blocks, including inside component blocks; source/example/export/verse
+bodies stay literal. They never choose an approval answer. Use the shared HTTP
+adapter for custom hosts and grant exact reviewer identities in private service
+configuration. Read [review.md](references/review.md) for Org metadata, reviewer
+grants, host integration, draft/error behavior and the temporary nested-span
+compatibility layer. `kit/answers.bl` reads the discussions as well as answers.
+
 ## Kit
 
 `kit/serve.bl` (routes `/ /doc /rev /src /answers POST /answer`), `kit/answers.bl`,

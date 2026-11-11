@@ -1,0 +1,26 @@
+; One shared CAS writer for answers and comments, including across server VMs.
+(ns dossier.storage (:require [bl.json :as json]))
+
+(defn update!
+  "transform sees the latest source and returns {:text :value} or {:error}.
+   A simultaneous write is retried from fresh source; errors preserve drafts."
+  [path transform]
+  (global/trans (tuple (tuple :dossier/feedback (Path/expand path)) (erlang/self))
+    (fn []
+      (loop [attempt 0]
+        (let [before (File/read! path) result (transform before)]
+          (if (:error result) result
+            (if (= before (:text result)) (:value result)
+              (let [dir (Path/join (System/tmp_dir!) (str "dossier-write-" (System/pid) "-" (erlang/unique_integer (list :positive))))
+                    helper (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) "dossier/review/write.py")
+                    status (try
+                             (File/mkdir! dir) (File/chmod! dir 448)
+                             (File/write! (str dir "/request.json") (json/encode {:path (Path/expand path) :before before :after (:text result)}))
+                             (let [[output code] (System/cmd "python3" (list helper (str dir "/request.json")))]
+                               (if (= code 0) (get (json/decode output) "status") "error"))
+                             (finally (File/rm_rf dir)))]
+                (cond
+                  (= status "saved") (:value result)
+                  (and (= status "conflict") (< attempt 4)) (recur (inc attempt))
+                  (= status "conflict") {:error "Document changed while saving. Your draft is kept; retry." :status 409}
+                  :else {:error "Could not write the document. Your draft is kept." :status 500})))))))))

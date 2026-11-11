@@ -1,0 +1,93 @@
+(ns dossier.review-test
+  (:require [dossier.org :as org] [dossier.review.model :as model] [dossier.review.store :as store]
+            [dossier.review.http :as http] [dossier.page :as page] [dossier.claims :as claims]
+            [dossier.feedback :as feedback] [live.hiccup :as h] [bl.json :as json]))
+
+(def fixture "#+title: Test\n* Proposal\n:PROPERTIES:\n:ID: proposal\n:END:\nA paragraph to discuss.\n\n#+begin_claims :id promises\nclaim C1 | p1 | sales | Qualify | | first\n#+begin_comment\nWho qualifies?\n#+end_comment\nclaim C2 | p1 | sales | Review | | second\n#+end_claims\n\n#+begin_ask :id approval :options Yes|Later\nChoose.\n#+end_ask\n")
+(def reviewer {:handle "ahmed" :owner false})
+(def owner {:handle "owner" :owner true})
+
+(deftest nested-comments-are-not-component-instructions
+  (let [doc (org/read-doc fixture) block (first (filter #(= "claims" (:lang %)) (:nodes doc)))
+        parsed (claims/parse (:body block)) html (h/hiccup->html (page/page-h doc "" ""))]
+    (is (empty? (:errors parsed)))
+    (is (= 2 (count (mapcat :claims (:groups parsed)))))
+    (is (= "Who qualifies?" (:body (first (:comments doc)))))
+    (is (= "block:promises" (:target (first (:comments doc)))))
+    (is (not (includes? html "Who qualifies?")))
+    (is (includes? html "data-review-target=\"block:promises\""))
+    (is (includes? html "review.js"))))
+
+(deftest literal-code-and-examples-remain-literal
+  (doseq [kind ["src text" "example" "export html"]]
+    (let [s (str "#+begin_" kind "\n#+begin_comment\nLiteral\n#+end_comment\n#+end_" (first (split kind " ")))
+          doc (org/read-doc s)]
+      (is (empty? (:comments doc)))
+      (is (includes? (join "\n" (:lines doc)) "Literal")))))
+
+(deftest arbitrary-comment-text-round-trips-without-changing-the-host-block
+  (let [body "  été · تحية\n,#+end_comment\n,* A comma heading\n  ,#+end_claims\n#+end_claims\n#+begin_src beam-lisp\n(throw :never)\n#+end_src\n* A headline\n#+end_comment\n, literal\n\n "
+        r (store/transform fixture reviewer {"id" "c-1" "target" "block:promises" "body" body})
+        doc (org/read-doc (:text r)) note (first (filter #(= "c-1" (:id %)) (:comments doc)))]
+    (is (nil? (:error r)))
+    (is (= body (:body note)))
+    (is (= "ahmed" (:author note)))
+    (is (= (mapv :id (page/feedback-items (org/read-doc fixture))) (mapv :id (page/feedback-items doc))))
+    (is (= "Who qualifies?" (:body (first (:comments doc)))))
+    (is (= 2 (count (mapcat :claims (:groups (claims/parse (:body (first (filter #(= "claims" (:lang %)) (:nodes doc))))))))))
+    (is (not-any? #(= :cell (:t %)) (:nodes doc)))))
+
+(deftest reply-retry-and-resolution-preserve-all-comments
+  (let [request {"id" "c-2" "target" "block:promises" "body" "A question"}
+        first-save (store/transform fixture reviewer request)
+        retry (store/transform (:text first-save) reviewer request)
+        response (store/transform (:text retry) owner {"action" "reply" "id" "r-1" "replyTo" "c-2" "body" "An answer"})
+        resolved (store/transform (:text response) reviewer {"action" "resolve" "id" "c-2"})
+        notes (:comments (org/read-doc (:text resolved)))]
+    (is (= (:text first-save) (:text retry)))
+    (is (= 3 (count notes)))
+    (is (= "resolved" (:state (first (filter #(= "c-2" (:id %)) notes)))))
+    (is (= "c-2" (:replyTo (first (filter #(= "r-1" (:id %)) notes)))))
+    (is (= 403 (:status (store/transform (:text response) {:handle "other"} {"action" "resolve" "id" "c-2"}))))
+    (is (= 409 (:status (store/transform (:text response) reviewer (assoc request "body" "Different")))))))
+
+(deftest invalid-or-stale-comments-never-rewrite-the-source
+  (is (= 403 (:status (store/transform fixture nil {"id" "x" "body" "No"}))))
+  (is (= 409 (:status (store/transform fixture reviewer {"id" "x" "target" "text:gone" "body" "Kept"}))))
+  (is (= 400 (:status (store/transform fixture reviewer {"id" "x" "body" ""}))))
+  (is (= 400 (:status (store/transform fixture reviewer {"id" "x" "body" "Note" "quote" "bad\ncontext"}))))
+  (is (= 404 (:status (store/transform fixture reviewer {"id" "x" "body" "Note" "action" "reply" "replyTo" "gone"})))))
+
+(deftest moved-passages-keep-their-identity-and-changed-ones-stay-unattached
+  (let [doc (org/read-doc fixture) nd (first (filter #(= :para (:t %)) (:nodes doc)))
+        request {"id" "c-3" "target" (:review-target nd) "body" "Remember this"}
+        saved (:text (store/transform fixture reviewer request))
+        moved (org/read-doc (str "Another paragraph.\n\n" saved))
+        changed (org/read-doc (String/replace saved "A paragraph to discuss." "Rewritten."))]
+    (is (= false (:detached (first (filter #(= "c-3" (:id %)) (:comments moved))))))
+    (is (= true (:detached (first (filter #(= "c-3" (:id %)) (:comments changed))))))))
+
+(deftest source-headings-keep-their-properties
+  (let [doc (org/read-doc fixture) heading (first (filter #(= :heading (:t %)) (:nodes doc)))
+        saved (:text (store/transform fixture reviewer {"id" "heading-1" "target" (:review-target heading) "body" "Note"}))]
+    (is (includes? saved "* Proposal\n:PROPERTIES:\n:ID: proposal\n:END:\n"))))
+
+(deftest duplicated-passages-never-silently-retarget-a-discussion
+  (let [source "* One\nRepeated.\n\nOther.\n" doc (org/read-doc source)
+        target (:review-target (first (filter #(= "Repeated." (:text %)) (:nodes doc))))
+        saved (:text (store/transform source reviewer {"id" "duplicate-test" "target" target "body" "A precise note"}))
+        changed (org/read-doc (String/replace saved "* One\n" "* One\nRepeated.\n\n"))]
+    (is (= true (:detached (first (:comments changed)))))
+    (is (= 409 (:status (store/transform "* One\nRepeated.\n\nRepeated.\n" reviewer
+                         {"id" "no-guess" "target" target "body" "Keep this draft"}))))))
+
+(deftest unfinished-org-blocks-are-not-annotation-insertion-points
+  (is (= 409 (:status (store/transform "#+begin_src beam-lisp\n(def unfinished" reviewer
+                       {"id" "unfinished" "target" "document" "body" "A safe draft"})))))
+
+(deftest comment-only-writes-preserve-the-document-content-revision
+  (let [saved (:text (store/transform fixture reviewer {"id" "revision-test" "target" "block:promises" "body" "Keep the screen open"}))
+        resolved (:text (store/transform saved reviewer {"action" "resolve" "id" "revision-test"}))]
+    (is (= (model/content-source fixture) (model/content-source saved)))
+    (is (= (model/content-source fixture) (model/content-source resolved)))
+    (is (not= (model/content-source fixture) (model/content-source (String/replace fixture "A paragraph" "A revised paragraph"))))))

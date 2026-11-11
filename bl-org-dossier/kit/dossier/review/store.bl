@@ -1,0 +1,65 @@
+(ns dossier.review.store
+  (:require [dossier.org :as org] [dossier.review.model :as model] [dossier.storage :as storage]))
+
+(defn- token? [v] (and (string? v) (some? (Regex/run (Regex/compile! "^[A-Za-z0-9_-]{1,100}$") v))))
+(defn- short? [v limit] (and (string? v) (<= (count v) limit) (not (Regex/run (Regex/compile! "[\\r\\n\\x00]") v))))
+(defn- error [status message] {:error message :status status})
+(defn- stamp [] (str (DateTime/utc_now)))
+
+(defn- insert-at [text line value]
+  (let [lines (vec (String/split text "\n")) at (min line (count lines))]
+    (join "\n" (concat (subvec lines 0 at) [value] (subvec lines at)))))
+
+(defn transform
+  "Validate a review operation against fresh source and authenticated identity."
+  [text identity request]
+  (let [doc (org/read-doc text) comments (:comments doc)
+        op (get request "action" "comment") id (get request "id") body (get request "body" "")
+        parent-id (get request "replyTo") parent (first (filter #(= parent-id (:id %)) comments))
+        existing (first (filter #(= id (:id %)) comments))
+        target-id (if parent (:target parent) (get request "target" "document"))
+        target (get (:review-targets doc) target-id)]
+    (cond
+      (nil? identity) (error 403 "Comment access is required.")
+      (:review-open-blocks doc) (error 409 "An Org block is unfinished. Your draft is kept; finish that block before saving comments.")
+      (not (map? request)) (error 400 "Invalid review request.")
+      (not (token? id)) (error 400 "A valid comment id is required.")
+      (not (contains? #{"comment" "reply" "resolve" "reopen"} op)) (error 400 "Unknown review action.")
+      (contains? #{"resolve" "reopen"} op)
+      (cond
+        (nil? existing) (error 404 "This discussion no longer exists.")
+        (:replyTo existing) (error 400 "Resolve the discussion rather than one reply.")
+        (not (or (:owner identity) (= (:handle identity) (:author existing)))) (error 403 "Only the author or owner can resolve this discussion.")
+        :else (let [updated (assoc existing :state (if (= op "resolve") "resolved" "open"))
+                    lines (vec (String/split text "\n"))]
+                {:text (join "\n" (concat (subvec lines 0 (:from existing))
+                         [(model/encode updated)] (subvec lines (:to existing)))) :value {:ok true}}))
+      (or (not (string? body)) (blank? body) (> (count body) 12000)) (error 400 "Write a comment of at most 12000 characters.")
+      (not (every? (fn [[key limit]] (short? (get request key "") limit))
+                    [["quote" 2000] ["prefix" 120] ["suffix" 120] ["view" 200] ["component" 300] ["basis" 100]]))
+      (error 400 "Invalid comment context.")
+      (and (= op "reply") (or (nil? parent) (:replyTo parent))) (error 404 "The discussion you replied to no longer exists.")
+      (and (= op "comment") parent-id) (error 400 "Use reply for a discussion response.")
+      existing (if (and (= body (:body existing)) (= target-id (:target existing))
+                       (= (when (= op "reply") parent-id) (:replyTo existing))
+                       (= (:handle identity) (:author existing)))
+                 {:text text :value {:ok true}} (error 409 "This comment id already exists with different content."))
+      (and (:ambiguous target) (not parent)) (error 409 "This passage is repeated. Your draft is kept; comment on its section or keep a document-level quotation.")
+      (and (nil? target) (not parent)) (error 409 "The passage changed. Your draft is kept; select its current location.")
+      :else
+      (let [record {:id id :author (:handle identity) :created (stamp) :target target-id
+                    :view (if parent (:view parent) (get request "view"))
+                    :component (if parent (:component parent) (get request "component"))
+                    :quote (if parent "" (get request "quote" ""))
+                    :prefix (get request "prefix" "") :suffix (get request "suffix" "")
+                    :basis (get request "basis" "") :state "open" :replyTo (when parent parent-id) :body body}
+            ;; Replies follow the complete thread. Heading notes follow the
+            ;; section's property drawer; code notes follow its recorded result.
+            line (if parent
+                   (apply max (map :to (filter #(or (= parent-id (:id %)) (= parent-id (:replyTo %))) comments)))
+                   (let [end (:to target) props (first (filter #(and (= :props (:t %)) (= end (:line %))) (:nodes doc)))]
+                     (if props (:to props) end)))]
+        {:text (insert-at text line (model/encode record)) :value {:ok true}}))))
+
+(defn submit! [path identity request]
+  (storage/update! path #(transform % identity request)))

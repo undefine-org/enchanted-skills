@@ -1,0 +1,105 @@
+; Native Org comments and durable source anchors. Pure: no browser code or IO.
+(ns dossier.review.model (:require [dossier.compat.spans :as sp] [dossier.attrs :as attrs]))
+
+(defn- field [line]
+  (Regex/run (Regex/compile! "^- ([A-Za-z-]+) :: (.*)$") line))
+
+(defn- parse-comment [lines span anchor]
+  (let [body (subvec lines (:code-from span) (:code-to span))
+        [meta content-lines] (loop [ls body meta {}]
+                      (if-let [m (when (seq ls) (field (first ls)))]
+                        (recur (rest ls) (assoc meta (keyword (lower-case (nth m 1))) (nth m 2)))
+                        [meta ls]))
+        content (if (and (seq meta) (= "" (first content-lines))) (rest content-lines) content-lines)
+        text (join "\n" (if (= "org-escaped" (:encoding meta))
+                               (map #(String/replace % (Regex/compile! "^,(?=\\s*,*\\s*(?:#\\+|\\*))") "") content)
+                               content))]
+    {:id (:review meta) :author (or (:author meta) "Source") :created (or (:created meta) "")
+     :target (:target meta) :view (:view meta) :component (:component meta)
+     :quote (or (:quote meta) "") :prefix (or (:prefix meta) "") :suffix (or (:suffix meta) "")
+     :basis (:basis meta) :state (or (:state meta) "open") :replyTo (:reply-to meta)
+     :body text :from (:from span) :to (:to span) :anchor-line anchor :manual (nil? (:review meta))}))
+
+(defn- collect [lines spans parent]
+  (loop [ss spans previous parent out []]
+    (if (empty? ss) out
+      (let [s (first ss)]
+        (if (and (= :block (:kind s)) (= "comment" (:lang s)))
+          (recur (rest ss) previous (conj out (parse-comment lines s previous)))
+          (recur (rest ss) (dec (:to s)) (into out (collect lines (:children s) (:from s)))))))))
+
+(defn- open-blocks? [spans]
+  (some #(or (:open? %) (open-blocks? (:children %))) spans))
+
+(defn prepare
+  "Extract comments at any container depth and blank their source ranges.
+   Blank lines retain every source coordinate; literal blocks stay untouched."
+  [text]
+  (let [lines (vec (String/split text "\n"))
+        parts (sp/spans lines :org {:headings? true})
+        raw (collect lines parts 0)
+        comments (loop [cs raw seen {} out []]
+                   (if (empty? cs) out
+                     (let [c (first cs) hash (str (erlang/phash2 (:body c))) n (inc (get seen hash 0))]
+                       (recur (rest cs) (assoc seen hash n)
+                         (conj out (assoc c :id (or (:id c) (str "manual-" hash "-" n))))))))
+        clean (reduce (fn [ls c] (reduce (fn [ls i] (assoc ls i "")) ls (range (:from c) (:to c)))) lines comments)]
+    {:lines clean :original-lines lines :comments comments :open-blocks (boolean (open-blocks? parts))}))
+
+(defn- node-key [nd]
+  (if-let [id (get-in nd [:attrs :id])] (str "block:" id)
+    (let [stable (if (:body nd) (assoc nd :body (vec (remove blank? (:body nd)))) nd)]
+      (str "text:" (erlang/phash2 (select-keys stable [:t :lang :title :text :items :head :rows :body :code :review-scope]))))))
+
+(defn- node-label [nd]
+  (let [label (str (or (get-in nd [:attrs :title]) (:title nd) (:text nd)
+                      (when (:lang nd) (str (:lang nd) " · " (get-in nd [:attrs :id])))
+                      (case (:t nd) :list "List" :table "Table" :cell "Code" "Passage")))]
+    (subs label 0 (min 120 (count label)))))
+
+(defn attach
+  "Give rendered nodes stable anchors without editing the authored document."
+  [doc prepared]
+  (let [raw-nodes (loop [ns (:nodes doc) seen {} scope [] out []]
+                (if (empty? ns) out
+                  (let [nd0 (first ns)
+                        scope2 (if (= :heading (:t nd0)) (conj (vec (take (max 0 (dec (:level nd0))) scope)) (:title nd0)) scope)
+                        nd (assoc nd0 :review-scope scope2) key (node-key nd) n (inc (get seen key 0))
+                        key2 (if (= n 1) key (str key ":" n))]
+                    (recur (rest ns) (assoc seen key n) scope2
+                      (conj out (assoc nd :review-target key2 :review-base-key key :review-label (node-label nd)))))))
+        frequencies (frequencies (map :review-base-key raw-nodes))
+        nodes (mapv #(assoc % :review-ambiguous (> (get frequencies (:review-base-key %) 0) 1)) raw-nodes)
+        targets (into {"document" {:key "document" :label (get-in doc [:meta :title] "Document")
+                                   :line 0 :to (count (:original-lines prepared))}}
+                   (for [nd nodes :when (not= :props (:t nd))]
+                     [(:review-target nd) {:key (:review-target nd) :label (:review-label nd)
+                                          :ambiguous (:review-ambiguous nd) :line (or (:line nd) 0) :to (or (:to nd) (inc (or (:line nd) 0)))}]))
+        comments (mapv (fn [c]
+                        (let [nd (last (filter #(and (:line %) (<= (:line %) (:anchor-line c))) nodes))
+                              target (or (:target c) (:review-target nd) "document")]
+                          (assoc c :target target :detached (or (not (contains? targets target)) (= true (get-in targets [target :ambiguous])))))) (:comments prepared))]
+    (assoc doc :nodes nodes :comments comments :review-targets targets :review-open-blocks (:open-blocks prepared) :lines (:original-lines prepared))))
+
+(defn encode
+  "An annotation stays a native COMMENT block. Escape structural delimiter
+   lines so arbitrary feedback can never close an enclosing block or run code."
+  [record]
+  (join "\n" (concat ["#+begin_comment"]
+    (for [[label key] [["Review" :id] ["Author" :author] ["Created" :created] ["Target" :target]
+                       ["View" :view] ["Component" :component] ["Quote" :quote] ["Prefix" :prefix]
+                       ["Suffix" :suffix] ["Basis" :basis] ["State" :state] ["Reply-to" :replyTo]]
+          :let [v (get record key)] :when (not (blank? (str v)))]
+      (str "- " label " :: " (String/replace (str v) (Regex/compile! "[\\r\\n]+") " ")))
+    ["- Encoding :: org-escaped" ""
+     (join "\n" (map #(if (Regex/run (Regex/compile! "^\\s*,*\\s*(?:#\\+|\\*)") %) (str "," %) %)
+                      (String/split (:body record) "\n"))) "#+end_comment"])))
+
+(defn content-source
+  "Source without annotation blocks. Comment-only writes do not reload a
+   reader's mockup or reset navigation; the review API has its own revision."
+  [text]
+  (let [prepared (prepare text)
+        excluded (set (mapcat #(range (:from %) (:to %)) (:comments prepared)))]
+    (join "\n" (for [i (range (count (:original-lines prepared))) :when (not (contains? excluded i))]
+                 (nth (:original-lines prepared) i)))))

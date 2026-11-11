@@ -1,0 +1,61 @@
+; Shared review routing. Hosts delegate before their application routes.
+(ns dossier.review.http
+  (:require [web] [bl.json :as json] [dossier.org :as org] [dossier.review.store :as store] [dossier.review.model :as model] [dossier.review.ui :as ui] [live.hiccup :as h]))
+
+(defn identity
+  "Authenticated Tailscale login -> a display handle, never a login in source."
+  [login]
+  (let [owner (System/get_env "DOSSIER_OWNER")
+        configured (try (json/decode (or (System/get_env "DOSSIER_REVIEWERS") "{}")) (catch _ {}))]
+    (cond
+      (blank? login) nil
+      (and (not (blank? owner)) (= login owner)) {:handle (or (System/get_env "DOSSIER_HANDLE") "owner") :owner true}
+      (and (map? configured) (string? (get configured login)) (not (blank? (get configured login))))
+      {:handle (get configured login) :owner false}
+      :else nil)))
+
+(defn state [text who]
+  (let [doc (org/read-doc text)]
+    {:ok true :revision (str (erlang/phash2 text)) :canComment (some? who)
+     :author (:handle who) :owner (= true (:owner who))
+     :comments (mapv #(select-keys % [:id :author :created :target :view :component :quote :prefix :suffix
+                                     :basis :state :replyTo :body :manual :detached]) (:comments doc))}))
+
+(defn route
+  "Returns a response for /review, otherwise nil. Review grants cannot answer
+   approval questions. The host retains its existing document read policy."
+  [conn path]
+  (if (contains? #{"/review.js" "/review.css"} (web/path conn))
+    (when (= "get" (web/method conn))
+      (web/bytes (web/resp-header conn "cache-control" "no-cache")
+        (if (= "/review.js" (web/path conn)) "text/javascript" "text/css")
+        (File/read! (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) (subs (web/path conn) 1)))))
+    (when (= "/review" (web/path conn))
+    (let [who (identity (web/req-header conn "tailscale-user-login"))]
+      (try
+        (cond
+          (= "get" (web/method conn)) (web/json (web/resp-header conn "cache-control" "private, no-store") (state (File/read! path) who))
+          (= "post" (web/method conn))
+          (if-not who (web/json conn 403 {:error "Comment access is required."})
+            (let [[body conn] (web/read-body* conn)]
+              (if (> (erlang/byte_size body) 24000) (web/json conn 413 {:error "Comment too large. Your draft is kept."})
+                (let [request (try (json/decode body) (catch _ nil))]
+                  (if-not (map? request) (web/json conn 400 {:error "Invalid comment JSON. Your draft is kept."})
+                    (let [result (store/submit! path who request)]
+                      (if (:error result) (web/json conn (or (:status result) 400) {:error (:error result)})
+                        (web/json conn (state (File/read! path) who)))))))))
+          :else (web/json conn 405 {:error "Use GET or POST."}))
+        (catch _ (web/json conn 500 {:error "The discussion could not be saved or loaded. Your draft is kept."})))))))
+
+(defn decorate-page
+  "Give standalone same-origin mockups the same review layer as their dossier."
+  [html lang]
+  (if (includes? html "id=\"dossier-review\"") html
+    (-> html
+        (String/replace "</head>" "<link rel=\"stylesheet\" href=\"review.css\"></head>")
+        (String/replace "</body>" (str
+          (h/hiccup->html [:button#review-toggle.review-standalone {:type "button" :aria-controls "dossier-review" :aria-expanded "false"}
+                            (if (= lang "fr") "Commentaires" "Comments")])
+          (h/hiccup->html (ui/shell lang)) "<script src=\"review.js\" defer></script></body>")))))
+
+(defn content-source [text] (model/content-source text))

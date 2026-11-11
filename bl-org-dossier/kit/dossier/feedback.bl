@@ -19,10 +19,8 @@
                        (< (count id) 100) (< (count choice) 200) (< (count note) 12000))
             (reply 400 {:error "Invalid answer fields. Your draft has not been saved."})
             (try
-              (global/trans (tuple (tuple :dossier/feedback path) (erlang/self))
-                (fn []
-                  (let [result (answer/answer! path id choice note handle)]
+              (let [result (answer/answer! path id choice note handle)]
                     (if (:error result)
-                      (reply 404 {:error (:error result)})
-                      (reply 200 {:ok true :rev (str (erlang/phash2 (File/read! path)))})))))
+                      (reply (or (:status result) 404) {:error (:error result)})
+                      (reply 200 {:ok true :rev (str (erlang/phash2 (File/read! path)))})))
               (catch _ (reply 500 {:error "Could not write the answer. Your draft is still on this page; try again."})))))))))

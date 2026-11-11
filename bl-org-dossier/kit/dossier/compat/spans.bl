@@ -1,3 +1,5 @@
+; Compatibility copy of Enchant bl.doc.spans at da0cb75c3.
+; Installed SDKs protect this namespace from overrides; retire after SDK rollout.
 ; bl/doc/spans.bl — the ONE partition of a livebook's lines.
 ;
 ; Portable Beam Lisp: core functions only, no host calls, so the same source
@@ -31,7 +33,7 @@
 ; minimal extractor (BeamLisp.Loader/doc_source) matches, so the program the
 ; loader loads and the cells this partition finds are the same set.
 
-(ns bl.doc.spans)
+(ns dossier.compat.spans)
 
 ; ─── lines ──────────────────────────────────────────────────────────────────
 
@@ -151,10 +153,17 @@
 
       (starts-with? lt "#+begin:")
       (let [header (trim (subs (trim l) 8))
-            name (first (tokens header))]
-        (assoc (closed r (find-row lines (inc r) (fn [x] (= (lc-trim x) "#+end:"))) n)
-               :kind :dynamic :name name
-               :header (if (nil? name) "" (trim (subs header (count name))))))
+            name (first (tokens header))
+            end (find-row lines (inc r) (fn [x] (= (lc-trim x) "#+end:")))
+            limit (if (nil? end) n end)
+            base (assoc (closed r end n) :kind :dynamic :name name
+                         :header (if (nil? name) "" (trim (subs header (count name)))))
+            children (loop [row (inc r) out []]
+                       (if (>= row limit) out
+                         (let [child (org-span-at (subvec lines 0 limit) row (assoc opts :headings? false))]
+                           (if child (recur (:to child) (conj out child))
+                             (recur (inc row) out)))))]
+        (if (seq children) (assoc base :children children) base))
 
       (starts-with? lt "#+begin_src")
       (let [toks (tokens l)

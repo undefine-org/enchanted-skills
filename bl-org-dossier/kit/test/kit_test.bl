@@ -254,7 +254,7 @@
   (is (includes? html "data-source-inspect"))
   (is (includes? html "source-overview"))
   (is (includes? html "data-source-view-id=\"guest\""))
-  (is (not (includes? html "<select")) "a dropdown must not replace the navigation graph")))
+  (is (not (includes? (first (String/split html "id=\"dossier-review\"")) "<select")) "a dropdown must not replace the navigation graph")))
 
 (deftest screen-backends-share-the-six-floating-tools
  (doseq [backend ["source" "sg"]]

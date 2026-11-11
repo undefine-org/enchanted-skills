@@ -8,7 +8,7 @@
 ; handle, never a login: `handle` is the only way a name reaches the file.
 
 (ns dossier.answer
-  (:require [dossier.attrs :as at] [dossier.page :as pg]))
+  (:require [dossier.attrs :as at] [dossier.page :as pg] [dossier.storage :as storage]))
 
 (defn answer-lines
   "`lines` with block `id`'s header carrying `answer`/`note`, or
@@ -43,13 +43,10 @@
     (subs (String/replace s (Regex/compile! "^~U\\[") "") 0 16)))
 
 (defn answer!
-  "Write an answer into the file at `path`. {:ok line} | {:error msg}."
+  "Write one answer through the shared interprocess compare-and-replace store."
   [path id answer note by]
-  (let [text (File/read! path)
-        r (answer-lines (vec (String/split text "\n")) id answer note (now-stamp) by)]
-    (if (:error r)
-      r
-      (let [tmp (str path ".answer-tmp")]
-        (File/write! tmp (join "\n" (:lines r)))
-        (File/rename! tmp path)
-        {:ok (:line r)}))))
+  (storage/update! path
+    (fn [text]
+      (let [r (answer-lines (vec (String/split text "\n")) id answer note (now-stamp) by)]
+        (if (:error r) r
+          {:text (join "\n" (:lines r)) :value {:ok (:line r)}})))))
