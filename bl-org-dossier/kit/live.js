@@ -849,6 +849,7 @@
       case 'months': return sign + nf(a, d) + t(' mo', ' mois');
       case 'pct': return sign + nf(a, d) + ' %';
       case 'share': return sign + nf(a * 100, a < 0.001 ? 1 : 0) + ' %';
+      case 'ratio': return sign + nf(a, a < 10 ? 2 : 1);
       default: return sign + nf(a, d);
     }
   }
@@ -896,7 +897,7 @@
   const save = () => { try { localStorage.setItem(store(), JSON.stringify({ sig: sigOf(), state: st })); } catch {} };
   const width = (el, share) => { if (el) el.style.width = Math.max(0, Math.min(100, share * 100)) + '%'; };
   const fmtInput = (r, v) => r.unit === '%' ? fmt('pct', v) : nf(v, Math.abs(v) < 10 ? 2 : 0) + (r.unit ? ' ' + r.unit : '');
-  const kindOf = id => { const r = byId[id]; if (!r) return 'num'; if (r.unit === '%') return 'pct'; if (/MAD/.test(r.unit)) return 'mad'; if (/^h\b|^h\//.test(r.unit)) return 'hours'; if (/^(j|jour)/.test(r.unit)) return 'days'; if (/^mois/.test(r.unit)) return 'months'; if (r.unit === 'part') return 'share'; return 'num'; };
+  const kindOf = id => { const r = byId[id]; if (!r) return 'num'; if (r.unit === '%') return 'pct'; if (/MAD/.test(r.unit)) return 'mad'; if (/^h\b|^h\//.test(r.unit)) return 'hours'; if (/^(j|jour)/.test(r.unit)) return 'days'; if (/^mois/.test(r.unit)) return 'months'; if (r.unit === 'part') return 'share'; if (r.unit === 'multiple') return 'ratio'; return 'num'; };
   const text = e => { const s = String(e || ''); return s; };
   function words(id) {
     const f = byId[id]; if (!f || f.input) return '';
@@ -948,8 +949,13 @@
   // ---- explain: a figure opens its formula; each term opens in turn
   let pop = null, trail = [], popAnchor = null;
   const person = p => { const r = M.people?.[p]; return r ? `<span class="nb-person" title="${esc(r.role)}"><i>${esc((r.name || p)[0])}</i>${esc(r.name || p)}<small>${esc(r.role || '')}</small></span>` : ''; };
-  const claim = c => { const r = M.claims?.[c]; return r ? `<span class="nb-claim"><i class="nb-ph-${esc(r.phase)}"></i>${esc(r.text)}<small>${esc(M.phases?.[r.phase] || r.phase)}</small></span>` : ''; };
-  const source = s => split(s).filter(x => x !== 'HYP').map(x => `<span class="nb-src">${esc(M.sources?.[x] || x)}</span>`).join('');
+  const claim = c => { const r = M.claims?.[c]; if (!r) return '';
+    const inner = `<i class="nb-ph-${esc(r.phase)}"></i>${esc(r.text)}<small>${esc(M.phases?.[r.phase] || r.phase)}</small>`;
+    const url = M.sourceUrls?.[r.source];
+    return url ? `<a class="nb-claim" href="${esc(url)}" target="_blank" rel="noopener">${inner}</a>` : `<span class="nb-claim">${inner}</span>`; };
+  const source = s => split(s).filter(x => x !== 'HYP').map(x => {
+    const label = M.sources?.[x] || x, url = M.sourceUrls?.[x];
+    return url ? `<a class="nb-src" href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : `<span class="nb-src">${esc(label)}</span>`; }).join('');
   function chip(id) { const r = byId[id]; if (!r) return `<code>${esc(id)}</code>`;
     return `<button type="button" class="nb-term ${r.input ? 'is-input' : ''}" data-nb-open="${esc(id)}"><span>${esc(r.title)}</span><b>${esc(fmt(kindOf(id), V[id]))}</b></button>`; }
   function expression(f) {

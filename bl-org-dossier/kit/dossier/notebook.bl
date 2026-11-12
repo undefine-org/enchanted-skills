@@ -129,6 +129,8 @@
          :people (by-id (merged t imports "people")) :claims (by-id (merged t imports "claims"))
          :phases (by-id (merged t imports "phases")) :lots (by-id (merged t imports "lots"))
          :sources (into {} (map (fn [r] [(get r "id") (or (get r "label") (get r "title"))]) (merged t imports "sources")))
+         :source_urls (into {} (keep (fn [r] (let [u (get r "url")] (when (and u (not (blank? u))) [(get r "id") (trim u)])))
+                                   (merged t imports "sources")))
          :tables (merge (apply merge {} imports) t)}))))
 
 (defn- pct-ids [m] (set (keep #(when (= "%" (get % "unit")) (get % "id")) (:inputs m))))
@@ -221,6 +223,7 @@
       "count" (fixed v (if (< (abs v) 10) 1 0))
       "pct" (str (fixed v (if (< (abs v) 10) 1 0)) " %")
       "share" (str (fixed (* 100 v) (if (< (abs v) 0.1) 1 0)) " %")
+      "ratio" (fixed v (if (< (abs v) 10) 2 1))
       (fixed v (if (< (abs v) 10) 1 0)))))
 
 ;; ---- drawing
@@ -239,15 +242,25 @@
 (defn- input-row [id] (some #(when (= id (get % "id")) %) (get-in (ctx) [:model :inputs])))
 (defn- known? [id] (contains? (get-in (ctx) [:values (default)]) id))
 (defn- source-h [s]
-  (let [xs (remove #(= "HYP" %) (refs s))]
-    (when (seq xs) [:span.nb-src (join " · " (distinct (map #(get-in (ctx) [:model :sources %] %) xs)))])))
+  (let [xs (remove #(= "HYP" %) (refs s))
+        link (fn [id]
+               (let [label (get-in (ctx) [:model :sources id])
+                     url (get-in (ctx) [:model :source_urls id])]
+                 (when label
+                   (if url
+                     [:a.nb-src {:href url :target "_blank" :rel "noopener"} label]
+                     [:span.nb-src label]))))]
+    (when (seq xs) [:span.nb-srcs (interpose " · " (keep link (distinct xs)))])))
 (defn- person-h [p]
   (let [r (get-in (ctx) [:model :people p])]
     [:span.nb-person {:title (get r "role")} [:i (subs (or (get r "name") p) 0 1)] (or (get r "name") p)]))
 (defn- people-h [s] (when (seq (refs s)) [:span.nb-people (map person-h (refs s))]))
 (defn- claim-h [c]
-  (let [r (get-in (ctx) [:model :claims c])]
-    [:span.nb-claim {:title (get-in (ctx) [:model :phases (get r "phase") "label"] (get r "phase"))}
+  (let [r (get-in (ctx) [:model :claims c])
+        url (get-in (ctx) [:model :source_urls (get r "source")])
+        tag (if url :a :span)]
+    [tag (cond-> {:class "nb-claim" :title (get-in (ctx) [:model :phases (get r "phase") "label"] (get r "phase"))}
+            url (assoc :href url :target "_blank" :rel "noopener"))
      [:i {:class (str "nb-ph-" (get r "phase"))}] (or (get r "text") c)]))
 (defn- claims-h [s] (when (seq (refs s)) [:span.nb-claims (map claim-h (refs s))]))
 
@@ -441,6 +454,6 @@
                     :people (into {} (map (fn [[k v]] [k (select-keys v ["name" "role"])]) (:people m)))
                     :claims (into {} (map (fn [[k v]] [k (select-keys v ["text" "phase" "source"])]) (:claims m)))
                     :phases (into {} (map (fn [[k v]] [k (get v "label")]) (:phases m)))
-                    :sources (:sources m) :imported (vec (:imported m))
+                    :sources (:sources m) :sourceUrls (:source_urls m) :imported (vec (:imported m))
                     :scenarios (:scenarios m) :default (:default m)
                     :lang (or (erlang/get :dossier/language) "en")}))))

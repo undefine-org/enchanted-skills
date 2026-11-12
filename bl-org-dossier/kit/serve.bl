@@ -24,6 +24,21 @@
     (Path/expand a)))
 
 (def doc-path (arg-path))
+
+(defn- context-dir []
+  (or (System/get_env "DOSSIER_CONTEXT_DIR")
+      (Path/join (Path/join (Path/dirname doc-path) "..") "context")))
+
+;; Source documents live outside the dossier; only plain .pdf basenames from
+;; the configured context directory are served, so a citation can open the page.
+(defn- pdf-route [conn]
+  (let [m (Regex/run (Regex/compile! "^/context/([A-Za-z0-9._-]+\\.pdf)$") (web/path conn))]
+    (when m
+      (let [path (Path/join (context-dir) (nth m 1))]
+        (if (File/exists? path)
+          (web/bytes (web/resp-header conn "cache-control" "private, max-age=300")
+                     "application/pdf" (File/read! path))
+          (web/text conn 404 "PDF not found"))))))
 (defn- asset [name]
   (File/read! (Path/join (or (System/get_env "DOSSIER_KIT_DIR") (Path/expand "~/.claude/skills/bl-org-dossier/kit")) name)))
 
@@ -85,6 +100,7 @@
 (defn router [conn]
  (or (client-only conn)
      (when-not (audience/locked?) (review/route conn doc-path))
+     (pdf-route conn)
  (let [match (Regex/run (Regex/compile! "^/witness-media/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") (web/path conn))]
   (if match
    (if-let [path (witness/media-path (o/read-doc (File/read! doc-path)) (Path/dirname doc-path) (nth match 1) (nth match 2))]

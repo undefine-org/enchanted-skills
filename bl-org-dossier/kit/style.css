@@ -967,6 +967,10 @@ dialog.cl-dialog::backdrop{background:rgb(20 14 10 / .45)}
 .nb-v{font-family:var(--font-data,var(--mono));font-variant-numeric:tabular-nums;white-space:nowrap}
 .nb-title{font:600 14px/1.3 var(--font-ui,var(--sans));margin:22px 0 10px}
 .nb-src{font:11px var(--font-data,var(--mono));color:var(--slate);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:6px;white-space:nowrap}
+a.nb-src,a.nb-claim{text-decoration:none;color:inherit;cursor:pointer}
+a.nb-src{color:var(--slate)}
+a.nb-src:hover{color:var(--ink);border-color:var(--clay)}
+a.nb-claim:hover{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .nb-scenarios{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card,var(--paper))}
 .nb-scenarios button{border:0;background:none;padding:7px 13px;font:13px var(--font-ui,var(--sans));color:var(--ink);cursor:pointer}
 .nb-scenarios button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
