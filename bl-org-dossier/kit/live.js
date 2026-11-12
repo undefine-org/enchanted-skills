@@ -812,65 +812,92 @@
   new MutationObserver(init).observe(document.body, {childList: true, subtree: true}); init();
 })();
 
-// Semantic notebook: the page carries a closed model (inputs, formulas, scenarios);
-// the reader switches scenario or adjusts an input and every value recomputes here.
-// Nothing is written to the file; adjustments live in this browser only.
+// Semantic notebook: the page carries a closed model (inputs, formulas as small
+// expressions, people, claims). Switching scenario or moving a slider recomputes
+// every figure here; clicking a figure opens its formula, term by term, down to
+// the assumption, the person who can confirm it and the claim it stands on.
+// Nothing is written to the file; adjustments stay in this browser.
 (() => {
-  let M = null, sig = null; const st = { scenario: null, over: {} };
+  let M = null, sig = null, V = {}, ALL = {}; const st = { scenario: null, over: {} };
   const split = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const store = () => 'nb:' + location.pathname;
   const fr = () => M?.lang === 'fr';
+  const t = (en, f) => fr() ? f : en;
   const nf = (v, d) => new Intl.NumberFormat(fr() ? 'fr-FR' : 'en-GB', { maximumFractionDigits: d }).format(v);
-  const sig2 = v => { if (!v) return 0; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1); return Math.round(v / Math.max(p, 1)) * Math.max(p, 1); };
+  const sig2 = v => { if (!v) return 0; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1); return Math.round(v / p) * p; };
   function fmt(kind, v) {
-    if (v == null || !Number.isFinite(v)) return fr() ? 'à mesurer' : 'to measure';
-    const a = Math.abs(v), sign = v < 0 ? '−' : '';
+    if (v == null || !Number.isFinite(v)) return t('to measure', 'à mesurer');
+    const a = Math.abs(v), sign = v < 0 ? '−' : '', d = a < 10 ? 1 : 0;
     switch (kind) {
       case 'mad': return a >= 1e6 ? sign + nf(Math.abs(sig2(v)) / 1e6, 1) + ' MMAD' : a >= 1e3 ? sign + nf(Math.abs(sig2(v)) / 1e3, 0) + ' kMAD' : sign + nf(a, 0) + ' MAD';
-      case 'hours': return sign + nf(a >= 100 ? Math.round(a / 10) * 10 : a, 0) + ' h';
-      case 'count': return sign + nf(a, a < 10 ? 1 : 0);
-      case 'pct': return sign + nf(a / 100, 1) + ' %';
-      case 'point': return sign + nf(a / 100, 2) + (fr() ? ' point' : ' pt');
-      case 'fte': return sign + nf(a, 1);
-      default: return sign + nf(a, a < 10 ? 1 : 0);
+      case 'hours': return sign + nf(a >= 100 ? Math.round(a / 10) * 10 : a, d) + ' h';
+      case 'days': return sign + nf(a, d) + t(' d', ' j');
+      case 'months': return sign + nf(a, d) + t(' mo', ' mois');
+      case 'pct': return sign + nf(a, d) + ' %';
+      case 'share': return sign + nf(a * 100, a < 0.001 ? 1 : 0) + ' %';
+      default: return sign + nf(a, d);
     }
   }
-  function fmtInput(r, v) {
-    const sc = Number(r.scale || 1), u = r.display_unit || '';
-    if (u === '%') return fmt('pct', v);
-    if (u === 'point') return fmt('point', v);
-    return nf(v / sc, sc > 1 ? 1 : 0) + (u ? ' ' + u : '');
+  // the same closed arithmetic as dossier.notebook/parse
+  const tokens = s => String(s || '').match(/\d+(?:[.,]\d+)?|[A-Za-z_][A-Za-z0-9_]*|[-+*/×÷−(),]/g) || [];
+  function parse(s) {
+    const ts = tokens(s); let i = 0;
+    const atom = () => { const x = ts[i];
+      if (x == null) throw Error('end');
+      if (/^\d/.test(x)) { i++; return { num: Number(x.replace(',', '.')) }; }
+      if (x === '-' || x === '−') { i++; return { op: '-', a: { num: 0 }, b: atom() }; }
+      if (x === '(') { i++; const a = sum(); if (ts[i++] !== ')') throw Error(')'); return a; }
+      if ((x === 'min' || x === 'max') && ts[i + 1] === '(') { i += 2; const args = [sum()]; while (ts[i] === ',') { i++; args.push(sum()); } if (ts[i++] !== ')') throw Error(')'); return { fn: x, args }; }
+      if (/^[A-Za-z_]/.test(x)) { i++; return { ref: x }; }
+      throw Error(x); };
+    const product = () => { let a = atom(); while (['*', '×', '/', '÷'].includes(ts[i])) { const o = ts[i++]; a = { op: o === '*' || o === '×' ? '×' : '÷', a, b: atom() }; } return a; };
+    const sum = () => { let a = product(); while (['+', '-', '−'].includes(ts[i])) { const o = ts[i++]; a = { op: o === '+' ? '+' : '-', a, b: product() }; } return a; };
+    const n = sum(); if (i < ts.length) throw Error(ts[i]); return n;
   }
+  const cache = new Map(); const tree = s => { if (!cache.has(s)) cache.set(s, parse(s)); return cache.get(s); };
+  function ev(n, v, pct) {
+    if ('num' in n) return n.num;
+    if (n.ref) { const x = v[n.ref]; return x == null ? null : pct.has(n.ref) ? x / 100 : x; }
+    if (n.fn) { const xs = n.args.map(a => ev(a, v, pct)); return xs.some(x => x == null) ? null : Math[n.fn](...xs); }
+    const a = ev(n.a, v, pct), b = ev(n.b, v, pct); if (a == null || b == null) return null;
+    return n.op === '+' ? a + b : n.op === '-' ? a - b : n.op === '×' ? a * b : b === 0 ? null : a / b;
+  }
+  const byId = {}; let pct = new Set();
   function calc(sid, over = {}) {
     const v = Object.fromEntries(M.inputs.map(r => [r.id, Object.hasOwn(over, r.id) ? over[r.id] : Number(r[sid])]));
-    for (const f of M.formulas) {
-      const a = split(f.reads).map(id => id.startsWith('#') ? Number(id.slice(1)) : v[id]); let x = null;
-      if (a.every(n => n != null && Number.isFinite(n))) switch (f.op) {
-        case 'add': x = a.reduce((n, y) => n + y, 0); break; case 'sub': x = a[0] - a[1]; break; case 'mul': x = a[0] * a[1]; break;
-        case 'div': x = a[1] === 0 ? null : a[0] / a[1]; break; case 'bp': x = a[0] * a[1] / 10000; break;
-        case 'min': x = Math.min(a[0], a[1]); break; case 'max': x = Math.max(a[0], a[1]); break;
-      }
-      v[f.id] = x;
-    }
+    for (const f of M.formulas) { let x = null; try { x = ev(tree(f.expr), v, pct); } catch {} v[f.id] = Number.isFinite(x) ? x : null; }
     return v;
   }
   function load() {
     const el = document.getElementById('nb-model'); if (!el) { M = null; return false; }
-    M = JSON.parse(el.dataset.model); const s = JSON.stringify([M.inputs, M.formulas]);
-    if (s !== sig) {
-      sig = s; st.scenario = M.default; st.over = {};
-      try { const saved = JSON.parse(localStorage.getItem(store()) || 'null'); if (saved?.sig === s) Object.assign(st, saved.state); } catch {}
-      if (!M.scenarios.some(x => x.id === st.scenario)) { st.scenario = M.default; st.over = {}; }
-    }
+    const raw = el.dataset.model; if (M && raw === sig) return true;
+    M = JSON.parse(raw); sig = raw; pct = new Set(M.inputs.filter(r => r.unit === '%').map(r => r.id));
+    for (const r of M.inputs) byId[r.id] = { ...r, input: true }; for (const f of M.formulas) byId[f.id] = f;
+    st.scenario = M.default; st.over = {};
+    try { const saved = JSON.parse(localStorage.getItem(store()) || 'null'); if (saved?.sig === sigOf()) Object.assign(st, saved.state); } catch {}
+    if (!M.scenarios.some(x => x.id === st.scenario)) { st.scenario = M.default; st.over = {}; }
     return true;
   }
-  const save = () => { try { localStorage.setItem(store(), JSON.stringify({ sig, state: st })); } catch {} };
-  const width = (el, share) => { el.style.width = Math.max(0, Math.min(100, share * 100)) + '%'; };
+  const sigOf = () => JSON.stringify([M.inputs.map(r => r.id), M.formulas.map(f => f.expr)]);
+  const save = () => { try { localStorage.setItem(store(), JSON.stringify({ sig: sigOf(), state: st })); } catch {} };
+  const width = (el, share) => { if (el) el.style.width = Math.max(0, Math.min(100, share * 100)) + '%'; };
+  const fmtInput = (r, v) => r.unit === '%' ? fmt('pct', v) : nf(v, Math.abs(v) < 10 ? 2 : 0) + (r.unit ? ' ' + r.unit : '');
+  const kindOf = id => { const r = byId[id]; if (!r) return 'num'; if (r.unit === '%') return 'pct'; if (/MAD/.test(r.unit)) return 'mad'; if (/^h\b|^h\//.test(r.unit)) return 'hours'; if (/^(j|jour)/.test(r.unit)) return 'days'; if (/^mois/.test(r.unit)) return 'months'; if (r.unit === 'part') return 'share'; return 'num'; };
+  const text = e => { const s = String(e || ''); return s; };
+  function words(id) {
+    const f = byId[id]; if (!f || f.input) return '';
+    return text(f.expr).replace(/[A-Za-z_][A-Za-z0-9_]*/g, x => byId[x] ? byId[x].title : x).replace(/\*/g, '×').replace(/\//g, '÷');
+  }
   function apply() {
     if (!load()) return;
-    const V = calc(st.scenario, st.over), all = Object.fromEntries(M.scenarios.map(s => [s.id, calc(s.id)]));
+    V = calc(st.scenario, st.over); ALL = Object.fromEntries(M.scenarios.map(s => [s.id, calc(s.id)]));
     const adjusted = Object.keys(st.over).length, doc = document;
-    doc.querySelectorAll('[data-nb]').forEach(el => { const sc = el.dataset.nbScen; el.textContent = fmt(el.dataset.fmt, (sc && sc !== st.scenario ? all[sc] : V)[el.dataset.nb]); });
+    doc.querySelectorAll('[data-nb]').forEach(el => {
+      const sc = el.dataset.nbScen, id = el.dataset.nb;
+      el.textContent = fmt(el.dataset.fmt, (sc && sc !== st.scenario ? ALL[sc] : V)[id]);
+      if (!el.title) el.title = byId[id] ? (byId[id].title + (byId[id].input ? '' : ' = ' + words(id))) : '';
+    });
     doc.querySelectorAll('[data-nb-scenario]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.nbScenario === st.scenario)));
     doc.querySelectorAll('[data-nb-col]').forEach(c => c.classList.toggle('nb-on', c.dataset.nbCol === st.scenario));
     doc.querySelectorAll('[data-nb-bars]').forEach(box => {
@@ -884,35 +911,90 @@
     });
     doc.querySelectorAll('[data-nb-funnel]').forEach(box => { const top = V[box.dataset.nbFunnel] || 1; box.querySelectorAll('[data-nb-share]').forEach(i => width(i, (V[i.dataset.nbShare] || 0) / top)); });
     doc.querySelectorAll('[data-nb-range]').forEach(box => {
-      const id = box.dataset.nbRange, vals = M.scenarios.map(s => all[s.id][id] || 0), max = Math.max(...vals, V[id] || 0, 1e-9), pos = v => 4 + (v / max) * 92;
+      const id = box.dataset.nbRange, vals = M.scenarios.map(s => ALL[s.id][id] || 0), max = Math.max(...vals, V[id] || 0, 1e-9), pos = v => 4 + (v / max) * 92;
       box.querySelectorAll('[data-nb-dot]').forEach((d, i) => { d.style.left = pos(vals[i]) + '%'; d.classList.toggle('nb-on', d.dataset.nbDot === st.scenario); });
-      const t = box.querySelector('.nb-range-track > i'); t.style.left = pos(Math.min(...vals)) + '%'; t.style.width = (pos(Math.max(...vals)) - pos(Math.min(...vals))) + '%';
+      const tr = box.querySelector('.nb-range-track > i'); tr.style.left = pos(Math.min(...vals)) + '%'; tr.style.width = (pos(Math.max(...vals)) - pos(Math.min(...vals))) + '%';
       const here = box.querySelector('[data-nb-here]'); here.hidden = !adjusted; here.style.left = pos(V[id] || 0) + '%';
     });
     doc.querySelectorAll('[data-nb-input]').forEach(inp => {
-      const id = inp.dataset.nbInput, r = M.inputs.find(x => x.id === id); if (!r) return;
+      const id = inp.dataset.nbInput, r = byId[id]; if (!r) return;
       const v = Object.hasOwn(st.over, id) ? st.over[id] : Number(r[st.scenario]);
       if (document.activeElement !== inp) inp.value = v;
-      const o = inp.closest('.nb-control'); o.querySelector('[data-nb-out]').textContent = fmtInput(r, v);
-      const u = o.querySelector('[data-nb-undo]'); u.hidden = !Object.hasOwn(st.over, id);
-      u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r, Number(r[st.scenario]));
+      const o = inp.closest('.nb-control,.nb-explain-input'); const out = o?.querySelector('[data-nb-out]'); if (out) out.textContent = fmtInput(r, v);
+      const u = o?.querySelector('[data-nb-undo]'); if (u) { u.hidden = !Object.hasOwn(st.over, id); u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r, Number(r[st.scenario])); }
     });
-    doc.querySelectorAll('[data-nb-adjusted]').forEach(a => { a.hidden = !adjusted; a.querySelector('span').textContent = (fr() ? 'ajusté · ' : 'adjusted · ') + adjusted; });
+    doc.querySelectorAll('[data-nb-adjusted]').forEach(a => { a.hidden = !adjusted; a.querySelector('span').textContent = t('adjusted · ', 'ajusté · ') + adjusted; });
+    if (pop?.isConnected && !pop.hidden && trail.length) {
+      const id = trail[trail.length - 1], pv = pop.querySelector('.nb-pop-value'); if (pv) pv.firstChild.textContent = fmt(kindOf(id), V[id]);
+      pop.querySelectorAll('[data-nb-open]').forEach(b => { b.querySelector('b').textContent = fmt(kindOf(b.dataset.nbOpen), V[b.dataset.nbOpen]); });
+    }
     save();
   }
+
+  // ---- explain: a figure opens its formula; each term opens in turn
+  let pop = null, trail = [];
+  const person = p => { const r = M.people?.[p]; return r ? `<span class="nb-person" title="${esc(r.role)}"><i>${esc((r.name || p)[0])}</i>${esc(r.name || p)}<small>${esc(r.role || '')}</small></span>` : ''; };
+  const claim = c => { const r = M.claims?.[c]; return r ? `<span class="nb-claim"><i class="nb-ph-${esc(r.phase)}"></i>${esc(r.text)}<small>${esc(M.phases?.[r.phase] || r.phase)}</small></span>` : ''; };
+  const source = s => split(s).filter(x => x !== 'HYP').map(x => `<span class="nb-src">${esc(M.sources?.[x] || x)}</span>`).join('');
+  function chip(id) { const r = byId[id]; if (!r) return `<code>${esc(id)}</code>`;
+    return `<button type="button" class="nb-term ${r.input ? 'is-input' : ''}" data-nb-open="${esc(id)}"><span>${esc(r.title)}</span><b>${esc(fmt(kindOf(id), V[id]))}</b></button>`; }
+  function expression(f) {
+    return tokens(f.expr).map(x => /^[A-Za-z_]/.test(x) && x !== 'min' && x !== 'max' ? chip(x)
+      : /^\d/.test(x) ? `<span class="nb-lit">${esc(nf(Number(x.replace(',', '.')), 4))}</span>`
+      : `<span class="nb-op">${esc(({ '*': '×', '/': '÷', '-': '−', min: t('smallest of', 'le plus petit de'), max: t('largest of', 'le plus grand de') })[x] || x)}</span>`).join(' ');
+  }
+  function paint() {
+    const id = trail[trail.length - 1], r = byId[id]; if (!r) return;
+    const usedBy = M.formulas.filter(f => tokens(f.expr).includes(id)).slice(0, 6);
+    pop.querySelector('.nb-pop-body').innerHTML = `
+      ${trail.length > 1 ? `<nav class="nb-trail">${trail.slice(0, -1).map((x, i) => `<button type="button" data-nb-back="${i}">${esc(byId[x]?.title || x)}</button>`).join('<span>›</span>')}</nav>` : ''}
+      <h4>${esc(r.title)}</h4><div class="nb-pop-value">${esc(fmt(kindOf(id), V[id]))}<small>${esc(M.scenarios.find(s => s.id === st.scenario)?.label || '')}${Object.keys(st.over).length ? t(' · adjusted', ' · ajusté') : ''}</small></div>
+      ${r.input ? `<p class="nb-pop-kind">${t('An assumption', 'Une hypothèse')}${r.source && r.source !== 'HYP' ? ' · ' + source(r.source) : ' · ' + t('to confirm', 'à confirmer')}</p>
+        <div class="nb-explain-input nb-control"><label><span>${t('Adjust', 'Ajuster')}</span><output data-nb-out="${esc(id)}"></output></label>
+        <input type="range" data-nb-input="${esc(id)}" min="${esc(r.min)}" max="${esc(r.max)}" step="${esc(r.step)}" value="${esc(Object.hasOwn(st.over, id) ? st.over[id] : r[st.scenario])}" aria-label="${esc(r.title)}">
+        <small><button type="button" data-nb-undo="${esc(id)}" hidden></button></small></div>
+        <div class="nb-pop-scen">${M.scenarios.map(s => `<span class="${s.id === st.scenario ? 'nb-on' : ''}">${esc(s.label)} <b>${esc(fmtInput(r, Number(r[s.id])))}</b></span>`).join('')}</div>`
+      : `<div class="nb-expr"><span class="nb-op">=</span> ${expression(r)}</div>`}
+      ${split(r.who).length ? `<div class="nb-pop-row"><small>${t('Who can confirm it', 'Qui peut le confirmer')}</small>${split(r.who).map(person).join('')}</div>` : ''}
+      ${split(r.claims).length ? `<div class="nb-pop-row"><small>${t('The claims it stands on', 'Les promesses sur lesquelles il repose')}</small>${split(r.claims).map(claim).join('')}</div>` : ''}
+      ${M.imported?.includes(id) ? `<p class="nb-pop-kind">${t('From the imported model', 'Du carnet importé')}</p>` : ''}
+      ${usedBy.length ? `<div class="nb-pop-row"><small>${t('Used in', 'Entre dans')}</small>${usedBy.map(f => chip(f.id)).join('')}</div>` : ''}`;
+    const r2 = byId[id]; if (r2?.input) { const inp = pop.querySelector('[data-nb-input]'); const o = pop.querySelector('[data-nb-out]'); o.textContent = fmtInput(r2, Number(inp.value)); const u = pop.querySelector('[data-nb-undo]'); u.hidden = !Object.hasOwn(st.over, id); u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r2, Number(r2[st.scenario])); }
+  }
+  function open(id, anchor) {
+    if (!pop || !pop.isConnected) {
+      pop = document.createElement('div'); pop.id = 'nb-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', t('How this figure is made', 'Comment ce chiffre est fait'));
+      pop.innerHTML = `<div class="nb-pop-top"><span>${t('How this figure is made', 'Comment ce chiffre est fait')}</span><button type="button" data-nb-close aria-label="${t('Close', 'Fermer')}">×</button></div><div class="nb-pop-body"></div>`;
+      document.body.appendChild(pop);
+    }
+    trail = anchor ? [id] : [...trail, id]; pop.hidden = false;
+    if (anchor) { const b = anchor.getBoundingClientRect(), w = Math.min(420, innerWidth - 24);
+      pop.style.width = w + 'px'; pop.style.left = Math.max(12, Math.min(innerWidth - w - 12, b.left)) + 'px';
+      const below = b.bottom + 8, room = innerHeight - below; pop.style.top = (room > 260 ? below : Math.max(12, b.top - 8 - Math.min(480, innerHeight * .7))) + 'px'; }
+    paint(); pop.querySelector('[data-nb-close]').focus({ preventScroll: true });
+  }
+  const close = () => { if (pop) { pop.hidden = true; trail = []; } };
+
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-nb-scenario],[data-nb-reset],[data-nb-undo]'); if (!t || !load()) return;
-    if (t.dataset.nbScenario) { st.scenario = t.dataset.nbScenario; st.over = {}; }
-    else if (t.hasAttribute('data-nb-reset')) st.over = {};
-    else delete st.over[t.dataset.nbUndo];
+    const v = e.target.closest('.nb-v[data-nb]');
+    if (v && load()) { e.preventDefault(); if (byId[v.dataset.nb]) open(v.dataset.nb, v); return; }
+    const o = e.target.closest('[data-nb-open]'); if (o) { open(o.dataset.nbOpen); return; }
+    const back = e.target.closest('[data-nb-back]'); if (back) { trail = trail.slice(0, Number(back.dataset.nbBack) + 1); paint(); return; }
+    if (e.target.closest('[data-nb-close]')) { close(); return; }
+    if (pop && !pop.hidden && !e.target.closest('#nb-pop')) close();
+    const c = e.target.closest('[data-nb-scenario],[data-nb-reset],[data-nb-undo]'); if (!c || !load()) return;
+    if (c.dataset.nbScenario) { st.scenario = c.dataset.nbScenario; st.over = {}; }
+    else if (c.hasAttribute('data-nb-reset')) st.over = {};
+    else delete st.over[c.dataset.nbUndo];
     apply();
   });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && pop && !pop.hidden) { close(); e.stopPropagation(); } }, true);
   document.addEventListener('input', e => {
     const inp = e.target.closest('[data-nb-input]'); if (!inp || !load()) return;
-    const r = M.inputs.find(x => x.id === inp.dataset.nbInput), v = Number(inp.value);
+    const r = byId[inp.dataset.nbInput], v = Number(inp.value);
     if (v === Number(r[st.scenario])) delete st.over[r.id]; else st.over[r.id] = v;
     apply();
   });
-  window.dossierNotebook = { apply, calc: (sid, over) => (load(), calc(sid, over)), fmt, state: st };
+  window.dossierNotebook = { apply, calc: (sid, over) => (load(), calc(sid, over)), fmt, parse, state: st, open: id => (load(), open(id, document.querySelector(`[data-nb="${CSS.escape(id)}"]`))) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
 })();

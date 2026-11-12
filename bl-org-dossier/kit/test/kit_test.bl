@@ -332,39 +332,55 @@
    "#+begin_bars :format hours" "bar gain | Gagné | équipe | blue" "minus upkeep | Entretien | | signal" "#+end_bars"
    "#+begin_limit :format mad" "value work | Gagné" "limit room | Chantiers" "kept kept | Compté" "#+end_limit"
    "#+begin_compare" "row gain | Gagné | hours" "#+end_compare"
-   "#+begin_controls :inputs \"minutes\"" "#+end_controls"
+   "#+begin_ledger :table factors :group phase" "column title | |" "column who | Qui |" "column claims | Promesses |" "column today | Aujourd'hui | @fmt" "#+end_ledger"
+   "#+begin_assumptions" "#+end_assumptions"
    "* Modèle"
    "#+name: scenarios" "| id | label |" "|---+---|" "| low | Prudent |" "| mid | Central |"
-   "#+name: inputs" "| id | title | unit | low | mid | min | max | step | source | display_unit | scale |" "|---+---+---+---+---+---+---+---+---+---+---|"
-   "| minutes | Minutes gagnées | min/an | 6000 | 12000 | 0 | 60000 | 600 | HYP | h | 60 |"
-   "| upkeep | Entretien | h/an | 50 | 50 | 0 | 500 | 10 | HYP | h/an | 1 |"
-   "| work | Travaux | MAD/an | 30000000 | 30000000 | 0 | 90000000 | 1000000 | HYP | MMAD | 1000000 |"
-   "| room | Chantiers | MAD/an | 20000000 | 20000000 | 0 | 90000000 | 1000000 | HYP | MMAD | 1000000 |"
-   "#+name: formulas" "| id | title | op | reads | unit |" "|---+---+---+---+---|"
-   "| raw | Heures | div | minutes,#60 | h/an |" "| gain | Heures nettes | sub | raw,upkeep | h/an |" "| kept | Compté | min | work,room | MAD/an |"])
+   "#+name: people" "| id | name | role |" "|---+---+---|" "| ghizlane | Ghizlane | Cellule Marchés |"
+   "#+name: phases" "| id | label |" "|---+---|" "| p1 | Phase 1 |"
+   "#+name: claims" "| id | phase | lot | text | source |" "|---+---+---+---+---|" "| c-exigences | p1 | veille | Les exigences d'un DCE extraites en minutes | P p. 8 |"
+   "#+name: inputs" "| id | title | unit | low | mid | min | max | step | who | claims | source |" "|---+---+---+---+---+---+---+---+---+---+---|"
+   "| hours_now | Lire un DCE aujourd'hui | h | 2 | 3 | 0 | 10 | 0.5 | ghizlane | c-exigences | HYP |"
+   "| usage | Usage réel | % | 60 | 80 | 0 | 100 | 5 | ghizlane | | HYP |"
+   "| upkeep | Entretien | h/an | 50 | 50 | 0 | 500 | 10 | ghizlane | | HYP |"
+   "| work | Travaux | MAD/an | 30000000 | 30000000 | 0 | 90000000 | 1000000 | ghizlane | | HYP |"
+   "| room | Chantiers | MAD/an | 20000000 | 20000000 | 0 | 90000000 | 1000000 | ghizlane | | HYP |"
+   "#+name: formulas" "| id | title | expr | unit | claims |" "|---+---+---+---+---|"
+   "| today | Heures aujourd'hui | hours_now × 100 | h/an | c-exigences |"
+   "| gain | Heures nettes | (hours_now − 1) × 100 × usage − upkeep | h/an | c-exigences |"
+   "| kept | Compté | min(work, room) | MAD/an | |"
+   "#+name: factors" "| id | phase | title | who | claims | today | fmt |" "|---+---+---+---+---+---+---|"
+   "| dce | p1 | Lire les DCE | ghizlane | c-exigences | today | hours |"])
 
 (deftest a-notebook-draws-its-model-and-carries-it-to-the-browser
   (let [doc (o/read-doc (join "\n" notebook-lines))
         m (nb/model doc)
         html (h/hiccup->html (pg/page-h doc "" ""))]
-    (is (empty? (nb/problems m)))
+    (is (empty? (nb/problems m)) (pr-str (nb/problems m)))
     (is (= "mid" (:default m)))
-    (is (= 150 (get (nb/calculate m {} "mid") "gain")))
-    (is (= 50 (get (nb/calculate m {} "low") "gain")))
+    (is (= 110.0 (get (nb/calculate m {} "mid") "gain")))
+    (is (= 10.0 (get (nb/calculate m {} "low") "gain")))
     (is (= 20000000 (get (nb/calculate m {} "mid") "kept")))
-    (doseq [needle ["data-nb-scenario=\"low\"" "aria-pressed=\"true\"" "data-nb=\"gain\"" "150 h" "data-nb-w=\"upkeep\""
-                    "data-nb-limit" "data-limit=\"room\"" "20 MMAD" "data-nb-col=\"low\"" "data-nb-input=\"minutes\""
-                    "nb-dock" "id=\"nb-model\"" "Ajuster les hypothèses"]]
+    (is (= -50.0 (get (nb/calculate m {"usage" 0} "mid") "gain")) "a percentage enters as a share")
+    (doseq [needle ["data-nb-scenario=\"low\"" "aria-pressed=\"true\"" "data-nb=\"gain\"" "110 h" "data-nb-w=\"upkeep\""
+                    "data-nb-limit" "data-limit=\"room\"" "20 MMAD" "data-nb-col=\"low\"" "data-nb-input=\"usage\""
+                    "nb-dock" "id=\"nb-model\"" "nb-entry" "Les exigences d&#39;un DCE" "nb-person" "Ghizlane" "nb-who" "300 h"]]
       (is (includes? html needle) (str "missing " needle)))
     (is (not (includes? html "{{gain|hours}} par an.</p>")) "an inline value is drawn, not printed")))
 
+(deftest a-notebook-expression-is-closed-arithmetic
+  (is (= {:op "×" :a {:op "+" :a {:ref "a"} :b {:num 2}} :b {:ref "b"}} (nb/parse "(a + 2) × b")))
+  (is (= ["a" "b" "c"] (vec (nb/ids-of (nb/parse "max(a, b / c)")))))
+  (doseq [bad ["a +" "(a" "a ; b" "exec(a)"]]
+    (is (try (nb/parse bad) false (catch e true)) bad)))
+
 (deftest a-notebook-names-its-authoring-errors
-  (let [m {:scenarios [{:id "value"}]
-           :inputs [{"id" "a" "unit" "h" "value" "5" "min" "0" "max" "3"} {"id" "b" "unit" "MAD" "value" "1" "min" "0" "max" "9"}]
-           :formulas [{"id" "c" "op" "add" "reads" "a,b" "unit" "h"} {"id" "d" "op" "pow" "reads" "a,zz" "unit" "h"}]}
+  (let [m {:scenarios [{:id "value"}] :people {"zineb" {}} :claims {}
+           :inputs [{"id" "a" "unit" "h" "value" "5" "min" "0" "max" "3" "who" "nobody"} {"id" "b" "unit" "MAD" "value" "1" "min" "0" "max" "9" "claims" "c-x"}]
+           :formulas [{"id" "c" "expr" "a + b" "unit" "h"} {"id" "d" "expr" "a × zz" "unit" "h"} {"id" "e" "expr" "(a" "unit" "h"} {"id" "f" "expr" "a" "unit" "%"}]}
         errs (nb/problems m)]
-    (doseq [needle ["outside its bounds" "combines" "unknown operation" "reads zz before it exists"]]
-      (is (some #(includes? % needle) errs) (str "missing " needle)))))
+    (doseq [needle ["outside its bounds" "unknown person nobody" "unknown claim c-x" "reads zz before it exists" "not closed" "a share"]]
+      (is (some #(includes? % needle) errs) (str "missing " needle " in " (pr-str errs))))))
 
 (deftest a-paged-section-shows-its-subsections-as-pages
   (let [doc (o/read-doc (join "\n" ["#+subpages: Phase 1" "* Intro" "Hello." "* Phase 1" "** L'amont" "Lead."

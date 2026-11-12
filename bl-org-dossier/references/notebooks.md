@@ -29,61 +29,73 @@ its visible inputs, rather than presenting unexplained headline figures.
 A document with named `inputs` and `formulas` tables is a notebook. The kit
 (`dossier/notebook.bl`) reads the tables, checks them, renders the default
 scenario on the server and carries the closed model to the browser, where
-`live.js` recomputes the same operations when the reader switches scenario or
-moves a slider. Nothing the reader adjusts is written to the file; it stays in
-that browser (localStorage, keyed by the model) until reset.
+`live.js` recomputes the same expressions when the reader switches scenario
+or moves a slider. **Every figure is a button**: hovering shows its formula in
+words, clicking opens it term by term; each term opens in turn, down to the
+assumption with its slider, the person who can confirm it and the claims it
+stands on. Nothing the reader adjusts is written to the file.
+
+Write formulas people can say out loud and stand by: one line, named terms.
 
 ```org
-#+name: scenarios
-| id | label |
-|---+---|
-| low | Prudent |
-| mid | Central |
+#+name: people
+| id | name | role |
+|---+---+---|
+| ghizlane | Ghizlane | Cellule Marchés |
+
+#+name: claims
+| id | phase | lot | text | source |
+|---+---+---+---+---|
+| c-exigences | p1 | veille | Les exigences d'un DCE sont extraites en quelques minutes | P p. 8 |
 
 #+name: inputs
-| id | title | unit | low | mid | min | max | step | source | display_unit | scale |
-|---+---+---+---+---+---+---+---+---+---+---|
-| dce_before | Lire un DCE · aujourd'hui | min/dossier | 150 | 180 | 30 | 600 | 15 | M14 | h | 60 |
-| win_rate | Offres gagnées | bp | 2000 | 2500 | 500 | 5000 | 100 | M32 | % | 100 |
+| id | title | unit | low | mid | high | min | max | step | who | claims | source |
+|---+---+---+---+---+---+---+---+---+---+---+---|
+| dce_now | Lire un DCE · aujourd'hui | h | 2.5 | 3 | 4 | 0.5 | 10 | 0.25 | ghizlane | c-exigences | M14 |
+| usage | Usage réel de l'outil | % | 60 | 80 | 90 | 0 | 100 | 5 | amal | c-adoption | HYP |
 
 #+name: formulas
-| id | title | op | reads | unit |
+| id | title | expr | unit | claims |
 |---+---+---+---+---|
-| won | Marchés gagnés | bp | offer_count,win_rate | offre/an |
-
-#+name: sources
-| id | label |
-|---+---|
-| M32 | Manuel p. 32 |
+| f1_gain | Lire les DCE · heures rendues | dce_count × (dce_now − dce_after) × usage | h/an | c-exigences |
 ```
 
-- One input column per scenario id; without a `scenarios` table, one `value`
-  column. Values are integers in their base unit (minutes, basis points);
-  `scale` and `display_unit` only change what the reader sees.
-- `op` is one of `add sub mul div bp min max`; `#60` is a literal. A formula
-  reads only what is defined above it. `nb/problems` names duplicate ids,
-  out-of-bound values, unknown operations, forward reads, `add`/`sub`/`min`/`max`
-  over unlike units and `bp` rates not in basis points; the blocks show them in
-  place of a figure.
-- `sources` labels source ids for the reader (`HYP` is never shown).
+- One input column per scenario id (`scenarios` table); without one, a `value`
+  column. Decimals are fine. A `%` input is written as a percentage (25) and
+  enters an expression as a share (0,25); formulas never carry `%` (format
+  them `share`).
+- `expr`: ids, numbers, `+ − × ÷` (or `- * /`), parentheses, `min(…)`, `max(…)`.
+  Nothing else parses; the browser never evaluates code. A formula reads only
+  ids defined above it.
+- `who` names `people` ids, `claims` names `claims` ids; `nb/problems` reports
+  unknown people and claims, out-of-bound values, unreadable expressions and
+  forward reads, and the blocks show the problems in place of figures.
+- Optional tables: `phases` (`id | label`), `lots` (`id | title | phase`) label
+  ledger groups; `sources` (`id | label`) labels source ids (`HYP` is never shown).
+- `#+import: other.bl.org` puts that document's tables first (the kit host
+  reads it; `nb/read-model PATH` does the same in a cell). An internal pricing
+  dossier imports the client value model instead of copying its figures.
+- Pin claims copied from another dossier with a cell that compares text and phase.
 
 | Block | Body | Renders |
 |---|---|---|
 | `scenarios :start ID` | `measure ID \| label \| format \| tone`, then prose | scenario switch in place, and a sticky bar on every section with the measures |
 | `measure` | `value ID \| label \| format \| tone \| note` | large figures; the note may hold inline values |
+| `ledger :table T [:where "col=v"] [:group col]` | `column NAME \| label \| format` (`@col` takes the row's format) | the rows of a table as cards: a cell naming people draws them, naming claims draws their words, naming a model id draws its live value |
+| `assumptions [:people "a,b"]` | — | every assumption under the person who confirms it, with slider, scenario values and claims |
 | `bars :format F` | `bar ID \| label \| note \| tone`, `minus …`, `total …` | horizontal bars scaled to the largest; `minus` hatched |
 | `limit :format F` | `value ID \| label`, `limit ID \| label`, `kept ID \| label` | what was won against what can be absorbed; the excess hatched |
 | `chain` | `term ID \| label \| format`, `op ×` | an equation strip |
 | `compare` | `row ID \| label \| format` | every scenario side by side, the chosen one marked |
 | `range :value ID :format F` | — | the scenarios on one line; an adjusted value as a marker |
-| `funnel` | `kind K \| label \| tone`, `step ID \| label \| unit \| source \| format`, `lever STEP \| K \| title \| today \| after` | a flow whose bars are shares of the first step, with levers that open |
-| `controls :inputs "a,b"` | or `input ID` lines | sliders in a closed « Adjust the assumptions », each with its source or « Assumption » and an undo to the scenario value |
+| `funnel` | `kind`, `step`, `lever` lines | a flow of shares of the first step, with levers that open |
+| `controls :inputs "a,b"` | or `input ID` lines | sliders in a closed « Adjust the assumptions » |
 
-Inline: `{{ID|format}}` in a paragraph or list item. Formats: `mad` (two
-significant digits, MAD/kMAD/MMAD), `hours`, `count`, `pct` (basis points),
-`point`, `fte`, `num`. Tones: `ink green blue gold violet signal dim`. Keep the
-model tables in a late section (« Le modèle ») so the reading sections stay
-figures and sentences; the tables remain the inspectable source.
+Inline: `{{ID|format}}` in a paragraph, a list item or a note. Formats: `mad`
+(two significant digits, MAD/kMAD/MMAD), `hours`, `days`, `months`, `count`,
+`pct` (an input in %), `share` (a fraction shown in %), `num`. Tones: `ink
+green blue gold violet signal dim`. Keep the model tables in a late section so
+reading sections stay figures and sentences; the tables remain the source.
 
 ## Record meaning before drawing numbers
 

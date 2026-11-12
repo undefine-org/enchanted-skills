@@ -1,26 +1,28 @@
 ; dossier/notebook.bl — a semantic notebook: named Org tables as a closed model,
-; drawn by blocks that recompute in the reader's browser.
+; drawn by blocks whose every figure can explain itself.
 ;
-;   #+name: scenarios   | id | label |                       (optional; else one `value` column)
-;   #+name: inputs      | id | title | unit | <one column per scenario> | min | max | step | source | display_unit | scale |
-;   #+name: formulas    | id | title | op | reads | unit |   op ∈ add sub mul div bp min max; #N is a literal
+;   #+name: scenarios | id | label |                      (optional; else one `value` column)
+;   #+name: inputs    | id | title | unit | <a column per scenario> | min | max | step | who | claims | source |
+;   #+name: formulas  | id | title | expr | unit | claims |  expr: ids, numbers, + − × ÷ ( ), min(…), max(…)
+;   #+name: people    | id | name | role |                  who confirms an assumption
+;   #+name: claims    | id | phase | lot | text | source |   the promises a figure stands on
+;   #+name: phases    | id | label |    #+name: lots | id | title | phase |    #+name: sources | id | label |
+;   #+import: other.bl.org   that document's model comes first (the host reads it: `with-imports`).
 ;
-; Values stay integers in their base unit (minutes, basis points); `scale` and
-; `display_unit` only change what the reader sees. The page renders the default
-; scenario; live.js recomputes the same operations when the reader switches or
-; adjusts. Blocks: scenarios measure bars limit chain compare range funnel controls,
-; and `{{id|format}}` inside a paragraph. Formats: mad hours count pct fte point num.
-; Pure.
+; An input whose unit is `%` is written as a percentage (25) and enters an
+; expression as a fraction (0,25). A formula reads only ids defined above it.
+; The page renders the default scenario; live.js recomputes the same
+; expressions and opens any figure's formula on click. Pure, except `with-imports`.
 
 (ns dossier.notebook
-  (:require [dossier.ui :as ui] [bl.json :as json]))
+  (:require [dossier.ui :as ui] [dossier.org :as o] [bl.json :as json]))
 
-(def ops #{"add" "sub" "mul" "div" "bp" "min" "max"})
-(def blocks #{"scenarios" "measure" "bars" "limit" "chain" "compare" "range" "funnel" "controls"})
+(def blocks #{"scenarios" "measure" "bars" "limit" "chain" "compare" "range" "funnel" "controls" "ledger" "assumptions"})
 
-(defn- num [v]
+(defn num [v]
   (cond (number? v) v
-        (or (nil? v) (= v "?") (= v "")) nil
+        (or (nil? v) (= v "?") (= (trim (str v)) "")) nil
+        (includes? v ".") (erlang/binary_to_float (trim v))
         :else (erlang/binary_to_integer (trim v))))
 (defn refs [s] (vec (filter (fn [x] (not (blank? x))) (map trim (String/split (or s "") ",")))))
 (defn- occurrences [s needle] (dec (count (String/split (str " " s " ") needle))))
@@ -34,6 +36,64 @@
                            (conj acc part))))
                      [] (String/split line "|"))))
 
+;; ---- expressions: a closed arithmetic, never code
+
+(defn tokens [s]
+  (vec (map first (Regex/scan (Regex/compile! "(*UTF8)\\d+(?:[.,]\\d+)?|[A-Za-z_][A-Za-z0-9_]*|[-+*/×÷−(),]") (or s "")))))
+
+(declare parse-sum)
+(defn- parse-atom [ts i]
+  (let [t (get ts i)]
+    (cond (nil? t) (throw (ex-info "expression ends too early" {}))
+          (Regex/run (Regex/compile! "^\\d") t) [{:num (num (String/replace t "," "."))} (inc i)]
+          (contains? #{"-" "−"} t) (let [[a j] (parse-atom ts (inc i))] [{:op "-" :a {:num 0} :b a} j])
+          (= t "(") (let [[a j] (parse-sum ts (inc i))]
+                      (when (not= ")" (get ts j)) (throw (ex-info "a parenthesis is not closed" {})))
+                      [a (inc j)])
+          (and (contains? #{"min" "max"} t) (= "(" (get ts (inc i))))
+          (loop [j (+ i 2) args []]
+            (let [[a k] (parse-sum ts j)]
+              (case (get ts k)
+                "," (recur (inc k) (conj args a))
+                ")" [{:fn t :args (conj args a)} (inc k)]
+                (throw (ex-info (str t "(…) is not closed") {})))))
+          (Regex/run (Regex/compile! "^[A-Za-z_]") t) [{:ref t} (inc i)]
+          :else (throw (ex-info (str "unexpected " t) {})))))
+(defn- parse-product [ts i]
+  (let [[a i] (parse-atom ts i)]
+    (loop [a a i i]
+      (let [t (get ts i)]
+        (if (contains? #{"*" "×" "/" "÷"} t)
+          (let [[b j] (parse-atom ts (inc i))] (recur {:op (if (contains? #{"*" "×"} t) "×" "÷") :a a :b b} j))
+          [a i])))))
+(defn- parse-sum [ts i]
+  (let [[a i] (parse-product ts i)]
+    (loop [a a i i]
+      (let [t (get ts i)]
+        (if (contains? #{"+" "-" "−"} t)
+          (let [[b j] (parse-product ts (inc i))] (recur {:op (if (= t "+") "+" "-") :a a :b b} j))
+          [a i])))))
+(defn parse
+  "An expression as a tree; throws on anything outside the arithmetic."
+  [s]
+  (let [ts (tokens s) [node i] (parse-sum ts 0)]
+    (when (< i (count ts)) (throw (ex-info (str "unexpected " (get ts i)) {})))
+    node))
+(defn ids-of [node]
+  (cond (:ref node) [(:ref node)]
+        (:fn node) (mapcat ids-of (:args node))
+        (:op node) (concat (ids-of (:a node)) (ids-of (:b node)))
+        :else []))
+(defn- ev [node vals pct]
+  (cond (contains? node :num) (:num node)
+        (:ref node) (let [v (get vals (:ref node))] (when (some? v) (if (contains? pct (:ref node)) (/ v 100) v)))
+        (:fn node) (let [xs (map #(ev % vals pct) (:args node))] (when (every? some? xs) (reduce (if (= "min" (:fn node)) min max) xs)))
+        :else (let [a (ev (:a node) vals pct) b (ev (:b node) vals pct)]
+                (when (and (some? a) (some? b))
+                  (case (:op node) "+" (+ a b) "-" (- a b) "×" (* a b) "÷" (when (not= 0 b) (/ a b)))))))
+
+;; ---- the model
+
 (defn tables
   "Every `#+name:`d table of the document as rows of maps."
   [doc]
@@ -42,70 +102,72 @@
               (if (and (= :table (:t nd)) (some? (:line nd)) (> (:line nd) 0))
                 (let [l (trim (nth lines (dec (:line nd)) ""))]
                   (if (starts-with? l "#+name:")
-                    (assoc out (trim (subs l 7))
-                           (mapv (fn [row] (zipmap (first (:head nd)) row)) (:rows nd)))
+                    (assoc out (trim (subs l 7)) (mapv (fn [row] (zipmap (first (:head nd)) row)) (:rows nd)))
                     out))
                 out))
             {} (:nodes doc))))
 
+(defn- by-id [rows] (into {} (map (fn [r] [(get r "id") r]) rows)))
+(defn- merged [t imports k]
+  (let [rows (concat (mapcat #(get % k) imports) (get t k)) last-of (by-id rows)]
+    (vec (keep (fn [id] (get last-of id)) (distinct (map #(get % "id") rows))))))
+
 (defn model
-  "The document's model, or nil when it has no inputs and formulas tables."
+  "The document's model (its imports first), or nil without inputs and formulas."
   [doc]
-  (let [t (tables doc)]
-    (when (and (seq (get t "inputs")) (seq (get t "formulas")))
-      (let [scen (or (seq (get t "scenarios")) [{"id" "value" "label" ""}])
+  (let [t (tables doc) imports (map tables (:imports doc))
+        inputs (vec (concat (mapcat #(get % "inputs") imports) (get t "inputs")))
+        formulas (vec (concat (mapcat #(get % "formulas") imports) (get t "formulas")))]
+    (when (and (seq inputs) (seq formulas))
+      (let [scen (or (seq (get t "scenarios")) (seq (get (first imports) "scenarios")) [{"id" "value" "label" ""}])
             start (some (fn [nd] (when (and (= :block (:t nd)) (= "scenarios" (:lang nd))) (:start (:attrs nd)))) (:nodes doc))
             ids (mapv #(get % "id") scen)]
-        {:inputs (get t "inputs") :formulas (get t "formulas")
-         :sources (into {} (map (fn [r] [(get r "id") (or (get r "label") (get r "title"))]) (get t "sources")))
+        {:inputs inputs :formulas formulas
+         :imported (set (map #(get % "id") (concat (mapcat #(get % "inputs") imports) (mapcat #(get % "formulas") imports))))
          :scenarios (mapv (fn [s] {:id (get s "id") :label (get s "label")}) scen)
-         :default (if (contains? (set ids) start) start (if (contains? (set ids) "mid") "mid" (first ids)))}))))
+         :default (if (contains? (set ids) start) start (if (contains? (set ids) "mid") "mid" (first ids)))
+         :people (by-id (merged t imports "people")) :claims (by-id (merged t imports "claims"))
+         :phases (by-id (merged t imports "phases")) :lots (by-id (merged t imports "lots"))
+         :sources (into {} (map (fn [r] [(get r "id") (or (get r "label") (get r "title"))]) (merged t imports "sources")))
+         :tables (merge (apply merge {} imports) t)}))))
+
+(defn- pct-ids [m] (set (keep #(when (= "%" (get % "unit")) (get % "id")) (:inputs m))))
 
 (defn problems
-  "Authoring errors: identities, bounds, unknown or cyclic reads, unlike additions."
+  "Authoring errors, in words: identities, bounds, expressions, people and claims."
   [m]
   (let [ids (concat (map #(get % "id") (:inputs m)) (map #(get % "id") (:formulas m)))
-        sids (map :id (:scenarios m))
-        out (atom [])
-        bad (fn [msg] (swap! out conj msg))]
-    (when (not= (count ids) (count (distinct ids))) (bad "duplicate identity among inputs and formulas"))
-    (doseq [r (:inputs m) s sids]
+        out (atom []) bad (fn [msg] (swap! out conj msg))]
+    (when (not= (count ids) (count (distinct ids)))
+      (bad (str "duplicate identity: " (join ", " (keep (fn [[k n]] (when (> n 1) k)) (frequencies ids))))))
+    (doseq [r (:inputs m) s (map :id (:scenarios m))]
       (let [v (try (num (get r s)) (catch e :invalid)) lo (num (get r "min")) hi (num (get r "max"))]
-        (cond (= :invalid v) (bad (str (get r "id") ": " s " is not an integer"))
+        (cond (= :invalid v) (bad (str (get r "id") ": " s " is not a number"))
               (nil? v) nil
               (or (nil? lo) (nil? hi) (< v lo) (> v hi)) (bad (str (get r "id") ": " s " outside its bounds")))))
+    (doseq [r (concat (:inputs m) (:formulas m))]
+      (doseq [p (refs (get r "who")) :when (nil? (get (:people m) p))]
+        (bad (str (get r "id") ": unknown person " p)))
+      (doseq [c (refs (get r "claims")) :when (nil? (get (:claims m) c))]
+        (bad (str (get r "id") ": unknown claim " c))))
     (reduce (fn [known f]
-              (let [id (get f "id") op (get f "op") rs (refs (get f "reads"))
-                    units (distinct (keep #(get known %) (remove #(starts-with? % "#") rs)))]
-                (when (not (contains? ops op)) (bad (str id ": unknown operation " op)))
-                (when (or (empty? rs) (and (not= op "add") (not= 2 (count rs)))) (bad (str id ": wrong number of reads")))
-                (doseq [r rs :when (and (not (starts-with? r "#")) (not (contains? known r)))]
-                  (bad (str id ": reads " r " before it exists")))
-                (when (and (contains? #{"add" "sub" "min" "max"} op) (> (count units) 1))
-                  (bad (str id ": combines " (join " and " units))))
-                (when (and (= op "bp") (second rs) (not (starts-with? (second rs) "#")) (not= "bp" (get known (second rs))))
-                  (bad (str id ": a rate must be in basis points")))
-                (assoc known id (get f "unit"))))
-            (into {} (map (fn [r] [(get r "id") (get r "unit")]) (:inputs m))) (:formulas m))
+              (let [id (get f "id")]
+                (try (let [node (parse (get f "expr"))]
+                       (doseq [r (ids-of node) :when (not (contains? known r))]
+                         (bad (str id ": reads " r " before it exists"))))
+                  (catch e (bad (str id ": " (or (ex-message e) "unreadable expression")))))
+                (when (= "%" (get f "unit")) (bad (str id ": a formula is a share, not % — use the share format")))
+                (conj known id)))
+            (set (map #(get % "id") (:inputs m))) (:formulas m))
     @out))
 
 (defn calculate
-  "Every input and formula value for one scenario, with integer overrides."
+  "Every input and formula value for one scenario, with overrides."
   [m overrides sid]
-  (reduce (fn [vals f]
-            (let [args (mapv (fn [r] (if (starts-with? r "#") (num (subs r 1)) (get vals r))) (refs (get f "reads")))
-                  a (first args) b (second args) op (get f "op")]
-              (assoc vals (get f "id")
-                     (cond (some nil? args) nil
-                           (= op "add") (reduce + 0 args)
-                           (= op "sub") (- a b)
-                           (= op "mul") (* a b)
-                           (= op "div") (when (not= b 0) (/ a b))
-                           (= op "bp") (/ (* a b) 10000)
-                           (= op "min") (min a b)
-                           (= op "max") (max a b)))))
-          (into {} (map (fn [r] [(get r "id") (if (contains? overrides (get r "id")) (get overrides (get r "id")) (num (get r sid)))]) (:inputs m)))
-          (:formulas m)))
+  (let [pct (pct-ids m)]
+    (reduce (fn [vals f] (assoc vals (get f "id") (try (ev (parse (get f "expr")) vals pct) (catch e nil))))
+            (into {} (map (fn [r] [(get r "id") (if (contains? overrides (get r "id")) (get overrides (get r "id")) (num (get r sid)))]) (:inputs m)))
+            (:formulas m))))
 
 (defn context
   "What the blocks draw from: the model, every scenario's values, the default."
@@ -115,7 +177,18 @@
       {:model m :errors errs
        :values (if (seq errs) {} (into {} (map (fn [s] [(:id s) (calculate m {} (:id s))]) (:scenarios m))))})))
 
-;; ---- numbers, French by default (the reader's language decides separators)
+(defn with-imports
+  "The document with each `#+import:` file read beside it. I/O; the host calls it."
+  [doc dir]
+  (let [files (keep (fn [l] (when-let [m (Regex/run (Regex/compile! "^#\\+import:\\s*(\\S+)") l)] (nth m 1))) (:lines doc))]
+    (assoc doc :imports (vec (for [f files :let [p (Path/join dir f)] :when (File/exists? p)] (o/read-doc (File/read! p)))))))
+
+(defn read-model
+  "A notebook file's model with its imports, for executable cells."
+  [path]
+  (model (with-imports (o/read-doc (File/read! path)) (Path/dirname path))))
+
+;; ---- numbers, in the reader's language
 
 (defn- fr? [] (= "fr" (erlang/get :dossier/language)))
 (defn- group [n]
@@ -131,8 +204,8 @@
     (str (if neg "−" "") (group i) fs)))
 (defn- sig2 [v]
   (if (= 0 v) 0
-    (let [p (erlang/round (math/pow 10 (- (erlang/floor (math/log10 (abs v))) 1)))]
-      (* p (erlang/round (/ v (max p 1)))))))
+    (let [p (math/pow 10 (- (erlang/floor (math/log10 (abs v))) 1))]
+      (* p (erlang/round (/ v p))))))
 (defn fmt
   "A value as the reader reads it. nil stays visibly unknown."
   [kind v]
@@ -142,31 +215,44 @@
               (cond (>= a 1000000) (str (fixed (/ (sig2 v) 1000000) 1) " MMAD")
                     (>= a 1000) (str (fixed (/ (sig2 v) 1000) 0) " kMAD")
                     :else (str (fixed v 0) " MAD")))
-      "hours" (str (fixed (if (>= (abs v) 100) (* 10 (erlang/round (/ v 10))) v) 0) " h")
+      "hours" (str (fixed (if (>= (abs v) 100) (* 10 (erlang/round (/ v 10))) v) (if (< (abs v) 10) 1 0)) " h")
+      "days" (str (fixed v (if (< (abs v) 10) 1 0)) (if (fr?) " j" " d"))
+      "months" (str (fixed v (if (< (abs v) 10) 1 0)) (if (fr?) " mois" " mo"))
       "count" (fixed v (if (< (abs v) 10) 1 0))
-      "pct" (str (fixed (/ v 100) 1) " %")
-      "point" (str (fixed (/ v 100) 2) (if (fr?) " point" " pt"))
-      "fte" (fixed v 1)
+      "pct" (str (fixed v (if (< (abs v) 10) 1 0)) " %")
+      "share" (str (fixed (* 100 v) (if (< (abs v) 0.1) 1 0)) " %")
       (fixed v (if (< (abs v) 10) 1 0)))))
+
+;; ---- drawing
 
 (defn- ctx [] (erlang/get :dossier/notebook))
 (defn- default [] (get-in (ctx) [:model :default]))
 (defn value [id] (get-in (ctx) [:values (default) id]))
 (defn- out
-  "A value the browser keeps current. `sid` pins a scenario."
+  "A value the browser keeps current and can explain. `sid` pins a scenario."
   ([id kind] (out id kind nil))
   ([id kind sid]
-   [:span (cond-> {:class "nb-v" :data-nb id :data-fmt (or kind "num")} sid (assoc :data-nb-scen sid))
+   [:button (cond-> {:type "button" :class "nb-v" :data-nb id :data-fmt (or kind "num")} sid (assoc :data-nb-scen sid))
     (fmt kind (get-in (ctx) [:values (or sid (default)) id]))]))
 (defn- tone [t] (str "--c:var(--nb-" (or (not-empty t) "ink") ")"))
 (defn- lines-of [b verb] (keep (fn [l] (let [l (trim l)] (when (starts-with? l (str verb " ")) (cols (subs l (inc (count verb))))))) (:body b)))
 (defn- input-row [id] (some #(when (= id (get % "id")) %) (get-in (ctx) [:model :inputs])))
+(defn- known? [id] (contains? (get-in (ctx) [:values (default)]) id))
 (defn- source-h [s]
   (let [xs (remove #(= "HYP" %) (refs s))]
     (when (seq xs) [:span.nb-src (join " · " (distinct (map #(get-in (ctx) [:model :sources %] %) xs)))])))
+(defn- person-h [p]
+  (let [r (get-in (ctx) [:model :people p])]
+    [:span.nb-person {:title (get r "role")} [:i (subs (or (get r "name") p) 0 1)] (or (get r "name") p)]))
+(defn- people-h [s] (when (seq (refs s)) [:span.nb-people (map person-h (refs s))]))
+(defn- claim-h [c]
+  (let [r (get-in (ctx) [:model :claims c])]
+    [:span.nb-claim {:title (get-in (ctx) [:model :phases (get r "phase") "label"] (get r "phase"))}
+     [:i {:class (str "nb-ph-" (get r "phase"))}] (or (get r "text") c)]))
+(defn- claims-h [s] (when (seq (refs s)) [:span.nb-claims (map claim-h (refs s))]))
 
 (defn inline
-  "A paragraph with `{{id|format}}` drawn as live values."
+  "Text with `{{id|format}}` drawn as live values."
   [text]
   (let [[lead & more] (String/split text "{{")]
     (cons (ui/md lead)
@@ -176,8 +262,8 @@
                       [(out (trim id) (if kind (trim kind) "num")) (ui/md (join "}}" tail))]))
                   more))))
 
-(defn- paras-of [b] (ui/paras (remove #(starts-with? (trim %) "measure ") (:body b))))
 (defn- head-h [b] (when-let [t (:title (:attrs b))] [:h4.nb-title (ui/md t)]))
+(defn- paras-of [b skip] (ui/paras (remove (fn [l] (some #(starts-with? (trim l) (str % " ")) skip)) (:body b))))
 
 (defn- scenario-buttons []
   (let [m (:model (ctx))]
@@ -210,7 +296,7 @@
      (for [[verb id label note t] rows]
        [:div {:class (str "nb-row nb-r-" verb) :style (tone t)}
         [:span.nb-label (ui/mdi label) (when (not-empty note) [:small (inline note)])]
-        [:span.nb-track [:i {:data-nb-w id :data-nb-sign (if (= verb "minus") "-1" "1")}]]
+        [:span.nb-track [:i {:data-nb-w id}]]
         [:span.nb-num (when (= verb "minus") "− ") (out id kind)]])]))
 
 (defn- limit-h [b]
@@ -263,16 +349,67 @@
               [:p [:small (ui/tr "Today")] (ui/mdi today)]
               [:p [:small (ui/tr "After")] (ui/mdi change)]])]])])))
 
+(defn- control-h [r]
+  (let [id (get r "id")]
+    [:div.nb-control
+     [:label [:span (ui/mdi (get r "title"))] [:output {:data-nb-out id}]]
+     [:input {:type "range" :data-nb-input id :min (get r "min") :max (get r "max") :step (get r "step")
+              :value (str (num (get r (default)))) :aria-label (get r "title")}]
+     [:small (people-h (get r "who")) (or (source-h (get r "source")) [:span (ui/tr "Assumption")])
+      [:button {:type "button" :data-nb-undo id :hidden true} ""]]]))
+
 (defn- controls-h [b]
   (let [ids (concat (refs (:inputs (:attrs b))) (map first (lines-of b "input")))]
     [:details.nb-controls
      [:summary (or (:title (:attrs b)) (ui/tr "Adjust the assumptions"))]
-     (for [id ids :let [r (input-row id)] :when r]
-       [:div.nb-control
-        [:label [:span (ui/mdi (get r "title"))] [:output {:data-nb-out id}]]
-        [:input {:type "range" :data-nb-input id :min (get r "min") :max (get r "max") :step (get r "step")
-                 :value (str (num (get r (default)))) :aria-label (get r "title")}]
-        [:small (if-let [s (source-h (get r "source"))] s (ui/tr "Assumption")) [:button {:type "button" :data-nb-undo id :hidden true} ""]]])]))
+     (for [id ids :let [r (input-row id)] :when r] (control-h r))]))
+
+(defn- cell-h
+  "One ledger cell: people, claims, a live value, or text."
+  [col v kind row]
+  (cond (blank? v) [:span.nb-none "—"]
+        (or (= col "who") (every? #(get-in (ctx) [:model :people %]) (refs v))) (people-h v)
+        (or (= col "claims") (every? #(get-in (ctx) [:model :claims %]) (refs v))) (claims-h v)
+        (known? v) (out v (if (and kind (starts-with? kind "@")) (get row (subs kind 1)) (or (not-empty kind) "num")))
+        :else (ui/mdi v)))
+
+(defn- ledger-h
+  "Rows of a named table as cards: people, claims and live values side by side, grouped."
+  [b]
+  (let [a (:attrs b) m (:model (ctx)) rows (get-in m [:tables (:table a)])
+        only (when (:where a) (cols (String/replace (:where a) "=" "|")))
+        rows (if only (filter #(= (second only) (get % (first only))) rows) rows)
+        columns (lines-of b "column") group (:group a)
+        label (fn [g] (or (get-in m [:lots g "title"]) (get-in m [:phases g "label"]) g))]
+    (if (empty? rows) [:p.warning (str "ledger: no rows in table " (:table a))]
+      [:div.nb-ledger
+       (for [rs (if group (partition-by #(get % group) rows) [rows])]
+         [:section.nb-ledger-group
+          (when group [:h5 (label (get (first rs) group))])
+          (for [row rs]
+            [:article.nb-entry {:style (tone (get row "tone")) :data-nb-row (get row "id")}
+             (for [[col lbl kind] columns]
+               [:div {:class (str "nb-cell nb-c-" col)} (when (not-empty lbl) [:small lbl]) (cell-h col (get row col) kind row)])])])])))
+
+(defn- assumptions-h
+  "Every assumption under the person who can confirm it, with the claims it stands on."
+  [b]
+  (let [m (:model (ctx)) only (set (refs (:people (:attrs b))))
+        rows (remove #(contains? (:imported m) (get % "id")) (:inputs m))
+        owner (fn [r] (or (first (refs (get r "who"))) "—"))
+        order (distinct (map owner rows))]
+    [:div.nb-assumptions
+     (for [p order :when (or (empty? only) (contains? only p)) :let [pr (get-in m [:people p])]]
+       [:section.nb-who
+        [:header (person-h p) [:small (get pr "role")]]
+        (for [r rows :when (= p (owner r))]
+          [:div.nb-assume
+           (control-h r)
+           [:div.nb-range-mini
+            (for [s (:scenarios m)]
+              [:span {:data-nb-col (:id s)} (:label s) " " (fmt (if (= "%" (get r "unit")) "pct" "num") (num (get r (:id s))))
+               (when (not= "%" (get r "unit")) (str " " (get r "unit")))])]
+           (claims-h (get r "claims"))])])]))
 
 (defn block-h
   "A notebook block, or nil when the block is not one."
@@ -282,7 +419,7 @@
       (cond (nil? c) [:p.warning (str (:lang b) ": this document has no inputs and formulas tables")]
             (seq (:errors c)) [:div.warning [:b "Notebook model"] [:ul (for [e (:errors c)] [:li e])]]
             :else (case (:lang b)
-                    "scenarios" (list (head-h b) (scenario-buttons) (paras-of b))
+                    "scenarios" (list (head-h b) (scenario-buttons) (paras-of b ["measure"]))
                     "measure" (list (head-h b) (measure-h b))
                     "bars" (list (head-h b) (bars-h b))
                     "limit" (list (head-h b) (limit-h b))
@@ -290,14 +427,20 @@
                     "compare" (list (head-h b) (compare-h b))
                     "range" (list (head-h b) (range-h b))
                     "funnel" (list (head-h b) (funnel-h b))
-                    "controls" (controls-h b))))))
+                    "controls" (controls-h b)
+                    "ledger" (list (head-h b) (ledger-h b))
+                    "assumptions" (list (head-h b) (assumptions-h b)))))))
 
 (defn payload
-  "What the browser needs to recompute: the closed model, never code."
+  "What the browser needs to recompute and explain: the closed model, never code."
   [c]
   (when (and c (empty? (:errors c)))
-    (let [m (:model c)]
-      (json/encode {:inputs (mapv (fn [r] (select-keys r (concat ["id" "title" "min" "max" "step" "display_unit" "scale"] (map :id (:scenarios m))))) (:inputs m))
-                    :formulas (mapv (fn [f] (select-keys f ["id" "op" "reads"])) (:formulas m))
+    (let [m (:model c) sids (map :id (:scenarios m))]
+      (json/encode {:inputs (mapv (fn [r] (select-keys r (concat ["id" "title" "unit" "min" "max" "step" "who" "claims" "source"] sids))) (:inputs m))
+                    :formulas (mapv (fn [f] (select-keys f ["id" "title" "expr" "unit" "claims" "who"])) (:formulas m))
+                    :people (into {} (map (fn [[k v]] [k (select-keys v ["name" "role"])]) (:people m)))
+                    :claims (into {} (map (fn [[k v]] [k (select-keys v ["text" "phase" "source"])]) (:claims m)))
+                    :phases (into {} (map (fn [[k v]] [k (get v "label")]) (:phases m)))
+                    :sources (:sources m) :imported (vec (:imported m))
                     :scenarios (:scenarios m) :default (:default m)
                     :lang (or (erlang/get :dossier/language) "en")}))))
