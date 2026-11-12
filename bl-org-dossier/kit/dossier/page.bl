@@ -142,9 +142,41 @@
                    (mapcat (fn [nd] (if (= :screens (:t nd)) (:blocks nd) [nd])) (:nodes s)))]
     [(count (filter (fn [b] (:answer (:attrs b))) bs)) (count bs)]))
 
+(defn- sub-heading? [nd] (and (= :heading (:t nd)) (= 2 (:level nd))))
+
+(defn- chunks
+  "A section's nodes split at its level-2 headings: [lead [[h2 nodes…] …]]."
+  [nodes]
+  (let [lead (vec (take-while (fn [nd] (not (sub-heading? nd))) nodes))
+        rest-nodes (drop (count lead) nodes)]
+    [lead (reduce (fn [out nd] (if (sub-heading? nd) (conj out [nd]) (conj (pop out) (conj (last out) nd))))
+                  [] rest-nodes)]))
+
+(defn- paged?
+  "`#+subpages: t` pages every section by its subsections; `#+subpages: A | B` only those named."
+  [meta s]
+  (let [v (trim (str (:subpages meta))) names (set (map trim (String/split v "|")))]
+    (and (:head s) (some sub-heading? (:nodes s))
+         (or (= "t" v) (contains? names (:title (:head s)))))))
+
+(defn- pages
+  "Every page a reader steps through: a section, or each subsection of a paged one."
+  [meta secs]
+  (vec (mapcat (fn [s]
+                 (if (paged? meta s)
+                   (for [[h] (second (chunks (:nodes s)))]
+                     {:href (str "#" (ui/slug (:title h))) :title (:title h) :sec (sec-id s)})
+                   [{:href (str "#" (sec-id s)) :title (if (:head s) (:title (:head s)) "Overview") :sec (sec-id s)}]))
+               secs)))
+
+(defn- pager-h [all i]
+  [:nav.pager
+   (when (> i 0) (let [p (get all (dec i))] [:a.prev {:href (:href p)} "← " (ui/mdi (:title p))]))
+   (when (< (inc i) (count all)) (let [x (get all (inc i))] [:a.next {:href (:href x)} (ui/mdi (:title x)) " →"]))])
+
 (defn- side-h
   "The sections as an app's sidebar: where you are, what waits for an answer,
-   how far a roster got. Purely a view of the same file."
+   how far a roster got. A section's subsections sit under it. Purely a view of the same file."
   [meta secs]
   [:aside.side
    [:a.side-title {:href "#s-intro"} (ui/md (String/replace (or (:title meta) "Dossier") (Regex/compile! "\\s+—.*$") ""))]
@@ -153,16 +185,17 @@
       (let [[ok n] (sec-asks s)
             kws (keep :todo (filter (fn [nd] (= :heading (:t nd))) (:nodes s)))
             done (count (filter (fn [k] (= "DONE" k)) kws))
-            subs (filter (fn [nd] (and (= :heading (:t nd)) (= 2 (:level nd)))) (:nodes s))]
-        [:div.side-item {:data-sec (sec-id s)}
+            subs (filter sub-heading? (:nodes s))]
+        [:div {:class (str "side-item" (when (seq subs) " has-subs") (when (paged? meta s) " paged")) :data-sec (sec-id s)}
          [:a.side-sec {:href (str "#" (sec-id s))}
           [:span.st (if (:head s) (ui/md (:title (:head s))) "Overview")]
           (cond (> n ok) [:span.wait {:title "waiting for your answer"} (- n ok)]
                 (> n 0) [:span.ok {:title (ui/tr "answered")} "✓"]
                 (seq kws) [:span.prog {:title "done / total"} (str done "/" (count kws))]
+                (seq subs) [:span.count (count subs)]
                 :else nil)]
          (when (seq subs)
-           [:div.side-subs (for [h subs] [:a {:href (str "#" (ui/slug (:title h)))} (ui/md (:title h))])])]))]
+           [:div.side-subs (for [h subs] [:a {:href (str "#" (ui/slug (:title h))) :data-sub (ui/slug (:title h))} (ui/md (:title h))])])]))]
    [:a.side-all {:href "#all"} (ui/tr "Whole document")]])
 
 (defn doc-h
@@ -191,16 +224,22 @@
         [:nav.chips (for [s secs :when (:head s)]
                       [:a {:href (str "#" (ui/slug (:title (:head s))))} (:title (:head s))])
          [:a.all {:href "#all"} "All"]]
-        (map-indexed
-          (fn [i s]
-            [:section.part {:id (sec-id s) :data-sec (sec-id s)}
+        (let [all (pages meta secs)
+              at (fn [href] (or (first (keep-indexed (fn [i p] (when (= href (:href p)) i)) all)) 0))]
+          (for [s secs]
+            [:section {:class (str "part" (when (paged? meta s) " paged")) :id (sec-id s) :data-sec (sec-id s)}
              (when (:head s) (node->h (:head s)))
              (when (and (:head s) (= "roster" (lower-case (:title (:head s))))) (roster-h (:nodes s)))
-             (keep node->h (:nodes s))
-             [:nav.pager
-              (when (> i 0) (let [p (get secs (dec i))] [:a.prev {:href (str "#" (sec-id p))} "← " (if (:head p) (:title (:head p)) "Overview")]))
-              (when (< (inc i) n) (let [x (get secs (inc i))] [:a.next {:href (str "#" (sec-id x))} (if (:head x) (:title (:head x)) "Overview") " →"]))]])
-          secs)
+             (if (paged? meta s)
+               (let [[lead subs] (chunks (:nodes s))]
+                 (list
+                   [:nav.subnav {:aria-label (if (:head s) (:title (:head s)) "Section")}
+                    (for [[h] subs] [:a {:href (str "#" (ui/slug (:title h))) :data-sub (ui/slug (:title h))} (ui/mdi (:title h))])]
+                   (when (seq lead) [:div.sub-lead (keep node->h lead)])
+                   (for [[h & body] subs :let [href (str "#" (ui/slug (:title h)))]]
+                     [:div.subpage {:data-sub (ui/slug (:title h))}
+                      (node->h h) (keep node->h body) (pager-h all (at href))])))
+               (list (keep node->h (:nodes s)) (pager-h all (at (str "#" (sec-id s))))))]))
         (when-let [p (nb/payload nbc)]
           (list [:div#nb-model {:hidden true :data-model p}]
                 (when dock [:div.nb-dock (nb/bar-h dock)])))]])))

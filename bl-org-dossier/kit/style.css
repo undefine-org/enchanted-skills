@@ -434,10 +434,19 @@ section.part[hidden],header.doc[hidden]{display:none}
 .side-sec .wait{font:600 11px var(--mono);color:#fff;background:var(--clay);border-radius:99px;padding:1px 7px}
 .side-sec .ok{color:var(--sage);font-size:12px}
 .side-sec .prog{font:11px var(--mono);color:var(--muted)}
-.side-subs{display:none;flex-direction:column;margin:2px 0 8px 18px;border-left:1px solid var(--line)}
+.side-sec .count{font:11px var(--mono);color:var(--muted);opacity:.7}
+.side-item.has-subs>.side-sec::before{content:'';width:0;height:0;border:4px solid transparent;border-left-color:currentColor;margin:0 -2px 0 -4px;align-self:center;opacity:.55;transition:transform .15s}
+.side-item.has-subs.on>.side-sec::before{transform:rotate(90deg) translateX(2px)}
+.side-subs{display:none;flex-direction:column;margin:2px 0 10px 16px;border-left:1px solid var(--line)}
 .side-item.on .side-subs{display:flex}
-.side-subs a{font-size:13px;color:var(--muted);text-decoration:none;padding:4px 10px;line-height:1.35}
+.side-subs a{font-size:13px;color:var(--muted);text-decoration:none;padding:5px 10px 5px 12px;margin-left:-1px;border-left:2px solid transparent;line-height:1.35}
 .side-subs a:hover{color:var(--ink)}
+.side-subs a.on{color:var(--ink);font-weight:600;border-left-color:var(--clay)}
+.side-item.paged.on .side-sec{box-shadow:none;background:none}
+nav.subnav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:4px 0 18px;padding-bottom:2px}
+nav.subnav a{flex:none;font-size:13px;color:var(--muted);text-decoration:none;padding:5px 11px;border:1px solid var(--line);border-radius:99px;white-space:nowrap}
+nav.subnav a.on{color:var(--ink);border-color:var(--clay);background:var(--paper)}
+.all-mode nav.subnav{display:none}
 .side-all{display:block;margin:16px 10px 0;font:12px var(--mono);color:var(--muted);text-decoration:none}
 .side-all.on{color:var(--clay)}
 .pager{display:flex;justify-content:space-between;gap:12px;margin:64px 0 0;padding-top:16px;border-top:1px solid var(--line)}
@@ -451,6 +460,7 @@ nav.chips a.all{font-family:var(--mono);font-size:12px}
   .app2{display:grid;grid-template-columns:250px minmax(0,1fr);gap:40px;align-items:start}
   .side{display:block;position:sticky;top:46px;max-height:calc(100vh - 58px);overflow:auto;padding:22px 0 28px;scrollbar-width:thin}
   .app2 nav.chips{display:none}
+  .app2 nav.subnav{display:none}
   .content{min-width:0}
   .app2 .desk{width:auto;margin-left:0;transform:none}
   section.part>h2:first-child{margin-top:30px}

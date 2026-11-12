@@ -266,7 +266,10 @@
   let current = null;
   const secs = () => Array.from(document.querySelectorAll('section.part[data-sec]'));
   const sectionOf = (el) => el && el.closest('section.part[data-sec]');
-  function show(id) {
+  // A paged section (#+subpages: t) shows one subsection at a time; `sub` remembers which.
+  let sub = null;
+  const subsOf = (s) => Array.from(s ? s.querySelectorAll(':scope > .subpage') : []);
+  function show(id, subId) {
     const list = secs(); if (!list.length) return;
     const all = id === 'all';
     let target = null;
@@ -275,28 +278,41 @@
     const head = $('header.doc'); if (head) head.hidden = !(all || target === list[0]);
     document.body.classList.toggle('all-mode', all);
     current = all ? 'all' : target.id;
+    const pages = subsOf(target);
+    sub = all || !pages.length ? null : (pages.find(p => p.dataset.sub === subId) || pages.find(p => p.dataset.sub === sub) || pages[0]).dataset.sub;
+    list.forEach(s => {
+      subsOf(s).forEach(p => { p.hidden = !(all || (s === target && p.dataset.sub === sub)); });
+      const lead = s.querySelector(':scope > .sub-lead'); if (lead) lead.hidden = !(all || (s === target && sub === subsOf(s)[0]?.dataset.sub));
+    });
     document.querySelectorAll('.side-item').forEach(i => i.classList.toggle('on', i.dataset.sec === current));
+    document.querySelectorAll('nav.subnav a').forEach(a => a.classList.toggle('on', !!sub && a.dataset.sub === sub && sectionOf(a) === target));
+    document.querySelectorAll('.side-subs a').forEach(a => a.classList.toggle('on', !!sub && a.dataset.sub === sub && a.closest('.side-item')?.dataset.sec === current));
     document.querySelectorAll('.side-all').forEach(a => a.classList.toggle('on', all));
     document.querySelectorAll('nav.chips a').forEach(a => {
       const h = decodeURIComponent(a.getAttribute('href').slice(1)), el = document.getElementById(h);
       a.classList.toggle('on', all ? h === 'all' : !!(el && sectionOf(el) === target));
     });
   }
+  // The pages a reader steps through with ←/→, in order: sections, or the subsections of a paged one.
+  const pageList = () => secs().flatMap(s => { const p = subsOf(s); return p.length ? p.map(x => ({ sec: s.id, sub: x.dataset.sub })) : [{ sec: s.id, sub: null }]; });
   function route(scroll) {
     const h = decodeURIComponent(location.hash.slice(1));
     if (!h) { show(current); return; }
     if (h === 'all') { show('all'); if (scroll) scrollTo(0, 0); return; }
     const el = document.getElementById(h);
-    if (el && el.matches('section.part')) { show(h); if (scroll) scrollTo(0, 0); return; }
+    if (el && el.matches('section.part')) { show(h, null); if (scroll) scrollTo(0, 0); return; }
+    const page = el && el.closest('.subpage');
+    if (page && current !== 'all') { show(sectionOf(page).id, page.dataset.sub); if (scroll) (page.firstElementChild === el ? scrollTo(0, 0) : el.scrollIntoView({ block: 'start' })); return; }
     if (el) { const s = sectionOf(el); if (s && current !== 'all') show(s.id); if (scroll) el.scrollIntoView({ block: 'start' }); return; }
     show(current);
   }
   window.addEventListener('hashchange', () => route(true));
   document.addEventListener('keydown', (e) => {
     if (current === 'all' || e.target.closest('input,textarea,select,.screen-graph,.org-roster,[data-witness],[data-milestones],[data-claims],[data-lifetime]') || e.metaKey || e.ctrlKey || e.altKey) return;
-    const list = secs(), i = list.findIndex(s => s.id === current);
-    if (e.key === 'ArrowRight' && i < list.length - 1) location.hash = list[i + 1].id;
-    if (e.key === 'ArrowLeft' && i > 0) location.hash = list[i - 1].id;
+    const list = pageList(), i = list.findIndex(p => p.sec === current && p.sub === sub);
+    const go = (p) => { location.hash = p.sub ? p.sub : p.sec; };
+    if (e.key === 'ArrowRight' && i < list.length - 1) go(list[i + 1]);
+    if (e.key === 'ArrowLeft' && i > 0) go(list[i - 1]);
   });
   route(true);
   paintGraphs();

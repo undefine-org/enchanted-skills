@@ -365,3 +365,14 @@
         errs (nb/problems m)]
     (doseq [needle ["outside its bounds" "combines" "unknown operation" "reads zz before it exists"]]
       (is (some #(includes? % needle) errs) (str "missing " needle)))))
+
+(deftest a-paged-section-shows-its-subsections-as-pages
+  (let [doc (o/read-doc (join "\n" ["#+subpages: Phase 1" "* Intro" "Hello." "* Phase 1" "** L'amont" "Lead."
+                                    "** Cellule Marchés" "*** L'irritant" "Text." "* Notes" "** Une note" "Plain."]))
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [needle ["class=\"part paged\"" "class=\"subpage\" data-sub=\"cellule-march-s\"" "nav class=\"subnav\""
+                    "side-item has-subs paged" "data-sub=\"l-amont\""]]
+      (is (includes? html needle) (str "missing " needle)))
+    ;; only the named section is paged; the pager steps from a subsection to the next
+    (is (not (includes? html "<div class=\"subpage\" data-sub=\"une-note\"")))
+    (is (includes? html "href=\"#cellule-march-s\">Cellule Marchés →"))))
