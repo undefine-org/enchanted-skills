@@ -383,6 +383,7 @@
   (cond (blank? v) [:span.nb-none "—"]
         (or (= col "who") (every? #(get-in (ctx) [:model :people %]) (refs v))) (people-h v)
         (or (= col "claims") (every? #(get-in (ctx) [:model :claims %]) (refs v))) (claims-h v)
+        (or (= col "source") (every? #(get-in (ctx) [:model :sources %]) (refs v))) (source-h v)
         (known? v) (out v (if (and kind (starts-with? kind "@")) (get row (subs kind 1)) (or (not-empty kind) "num")))
         :else (ui/mdi v)))
 
