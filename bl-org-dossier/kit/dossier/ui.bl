@@ -529,6 +529,13 @@
                    (str (:id v) " points to missing view: " (:to e)))))]
     {:views views :errors errors}))
 
+(defn- with-params
+  "A same-origin host or catalog link carrying the reader's view (`:dossier/params`,
+  set by the server: `mode=client&design=sober`)."
+  [u]
+  (let [p (str (erlang/get :dossier/params))]
+    (if (contains? #{"undefined" "nil" ""} p) u (str u (if (includes? u "?") "&" "?") p))))
+
 (defn screen-tools-h
  "The same floating six-tool bar for native and source-hosted screen graphs."
  [backend]
@@ -552,10 +559,12 @@
        views (keep (fn [line] (when (starts-with? (trim line) "view ")
          (let [xs (mapv trim (split (subs (trim line) 5) "|"))] {:id (first xs) :title (nth xs 1 (first xs))}))) (:body b))
        start (or (:start a) (:id (first views)))
-       url (if (includes? src "?") src (str src "?view=" (URI/encode_www_form (or start ""))))]
+       url (with-params (if (includes? src "?") src (str src "?view=" (URI/encode_www_form (or start "")))))]
   (if-not safe? [:p.warning "Screen hosts must use a same-origin path."]
    [:figure {:class (str "screen-graph screen-source" (design-class a)) :id (str "screen-graph-" (:id a))
-             :data-source-id (:id a) :data-source-start url :data-component-catalog (:catalog a) :data-component-explorer (:explorer a)}
+             :data-source-id (:id a) :data-source-start url
+             :data-component-catalog (when (:catalog a) (with-params (str (:catalog a))))
+             :data-component-explorer (when (:explorer a) (with-params (str (:explorer a))))}
     [:figcaption [:b (md (:title a))] [:p (md (or (:caption a) (tr "Shared views · illustrative records. H highlights links · G explores the graph · I inspects components.")))]]
     [:div.source-workbench {:tabindex "0" :aria-label "Shared screen preview"}
      [:iframe {:class "source-frame" :src url :title (or (:title a) "Shared product screen") :loading "lazy"}]

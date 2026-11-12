@@ -39,7 +39,29 @@
   (let [owner (System/get_env "DOSSIER_OWNER")]
     (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
 
-(defn- reading [conn text] (audience/view (read-doc text) (audience/mode-of (web/query conn)) (audience/locked?)))
+(defn- param
+  "One query parameter (`?design=sober`), decoded; nil when absent."
+  [conn k]
+  (some (fn [pair] (let [kv (String/split pair "=")]
+                     (when (= k (web/url-decode (first kv))) (web/url-decode (or (last kv) "")))))
+        (String/split (or (web/query conn) "") "&")))
+
+(def ^:private designs #{"sober" "warm-signal"})
+
+(defn- reading
+  "The document as this request reads it: its client reading (`?mode=client`,
+   `DOSSIER_MODE=client`) and its design (`?design=sober`, preview only).
+   `:dossier/params` carries both into every same-origin host on the page."
+  [conn text]
+  (let [mode (audience/mode-of (web/query conn))
+        asked (param conn "design")
+        doc (audience/view (read-doc text) mode (audience/locked?))
+        doc (if (contains? designs asked) (assoc-in doc [:meta :design] asked) doc)]
+    (erlang/put :dossier/params
+                (join "&" (remove (fn [s] (= "" s))
+                             [(when (= "client" mode) "mode=client")
+                              (when (contains? designs asked) (str "design=" asked))])))
+    doc))
 
 (defn- full-page [conn text]
   (str "<!doctype html>" (h/hiccup->html (pg/page-h (reading conn text) (asset "style.css") (asset "live.js")))))

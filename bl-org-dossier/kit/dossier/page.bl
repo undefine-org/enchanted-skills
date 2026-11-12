@@ -263,7 +263,10 @@
        ;; Opt-in only: a dossier with `#+client_hide:` declares a client reading;
        ;; every other dossier keeps its bar exactly as it was.
        (when (or (:client_hide (get-in doc [:meta])) (:mode (get-in doc [:meta])))
-         [:button#audience {:type "button" :aria-pressed (if (audience/client? doc) "true" "false")} (if fr "Vue client" "Client view")])
+         [:button#audience {:type "button" :aria-pressed (if (audience/client? doc) "true" "false")} "Client"])
+       ;; Offered only when the page's own CSS carries a sober reading.
+       (when (includes? (str css) "data-design=\"sober\"")
+         [:button#design {:type "button" :aria-pressed (if (= "sober" (get-in doc [:meta :design])) "true" "false")} "Sober"])
        [:button#theme {:type "button"} (ui/tr "theme")]
        [:button#review-toggle {:type "button" :aria-controls "dossier-review" :aria-expanded "false"}
         (if fr "Commentaires" "Comments")]])

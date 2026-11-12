@@ -259,6 +259,12 @@
   });
 
   // ── the client's reading: the same file without its internal parts (dossier/audience.bl) ──
+  const design = $('#design');
+  if (design) design.onclick = () => {
+    const url = new URL(location.href), on = url.searchParams.get('design') !== 'sober';
+    url.searchParams.set('design', on ? 'sober' : 'warm-signal');
+    history.replaceState(null, '', url); design.setAttribute('aria-pressed', String(on)); refresh(true);
+  };
   const audience = $('#audience');
   if (audience) audience.onclick = () => {
     const url = new URL(location.href), on = url.searchParams.get('mode') !== 'client';
