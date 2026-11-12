@@ -940,6 +940,7 @@
     if (pop?.isConnected && !pop.hidden && trail.length) {
       const id = trail[trail.length - 1], pv = pop.querySelector('.nb-pop-value'); if (pv) pv.firstChild.textContent = fmt(kindOf(id), V[id]);
       pop.querySelectorAll('[data-nb-open]').forEach(b => { b.querySelector('b').textContent = fmt(kindOf(b.dataset.nbOpen), V[b.dataset.nbOpen]); });
+      place();
     }
     save();
   }
@@ -975,23 +976,59 @@
     const r2 = byId[id]; if (r2?.input) { const inp = pop.querySelector('[data-nb-input]'); const o = pop.querySelector('[data-nb-out]'); o.textContent = fmtInput(r2, Number(inp.value)); const u = pop.querySelector('[data-nb-undo]'); u.hidden = !Object.hasOwn(st.over, id); u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r2, Number(r2[st.scenario])); }
     place();
   }
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const phone = matchMedia('(max-width:640px)');
+  // The panel goes wherever it fits whole: below the figure, above it, then
+  // beside it on the side with the most room. When no direction holds it, the
+  // roomiest one takes it with a capped height and internal scrolling, so a
+  // figure at an edge never opens a panel that runs off the screen.
   function place() {
-    if (!pop || pop.hidden || !popAnchor) return;
-    const b = popAnchor.getBoundingClientRect(), margin = 12, gap = 8;
-    const w = Math.min(420, innerWidth - 2 * margin);
-    pop.style.width = w + 'px';
-    pop.style.left = Math.max(margin, Math.min(innerWidth - w - margin, b.left)) + 'px';
-    // Measure the rendered panel, then put it where it fits whole; above the
-    // figure when there is no room below, so a figure low on the page never
-    // opens a panel that runs off the bottom.
-    const h = Math.min(pop.getBoundingClientRect().height, innerHeight - 2 * margin);
-    const below = b.bottom + gap, above = b.top - gap;
-    const roomBelow = innerHeight - below - margin, roomAbove = above - margin;
-    let top = h <= roomBelow ? below
-      : h <= roomAbove ? above - h
-      : roomBelow >= roomAbove ? innerHeight - h - margin : margin;
-    top = Math.max(margin, Math.min(top, innerHeight - h - margin));
-    pop.style.top = top + 'px';
+    if (!pop || pop.hidden) return;
+    // At phone width the stylesheet docks the panel to the bottom edge; inline
+    // geometry would only fight it.
+    if (phone.matches || !popAnchor) {
+      if (pop.style.width || pop.style.left || pop.style.top || pop.style.maxHeight) pop.style.width = pop.style.left = pop.style.top = pop.style.maxHeight = '';
+      return;
+    }
+    // The panel is fixed, so it lives in the layout viewport: clientWidth and
+    // clientHeight exclude the scrollbar, which innerWidth includes.
+    const vw = document.documentElement.clientWidth || innerWidth;
+    const vh = document.documentElement.clientHeight || innerHeight;
+    const margin = 12, gap = 8;
+    const naturalW = Math.min(420, vw - 2 * margin);
+    const measure = w => { pop.style.maxHeight = ''; pop.style.width = w + 'px'; return pop.getBoundingClientRect().height; };
+    const b = popAnchor.getBoundingClientRect();
+    const seen = {
+      left: clamp(b.left, margin, vw - margin), right: clamp(b.right, margin, vw - margin),
+      top: clamp(b.top, margin, vh - margin), bottom: clamp(b.bottom, margin, vh - margin),
+    };
+    const room = {
+      below: vh - margin - (seen.bottom + gap), above: seen.top - gap - margin,
+      right: vw - margin - (seen.right + gap), left: seen.left - gap - margin,
+    };
+    const hFull = measure(naturalW);
+    const vertical = d => ({dir: d, w: naturalW, h: hFull, avail: room[d]});
+    const beside = d => {
+      const w = Math.min(naturalW, room[d]);
+      if (w < Math.min(260, naturalW)) return null;
+      return {dir: d, w, h: w >= naturalW ? hFull : measure(w), avail: vh - 2 * margin};
+    };
+    const sides = ['right', 'left'].map(beside).filter(Boolean).sort((x, y) => room[y.dir] - room[x.dir]);
+    const order = [vertical('below'), vertical('above'), ...sides];
+    let c = order.find(x => x.h <= x.avail);
+    // Nothing holds it whole: keep the placement that leaves the most height.
+    if (!c) c = order.reduce((best, x) => (x.avail > best.avail + 0.5 ? x : best), order[0]);
+    const h = Math.min(c.h, c.avail);
+    pop.style.width = c.w + 'px';
+    pop.style.maxHeight = c.h > c.avail ? Math.max(0, Math.floor(c.avail)) + 'px' : '';
+    let top, left;
+    if (c.dir === 'below') { top = seen.bottom + gap; left = clamp(b.left, margin, vw - margin - c.w); }
+    else if (c.dir === 'above') { top = seen.top - gap - h; left = clamp(b.left, margin, vw - margin - c.w); }
+    else if (c.dir === 'right') { top = clamp(b.top, margin, vh - margin - h); left = seen.right + gap; }
+    else { top = clamp(b.top, margin, vh - margin - h); left = seen.left - gap - c.w; }
+    top = clamp(top, margin, vh - margin - h);
+    pop.style.left = Math.round(clamp(left, margin, vw - margin - c.w)) + 'px';
+    pop.style.top = Math.round(top) + 'px';
   }
   function open(id, anchor) {
     if (!pop || !pop.isConnected) {
@@ -1003,10 +1040,12 @@
     if (anchor) popAnchor = anchor;
     paint(); pop.querySelector('[data-nb-close]').focus({ preventScroll: true });
   }
-  const close = () => { if (pop) { pop.hidden = true; trail = []; popAnchor = null; } };
+  const close = () => { if (pop) { pop.hidden = true; pop.style.maxHeight = ''; trail = []; popAnchor = null; } };
   const reposition = () => { if (pop && !pop.hidden) place(); };
   addEventListener('scroll', reposition, { passive: true });
   addEventListener('resize', reposition);
+  // Web fonts settle after first paint and change the panel's height.
+  document.fonts?.ready.then(reposition);
 
   document.addEventListener('click', e => {
     const v = e.target.closest('.nb-v[data-nb]');
