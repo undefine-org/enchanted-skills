@@ -209,7 +209,7 @@
     [:div.nb-bars {:data-nb-bars ""}
      (for [[verb id label note t] rows]
        [:div {:class (str "nb-row nb-r-" verb) :style (tone t)}
-        [:span.nb-label (ui/mdi label) (when (not-empty note) [:small (ui/mdi note)])]
+        [:span.nb-label (ui/mdi label) (when (not-empty note) [:small (inline note)])]
         [:span.nb-track [:i {:data-nb-w id :data-nb-sign (if (= verb "minus") "-1" "1")}]]
         [:span.nb-num (when (= verb "minus") "− ") (out id kind)]])]))
 
