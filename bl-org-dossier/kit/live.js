@@ -945,7 +945,7 @@
   }
 
   // ---- explain: a figure opens its formula; each term opens in turn
-  let pop = null, trail = [];
+  let pop = null, trail = [], popAnchor = null;
   const person = p => { const r = M.people?.[p]; return r ? `<span class="nb-person" title="${esc(r.role)}"><i>${esc((r.name || p)[0])}</i>${esc(r.name || p)}<small>${esc(r.role || '')}</small></span>` : ''; };
   const claim = c => { const r = M.claims?.[c]; return r ? `<span class="nb-claim"><i class="nb-ph-${esc(r.phase)}"></i>${esc(r.text)}<small>${esc(M.phases?.[r.phase] || r.phase)}</small></span>` : ''; };
   const source = s => split(s).filter(x => x !== 'HYP').map(x => `<span class="nb-src">${esc(M.sources?.[x] || x)}</span>`).join('');
@@ -973,6 +973,25 @@
       ${M.imported?.includes(id) ? `<p class="nb-pop-kind">${t('From the imported model', 'Du carnet importé')}</p>` : ''}
       ${usedBy.length ? `<div class="nb-pop-row"><small>${t('Used in', 'Entre dans')}</small>${usedBy.map(f => chip(f.id)).join('')}</div>` : ''}`;
     const r2 = byId[id]; if (r2?.input) { const inp = pop.querySelector('[data-nb-input]'); const o = pop.querySelector('[data-nb-out]'); o.textContent = fmtInput(r2, Number(inp.value)); const u = pop.querySelector('[data-nb-undo]'); u.hidden = !Object.hasOwn(st.over, id); u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r2, Number(r2[st.scenario])); }
+    place();
+  }
+  function place() {
+    if (!pop || pop.hidden || !popAnchor) return;
+    const b = popAnchor.getBoundingClientRect(), margin = 12, gap = 8;
+    const w = Math.min(420, innerWidth - 2 * margin);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.max(margin, Math.min(innerWidth - w - margin, b.left)) + 'px';
+    // Measure the rendered panel, then put it where it fits whole; above the
+    // figure when there is no room below, so a figure low on the page never
+    // opens a panel that runs off the bottom.
+    const h = Math.min(pop.getBoundingClientRect().height, innerHeight - 2 * margin);
+    const below = b.bottom + gap, above = b.top - gap;
+    const roomBelow = innerHeight - below - margin, roomAbove = above - margin;
+    let top = h <= roomBelow ? below
+      : h <= roomAbove ? above - h
+      : roomBelow >= roomAbove ? innerHeight - h - margin : margin;
+    top = Math.max(margin, Math.min(top, innerHeight - h - margin));
+    pop.style.top = top + 'px';
   }
   function open(id, anchor) {
     if (!pop || !pop.isConnected) {
@@ -981,12 +1000,13 @@
       document.body.appendChild(pop);
     }
     trail = anchor ? [id] : [...trail, id]; pop.hidden = false;
-    if (anchor) { const b = anchor.getBoundingClientRect(), w = Math.min(420, innerWidth - 24);
-      pop.style.width = w + 'px'; pop.style.left = Math.max(12, Math.min(innerWidth - w - 12, b.left)) + 'px';
-      const below = b.bottom + 8, room = innerHeight - below; pop.style.top = (room > 260 ? below : Math.max(12, b.top - 8 - Math.min(480, innerHeight * .7))) + 'px'; }
+    if (anchor) popAnchor = anchor;
     paint(); pop.querySelector('[data-nb-close]').focus({ preventScroll: true });
   }
-  const close = () => { if (pop) { pop.hidden = true; trail = []; } };
+  const close = () => { if (pop) { pop.hidden = true; trail = []; popAnchor = null; } };
+  const reposition = () => { if (pop && !pop.hidden) place(); };
+  addEventListener('scroll', reposition, { passive: true });
+  addEventListener('resize', reposition);
 
   document.addEventListener('click', e => {
     const v = e.target.closest('.nb-v[data-nb]');
