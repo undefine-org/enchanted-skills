@@ -960,9 +960,10 @@
   function paint() {
     const id = trail[trail.length - 1], r = byId[id]; if (!r) return;
     const usedBy = M.formulas.filter(f => tokens(f.expr).includes(id)).slice(0, 6);
+    const phase = r.phase && M.phases?.[r.phase];
     pop.querySelector('.nb-pop-body').innerHTML = `
       ${trail.length > 1 ? `<nav class="nb-trail">${trail.slice(0, -1).map((x, i) => `<button type="button" data-nb-back="${i}">${esc(byId[x]?.title || x)}</button>`).join('<span>›</span>')}</nav>` : ''}
-      <h4>${esc(r.title)}</h4><div class="nb-pop-value">${esc(fmt(kindOf(id), V[id]))}<small>${esc(M.scenarios.find(s => s.id === st.scenario)?.label || '')}${Object.keys(st.over).length ? t(' · adjusted', ' · ajusté') : ''}</small></div>
+      <div class="nb-pop-title">${phase ? `<span class="nb-phase nb-ph-${esc(r.phase)}">${esc(phase)}</span>` : ''}<h4>${esc(r.title)}</h4></div><div class="nb-pop-value">${esc(fmt(kindOf(id), V[id]))}<small>${esc(M.scenarios.find(s => s.id === st.scenario)?.label || '')}${Object.keys(st.over).length ? t(' · adjusted', ' · ajusté') : ''}</small></div>
       ${r.input ? `<p class="nb-pop-kind">${t('An assumption', 'Une hypothèse')}${r.source && r.source !== 'HYP' ? ' · ' + source(r.source) : ' · ' + t('to confirm', 'à confirmer')}</p>
         <div class="nb-explain-input nb-control"><label><span>${t('Adjust', 'Ajuster')}</span><output data-nb-out="${esc(id)}"></output></label>
         <input type="range" data-nb-input="${esc(id)}" min="${esc(r.min)}" max="${esc(r.max)}" step="${esc(r.step)}" value="${esc(Object.hasOwn(st.over, id) ? st.over[id] : r[st.scenario])}" aria-label="${esc(r.title)}">

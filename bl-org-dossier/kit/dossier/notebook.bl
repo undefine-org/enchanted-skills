@@ -437,7 +437,7 @@
   (when (and c (empty? (:errors c)))
     (let [m (:model c) sids (map :id (:scenarios m))]
       (json/encode {:inputs (mapv (fn [r] (select-keys r (concat ["id" "title" "unit" "min" "max" "step" "who" "claims" "source"] sids))) (:inputs m))
-                    :formulas (mapv (fn [f] (select-keys f ["id" "title" "expr" "unit" "claims" "who"])) (:formulas m))
+                    :formulas (mapv (fn [f] (select-keys f ["id" "title" "expr" "unit" "claims" "who" "phase"])) (:formulas m))
                     :people (into {} (map (fn [[k v]] [k (select-keys v ["name" "role"])]) (:people m)))
                     :claims (into {} (map (fn [[k v]] [k (select-keys v ["text" "phase" "source"])]) (:claims m)))
                     :phases (into {} (map (fn [[k v]] [k (get v "label")]) (:phases m)))
