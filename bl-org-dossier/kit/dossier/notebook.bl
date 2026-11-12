@@ -1,0 +1,303 @@
+; dossier/notebook.bl — a semantic notebook: named Org tables as a closed model,
+; drawn by blocks that recompute in the reader's browser.
+;
+;   #+name: scenarios   | id | label |                       (optional; else one `value` column)
+;   #+name: inputs      | id | title | unit | <one column per scenario> | min | max | step | source | display_unit | scale |
+;   #+name: formulas    | id | title | op | reads | unit |   op ∈ add sub mul div bp min max; #N is a literal
+;
+; Values stay integers in their base unit (minutes, basis points); `scale` and
+; `display_unit` only change what the reader sees. The page renders the default
+; scenario; live.js recomputes the same operations when the reader switches or
+; adjusts. Blocks: scenarios measure bars limit chain compare range funnel controls,
+; and `{{id|format}}` inside a paragraph. Formats: mad hours count pct fte point num.
+; Pure.
+
+(ns dossier.notebook
+  (:require [dossier.ui :as ui] [bl.json :as json]))
+
+(def ops #{"add" "sub" "mul" "div" "bp" "min" "max"})
+(def blocks #{"scenarios" "measure" "bars" "limit" "chain" "compare" "range" "funnel" "controls"})
+
+(defn- num [v]
+  (cond (number? v) v
+        (or (nil? v) (= v "?") (= v "")) nil
+        :else (erlang/binary_to_integer (trim v))))
+(defn refs [s] (vec (filter (fn [x] (not (blank? x))) (map trim (String/split (or s "") ",")))))
+(defn- occurrences [s needle] (dec (count (String/split (str " " s " ") needle))))
+(defn- cols
+  "Cells of a `a | b | c` line; a `{{id|format}}` stays inside its cell."
+  [line]
+  (mapv trim (reduce (fn [acc part]
+                       (let [prev (last acc)]
+                         (if (and prev (> (occurrences prev "{{") (occurrences prev "}}")))
+                           (conj (pop acc) (str prev "|" part))
+                           (conj acc part))))
+                     [] (String/split line "|"))))
+
+(defn tables
+  "Every `#+name:`d table of the document as rows of maps."
+  [doc]
+  (let [lines (:lines doc)]
+    (reduce (fn [out nd]
+              (if (and (= :table (:t nd)) (some? (:line nd)) (> (:line nd) 0))
+                (let [l (trim (nth lines (dec (:line nd)) ""))]
+                  (if (starts-with? l "#+name:")
+                    (assoc out (trim (subs l 7))
+                           (mapv (fn [row] (zipmap (first (:head nd)) row)) (:rows nd)))
+                    out))
+                out))
+            {} (:nodes doc))))
+
+(defn model
+  "The document's model, or nil when it has no inputs and formulas tables."
+  [doc]
+  (let [t (tables doc)]
+    (when (and (seq (get t "inputs")) (seq (get t "formulas")))
+      (let [scen (or (seq (get t "scenarios")) [{"id" "value" "label" ""}])
+            start (some (fn [nd] (when (and (= :block (:t nd)) (= "scenarios" (:lang nd))) (:start (:attrs nd)))) (:nodes doc))
+            ids (mapv #(get % "id") scen)]
+        {:inputs (get t "inputs") :formulas (get t "formulas")
+         :sources (into {} (map (fn [r] [(get r "id") (or (get r "label") (get r "title"))]) (get t "sources")))
+         :scenarios (mapv (fn [s] {:id (get s "id") :label (get s "label")}) scen)
+         :default (if (contains? (set ids) start) start (if (contains? (set ids) "mid") "mid" (first ids)))}))))
+
+(defn problems
+  "Authoring errors: identities, bounds, unknown or cyclic reads, unlike additions."
+  [m]
+  (let [ids (concat (map #(get % "id") (:inputs m)) (map #(get % "id") (:formulas m)))
+        sids (map :id (:scenarios m))
+        out (atom [])
+        bad (fn [msg] (swap! out conj msg))]
+    (when (not= (count ids) (count (distinct ids))) (bad "duplicate identity among inputs and formulas"))
+    (doseq [r (:inputs m) s sids]
+      (let [v (try (num (get r s)) (catch e :invalid)) lo (num (get r "min")) hi (num (get r "max"))]
+        (cond (= :invalid v) (bad (str (get r "id") ": " s " is not an integer"))
+              (nil? v) nil
+              (or (nil? lo) (nil? hi) (< v lo) (> v hi)) (bad (str (get r "id") ": " s " outside its bounds")))))
+    (reduce (fn [known f]
+              (let [id (get f "id") op (get f "op") rs (refs (get f "reads"))
+                    units (distinct (keep #(get known %) (remove #(starts-with? % "#") rs)))]
+                (when (not (contains? ops op)) (bad (str id ": unknown operation " op)))
+                (when (or (empty? rs) (and (not= op "add") (not= 2 (count rs)))) (bad (str id ": wrong number of reads")))
+                (doseq [r rs :when (and (not (starts-with? r "#")) (not (contains? known r)))]
+                  (bad (str id ": reads " r " before it exists")))
+                (when (and (contains? #{"add" "sub" "min" "max"} op) (> (count units) 1))
+                  (bad (str id ": combines " (join " and " units))))
+                (when (and (= op "bp") (second rs) (not (starts-with? (second rs) "#")) (not= "bp" (get known (second rs))))
+                  (bad (str id ": a rate must be in basis points")))
+                (assoc known id (get f "unit"))))
+            (into {} (map (fn [r] [(get r "id") (get r "unit")]) (:inputs m))) (:formulas m))
+    @out))
+
+(defn calculate
+  "Every input and formula value for one scenario, with integer overrides."
+  [m overrides sid]
+  (reduce (fn [vals f]
+            (let [args (mapv (fn [r] (if (starts-with? r "#") (num (subs r 1)) (get vals r))) (refs (get f "reads")))
+                  a (first args) b (second args) op (get f "op")]
+              (assoc vals (get f "id")
+                     (cond (some nil? args) nil
+                           (= op "add") (reduce + 0 args)
+                           (= op "sub") (- a b)
+                           (= op "mul") (* a b)
+                           (= op "div") (when (not= b 0) (/ a b))
+                           (= op "bp") (/ (* a b) 10000)
+                           (= op "min") (min a b)
+                           (= op "max") (max a b)))))
+          (into {} (map (fn [r] [(get r "id") (if (contains? overrides (get r "id")) (get overrides (get r "id")) (num (get r sid)))]) (:inputs m)))
+          (:formulas m)))
+
+(defn context
+  "What the blocks draw from: the model, every scenario's values, the default."
+  [doc]
+  (when-let [m (model doc)]
+    (let [errs (problems m)]
+      {:model m :errors errs
+       :values (if (seq errs) {} (into {} (map (fn [s] [(:id s) (calculate m {} (:id s))]) (:scenarios m))))})))
+
+;; ---- numbers, French by default (the reader's language decides separators)
+
+(defn- fr? [] (= "fr" (erlang/get :dossier/language)))
+(defn- group [n]
+  (let [s (str n) sep (if (fr?) " " ",")]
+    (loop [s s out ""]
+      (if (<= (count s) 3) (str s out) (recur (subs s 0 (- (count s) 3)) (str sep (subs s (- (count s) 3)) out))))))
+(defn- fixed [v d]
+  (let [neg (< v 0) p (reduce * 1 (repeat d 10)) n (erlang/round (* (abs v) p))
+        i (quot n p) f (rem n p)
+        fs (if (= d 0) "" (let [s (str f) s (str (apply str (repeat (- d (count s)) "0")) s)
+                                s (String/replace s (Regex/compile! "0+$") "")]
+                            (if (blank? s) "" (str (if (fr?) "," ".") s))))]
+    (str (if neg "−" "") (group i) fs)))
+(defn- sig2 [v]
+  (if (= 0 v) 0
+    (let [p (erlang/round (math/pow 10 (- (erlang/floor (math/log10 (abs v))) 1)))]
+      (* p (erlang/round (/ v (max p 1)))))))
+(defn fmt
+  "A value as the reader reads it. nil stays visibly unknown."
+  [kind v]
+  (if (nil? v) (if (fr?) "à mesurer" "to measure")
+    (case kind
+      "mad" (let [a (abs v)]
+              (cond (>= a 1000000) (str (fixed (/ (sig2 v) 1000000) 1) " MMAD")
+                    (>= a 1000) (str (fixed (/ (sig2 v) 1000) 0) " kMAD")
+                    :else (str (fixed v 0) " MAD")))
+      "hours" (str (fixed (if (>= (abs v) 100) (* 10 (erlang/round (/ v 10))) v) 0) " h")
+      "count" (fixed v (if (< (abs v) 10) 1 0))
+      "pct" (str (fixed (/ v 100) 1) " %")
+      "point" (str (fixed (/ v 100) 2) (if (fr?) " point" " pt"))
+      "fte" (fixed v 1)
+      (fixed v (if (< (abs v) 10) 1 0)))))
+
+(defn- ctx [] (erlang/get :dossier/notebook))
+(defn- default [] (get-in (ctx) [:model :default]))
+(defn value [id] (get-in (ctx) [:values (default) id]))
+(defn- out
+  "A value the browser keeps current. `sid` pins a scenario."
+  ([id kind] (out id kind nil))
+  ([id kind sid]
+   [:span (cond-> {:class "nb-v" :data-nb id :data-fmt (or kind "num")} sid (assoc :data-nb-scen sid))
+    (fmt kind (get-in (ctx) [:values (or sid (default)) id]))]))
+(defn- tone [t] (str "--c:var(--nb-" (or (not-empty t) "ink") ")"))
+(defn- lines-of [b verb] (keep (fn [l] (let [l (trim l)] (when (starts-with? l (str verb " ")) (cols (subs l (inc (count verb))))))) (:body b)))
+(defn- input-row [id] (some #(when (= id (get % "id")) %) (get-in (ctx) [:model :inputs])))
+(defn- source-h [s]
+  (let [xs (remove #(= "HYP" %) (refs s))]
+    (when (seq xs) [:span.nb-src (join " · " (distinct (map #(get-in (ctx) [:model :sources %] %) xs)))])))
+
+(defn inline
+  "A paragraph with `{{id|format}}` drawn as live values."
+  [text]
+  (let [[lead & more] (String/split text "{{")]
+    (cons (ui/md lead)
+          (mapcat (fn [part]
+                    (let [[ref & tail] (String/split part "}}")
+                          [id kind] (String/split ref "|")]
+                      [(out (trim id) (if kind (trim kind) "num")) (ui/md (join "}}" tail))]))
+                  more))))
+
+(defn- paras-of [b] (ui/paras (remove #(starts-with? (trim %) "measure ") (:body b))))
+(defn- head-h [b] (when-let [t (:title (:attrs b))] [:h4.nb-title (ui/md t)]))
+
+(defn- scenario-buttons []
+  (let [m (:model (ctx))]
+    (when (> (count (:scenarios m)) 1)
+      [:div.nb-scenarios {:role "group" :aria-label (ui/tr "Scenario")}
+       (for [s (:scenarios m)]
+         [:button {:type "button" :data-nb-scenario (:id s) :aria-pressed (str (= (:id s) (:default m)))} (:label s)])])))
+
+(defn bar-h
+  "The scenario switch and the measures that follow the reader across sections."
+  [b]
+  [:div.nb-bar {:data-nb-bar ""}
+   (scenario-buttons)
+   [:div.nb-measures
+    (for [[id label kind t] (lines-of b "measure")]
+      [:span.nb-measure {:style (tone t)} [:small (ui/mdi label)] [:b (out id kind)]])]
+   [:span.nb-adjusted {:data-nb-adjusted "" :hidden true}
+    [:span] [:button {:type "button" :data-nb-reset ""} (ui/tr "Back to the scenario")]]])
+
+(defn- measure-h [b]
+  [:div.nb-measure-row
+   (for [[id label kind t note] (lines-of b "value")]
+     [:div.nb-big {:style (tone t)} [:b (out id kind)] [:span (ui/mdi label)] (when (not-empty note) [:small (inline note)])])])
+
+(defn- bars-h [b]
+  (let [kind (or (:format (:attrs b)) "num")
+        rows (keep (fn [l] (let [l (trim l) verb (first (String/split l " "))]
+                             (when (contains? #{"bar" "minus" "total"} verb) (into [verb] (cols (subs l (inc (count verb)))))))) (:body b))]
+    [:div.nb-bars {:data-nb-bars ""}
+     (for [[verb id label note t] rows]
+       [:div {:class (str "nb-row nb-r-" verb) :style (tone t)}
+        [:span.nb-label (ui/mdi label) (when (not-empty note) [:small (ui/mdi note)])]
+        [:span.nb-track [:i {:data-nb-w id :data-nb-sign (if (= verb "minus") "-1" "1")}]]
+        [:span.nb-num (when (= verb "minus") "− ") (out id kind)]])]))
+
+(defn- limit-h [b]
+  (let [kind (or (:format (:attrs b)) "num")
+        [[vid vlabel]] (lines-of b "value") [[lid llabel]] (lines-of b "limit") [[kid klabel]] (lines-of b "kept")]
+    [:div.nb-limit {:data-nb-limit "" :data-value vid :data-limit lid}
+     [:div.nb-limit-track [:i.raw] [:i.kept] [:b.cap]]
+     [:div.nb-limit-legend
+      [:span (ui/mdi vlabel) " " (out vid kind)]
+      [:span.cap-l (ui/mdi llabel) " " (out lid kind)]
+      (when kid [:span.kept-l (ui/mdi klabel) " " (out kid kind)])]]))
+
+(defn- chain-h [b]
+  [:div.nb-chain
+   (for [l (:body b) :let [l (trim l)] :when (not (blank? l))]
+     (if (starts-with? l "op ") [:i (trim (subs l 3))]
+       (let [[id label kind] (cols (String/replace l (Regex/compile! "^term\\s+") ""))]
+         [:span [:b (out id kind)] [:small (ui/mdi label)]])))])
+
+(defn- compare-h [b]
+  (let [m (:model (ctx))]
+    [:div.scrollx
+     [:table.nb-compare
+      [:thead [:tr [:th] (for [s (:scenarios m)] [:th {:data-nb-col (:id s)} (:label s)])]]
+      [:tbody (for [[id label kind] (lines-of b "row")]
+                [:tr [:th (ui/mdi label)] (for [s (:scenarios m)] [:td {:data-nb-col (:id s)} (out id kind (:id s))])])]]]))
+
+(defn- range-h [b]
+  (let [a (:attrs b) m (:model (ctx)) id (:value a) kind (or (:format a) "num")]
+    [:div.nb-range {:data-nb-range id :data-fmt kind}
+     [:div.nb-range-track [:i] (for [s (:scenarios m)] [:b {:data-nb-dot (:id s)}]) [:em {:data-nb-here ""}]]
+     [:div.nb-range-labels (for [s (:scenarios m)] [:span {:data-nb-col (:id s)} (:label s) " · " (out id kind (:id s))])]]))
+
+(defn- funnel-h [b]
+  (let [kinds (into {} (map (fn [[k label t]] [k {:label label :tone t}]) (lines-of b "kind")))
+        steps (lines-of b "step") levers (lines-of b "lever")
+        first-id (first (first steps))]
+    (list
+      (when (seq kinds) [:div.nb-legend (for [[_ k] kinds] [:span {:style (tone (:tone k))} [:i] (:label k)])])
+      [:div.nb-funnel {:data-nb-funnel first-id}
+       (for [[id label unit source kind] steps]
+         [:div.nb-step
+          [:b (out id (or (not-empty kind) "count"))]
+          [:span (ui/mdi label) " " [:small unit] (source-h source)]
+          (if (= kind "mad") [:div.nb-flow.money] [:div.nb-flow [:i {:data-nb-share id}]])
+          [:div.nb-levers
+           (for [[step k title today change] levers :when (= step id)]
+             [:details.nb-lever {:style (tone (:tone (get kinds k)))}
+              [:summary [:i] (ui/mdi title)]
+              [:p [:small (ui/tr "Today")] (ui/mdi today)]
+              [:p [:small (ui/tr "After")] (ui/mdi change)]])]])])))
+
+(defn- controls-h [b]
+  (let [ids (concat (refs (:inputs (:attrs b))) (map first (lines-of b "input")))]
+    [:details.nb-controls
+     [:summary (or (:title (:attrs b)) (ui/tr "Adjust the assumptions"))]
+     (for [id ids :let [r (input-row id)] :when r]
+       [:div.nb-control
+        [:label [:span (ui/mdi (get r "title"))] [:output {:data-nb-out id}]]
+        [:input {:type "range" :data-nb-input id :min (get r "min") :max (get r "max") :step (get r "step")
+                 :value (str (num (get r (default)))) :aria-label (get r "title")}]
+        [:small (if-let [s (source-h (get r "source"))] s (ui/tr "Assumption")) [:button {:type "button" :data-nb-undo id :hidden true} ""]]])]))
+
+(defn block-h
+  "A notebook block, or nil when the block is not one."
+  [b]
+  (when (contains? blocks (:lang b))
+    (let [c (ctx)]
+      (cond (nil? c) [:p.warning (str (:lang b) ": this document has no inputs and formulas tables")]
+            (seq (:errors c)) [:div.warning [:b "Notebook model"] [:ul (for [e (:errors c)] [:li e])]]
+            :else (case (:lang b)
+                    "scenarios" (list (head-h b) (scenario-buttons) (paras-of b))
+                    "measure" (list (head-h b) (measure-h b))
+                    "bars" (list (head-h b) (bars-h b))
+                    "limit" (list (head-h b) (limit-h b))
+                    "chain" (chain-h b)
+                    "compare" (list (head-h b) (compare-h b))
+                    "range" (list (head-h b) (range-h b))
+                    "funnel" (list (head-h b) (funnel-h b))
+                    "controls" (controls-h b))))))
+
+(defn payload
+  "What the browser needs to recompute: the closed model, never code."
+  [c]
+  (when (and c (empty? (:errors c)))
+    (let [m (:model c)]
+      (json/encode {:inputs (mapv (fn [r] (select-keys r (concat ["id" "title" "min" "max" "step" "display_unit" "scale"] (map :id (:scenarios m))))) (:inputs m))
+                    :formulas (mapv (fn [f] (select-keys f ["id" "op" "reads"])) (:formulas m))
+                    :scenarios (:scenarios m) :default (:default m)
+                    :lang (or (erlang/get :dossier/language) "en")}))))

@@ -229,7 +229,7 @@
       const design = $('#doc .app2')?.dataset.design;
       if (design) document.documentElement.dataset.design = design;
       else delete document.documentElement.dataset.design;
-      show(current); paintGraphs(); scrollTo(0, y);
+      show(current); paintGraphs(); window.dossierNotebook?.apply(); scrollTo(0, y);
     } catch (e) { stamp('offline · ' + e.message); }
   }
 
@@ -794,4 +794,109 @@
   });
   addEventListener('resize', () => document.querySelectorAll('[data-lifetime]').forEach(caret));
   new MutationObserver(init).observe(document.body, {childList: true, subtree: true}); init();
+})();
+
+// Semantic notebook: the page carries a closed model (inputs, formulas, scenarios);
+// the reader switches scenario or adjusts an input and every value recomputes here.
+// Nothing is written to the file; adjustments live in this browser only.
+(() => {
+  let M = null, sig = null; const st = { scenario: null, over: {} };
+  const split = v => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+  const store = () => 'nb:' + location.pathname;
+  const fr = () => M?.lang === 'fr';
+  const nf = (v, d) => new Intl.NumberFormat(fr() ? 'fr-FR' : 'en-GB', { maximumFractionDigits: d }).format(v);
+  const sig2 = v => { if (!v) return 0; const p = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 1); return Math.round(v / Math.max(p, 1)) * Math.max(p, 1); };
+  function fmt(kind, v) {
+    if (v == null || !Number.isFinite(v)) return fr() ? 'à mesurer' : 'to measure';
+    const a = Math.abs(v), sign = v < 0 ? '−' : '';
+    switch (kind) {
+      case 'mad': return a >= 1e6 ? sign + nf(Math.abs(sig2(v)) / 1e6, 1) + ' MMAD' : a >= 1e3 ? sign + nf(Math.abs(sig2(v)) / 1e3, 0) + ' kMAD' : sign + nf(a, 0) + ' MAD';
+      case 'hours': return sign + nf(a >= 100 ? Math.round(a / 10) * 10 : a, 0) + ' h';
+      case 'count': return sign + nf(a, a < 10 ? 1 : 0);
+      case 'pct': return sign + nf(a / 100, 1) + ' %';
+      case 'point': return sign + nf(a / 100, 2) + (fr() ? ' point' : ' pt');
+      case 'fte': return sign + nf(a, 1);
+      default: return sign + nf(a, a < 10 ? 1 : 0);
+    }
+  }
+  function fmtInput(r, v) {
+    const sc = Number(r.scale || 1), u = r.display_unit || '';
+    if (u === '%') return fmt('pct', v);
+    if (u === 'point') return fmt('point', v);
+    return nf(v / sc, sc > 1 ? 1 : 0) + (u ? ' ' + u : '');
+  }
+  function calc(sid, over = {}) {
+    const v = Object.fromEntries(M.inputs.map(r => [r.id, Object.hasOwn(over, r.id) ? over[r.id] : Number(r[sid])]));
+    for (const f of M.formulas) {
+      const a = split(f.reads).map(id => id.startsWith('#') ? Number(id.slice(1)) : v[id]); let x = null;
+      if (a.every(n => n != null && Number.isFinite(n))) switch (f.op) {
+        case 'add': x = a.reduce((n, y) => n + y, 0); break; case 'sub': x = a[0] - a[1]; break; case 'mul': x = a[0] * a[1]; break;
+        case 'div': x = a[1] === 0 ? null : a[0] / a[1]; break; case 'bp': x = a[0] * a[1] / 10000; break;
+        case 'min': x = Math.min(a[0], a[1]); break; case 'max': x = Math.max(a[0], a[1]); break;
+      }
+      v[f.id] = x;
+    }
+    return v;
+  }
+  function load() {
+    const el = document.getElementById('nb-model'); if (!el) { M = null; return false; }
+    M = JSON.parse(el.dataset.model); const s = JSON.stringify([M.inputs, M.formulas]);
+    if (s !== sig) {
+      sig = s; st.scenario = M.default; st.over = {};
+      try { const saved = JSON.parse(localStorage.getItem(store()) || 'null'); if (saved?.sig === s) Object.assign(st, saved.state); } catch {}
+      if (!M.scenarios.some(x => x.id === st.scenario)) { st.scenario = M.default; st.over = {}; }
+    }
+    return true;
+  }
+  const save = () => { try { localStorage.setItem(store(), JSON.stringify({ sig, state: st })); } catch {} };
+  const width = (el, share) => { el.style.width = Math.max(0, Math.min(100, share * 100)) + '%'; };
+  function apply() {
+    if (!load()) return;
+    const V = calc(st.scenario, st.over), all = Object.fromEntries(M.scenarios.map(s => [s.id, calc(s.id)]));
+    const adjusted = Object.keys(st.over).length, doc = document;
+    doc.querySelectorAll('[data-nb]').forEach(el => { const sc = el.dataset.nbScen; el.textContent = fmt(el.dataset.fmt, (sc && sc !== st.scenario ? all[sc] : V)[el.dataset.nb]); });
+    doc.querySelectorAll('[data-nb-scenario]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.nbScenario === st.scenario)));
+    doc.querySelectorAll('[data-nb-col]').forEach(c => c.classList.toggle('nb-on', c.dataset.nbCol === st.scenario));
+    doc.querySelectorAll('[data-nb-bars]').forEach(box => {
+      const bars = [...box.querySelectorAll('[data-nb-w]')], max = Math.max(1e-9, ...bars.map(b => Math.abs(V[b.dataset.nbW] || 0)));
+      bars.forEach(b => width(b, Math.abs(V[b.dataset.nbW] || 0) / max));
+    });
+    doc.querySelectorAll('[data-nb-limit]').forEach(box => {
+      const raw = V[box.dataset.value] || 0, cap = V[box.dataset.limit] || 0, max = Math.max(raw, cap, 1e-9);
+      width(box.querySelector('.raw'), raw / max); width(box.querySelector('.kept'), Math.min(raw, cap) / max);
+      box.querySelector('.cap').style.left = Math.min(100, cap / max * 100) + '%'; box.classList.toggle('nb-capped', raw > cap);
+    });
+    doc.querySelectorAll('[data-nb-funnel]').forEach(box => { const top = V[box.dataset.nbFunnel] || 1; box.querySelectorAll('[data-nb-share]').forEach(i => width(i, (V[i.dataset.nbShare] || 0) / top)); });
+    doc.querySelectorAll('[data-nb-range]').forEach(box => {
+      const id = box.dataset.nbRange, vals = M.scenarios.map(s => all[s.id][id] || 0), max = Math.max(...vals, V[id] || 0, 1e-9), pos = v => 4 + (v / max) * 92;
+      box.querySelectorAll('[data-nb-dot]').forEach((d, i) => { d.style.left = pos(vals[i]) + '%'; d.classList.toggle('nb-on', d.dataset.nbDot === st.scenario); });
+      const t = box.querySelector('.nb-range-track > i'); t.style.left = pos(Math.min(...vals)) + '%'; t.style.width = (pos(Math.max(...vals)) - pos(Math.min(...vals))) + '%';
+      const here = box.querySelector('[data-nb-here]'); here.hidden = !adjusted; here.style.left = pos(V[id] || 0) + '%';
+    });
+    doc.querySelectorAll('[data-nb-input]').forEach(inp => {
+      const id = inp.dataset.nbInput, r = M.inputs.find(x => x.id === id); if (!r) return;
+      const v = Object.hasOwn(st.over, id) ? st.over[id] : Number(r[st.scenario]);
+      if (document.activeElement !== inp) inp.value = v;
+      const o = inp.closest('.nb-control'); o.querySelector('[data-nb-out]').textContent = fmtInput(r, v);
+      const u = o.querySelector('[data-nb-undo]'); u.hidden = !Object.hasOwn(st.over, id);
+      u.textContent = (M.scenarios.find(s => s.id === st.scenario)?.label || '') + ' : ' + fmtInput(r, Number(r[st.scenario]));
+    });
+    doc.querySelectorAll('[data-nb-adjusted]').forEach(a => { a.hidden = !adjusted; a.querySelector('span').textContent = (fr() ? 'ajusté · ' : 'adjusted · ') + adjusted; });
+    save();
+  }
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-nb-scenario],[data-nb-reset],[data-nb-undo]'); if (!t || !load()) return;
+    if (t.dataset.nbScenario) { st.scenario = t.dataset.nbScenario; st.over = {}; }
+    else if (t.hasAttribute('data-nb-reset')) st.over = {};
+    else delete st.over[t.dataset.nbUndo];
+    apply();
+  });
+  document.addEventListener('input', e => {
+    const inp = e.target.closest('[data-nb-input]'); if (!inp || !load()) return;
+    const r = M.inputs.find(x => x.id === inp.dataset.nbInput), v = Number(inp.value);
+    if (v === Number(r[st.scenario])) delete st.over[r.id]; else st.over[r.id] = v;
+    apply();
+  });
+  window.dossierNotebook = { apply, calc: (sid, over) => (load(), calc(sid, over)), fmt, state: st };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
 })();

@@ -136,7 +136,7 @@
       (String/replace (Regex/compile! "[^a-z0-9]+") "-")
       (String/replace (Regex/compile! "^-|-$") "")))
 
-(defn- paras
+(defn paras
   "Body lines → paragraphs (blank lines split them)."
   [lines]
   (for [chunk (partition-by blank? lines) :when (not (blank? (first chunk)))]
@@ -168,6 +168,8 @@
    "Click the screen's own controls. Hover for tools · H highlights links · G shows the graph."
    "Cliquez dans l'écran. Survolez pour les outils · H montre les liens · G le graphe."
    "answered" "répondu" " questions wait for you →" " questions vous attendent →" "Whole document" "Tout le document"
+   "Scenario" "Scénario" "Back to the scenario" "Revenir au scénario" "Today" "Aujourd'hui" "After" "Ensuite"
+   "Adjust the assumptions" "Ajuster les hypothèses" "Assumption" "Hypothèse" "adjusted" "ajusté"
    "live" "en direct" "source .bl.org" "source .bl.org" "theme" "thème"})
 
 (defn tr

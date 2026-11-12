@@ -5,6 +5,11 @@ description: Write a design / architecture / taste dossier as a .bl.org file tha
 
 # .bl.org dossiers that talk back
 
+For interactive scenario, pricing or impact notebooks, read
+[`references/notebooks.md`](references/notebooks.md): native Org records,
+declared calculation dependencies, units, evidence and revisioned scenarios.
+Compose the existing source-backed views before introducing a new kit block.
+
 A dossier is **one `.bl.org` file**. It is the source, the page, the
 executable spec and the answer sheet. A small Beam Lisp server (the kit, next
 to this file) renders it with the real `bl.doc.spans` partition, publishes it on
@@ -46,6 +51,19 @@ House taste it descends from: `~/code/undefine/omega/spikes/mobile/design-review
 ## Shape (Othman's taste)
 
 Open with the thesis, end with what he must decide. In between, earn each section.
+
+Design for a reader arriving with no prior context. Establish whose work this is,
+what they are trying to understand or decide, and the next useful action on the
+first screen. Menus and headings should follow that person's questions. A
+catalog of concepts, components or implementation details is supporting material,
+not the experience's opening.
+
+For explanatory notebooks, prefer a short visual progression: one question,
+one causal diagram or chart, its controls and its consequence together. Keep
+the scenario and relevant context across steps. Put sources and detailed models
+within reach without requiring a new page to understand the current result.
+Check that a stranger can explain the model from the rendered experience;
+layout tests and feature counts cannot establish that.
 
 - `#+title:` names the thing and its promise. `#+subtitle:` one sentence. `#+kicker:` where it lives. `#+status:` honest (*Proposal · nothing built yet*).
 - `#+language: fr` puts the kit's own words (tally, feedback forms, sidebar, screen help) and `<html lang>` in French; the default is English.
@@ -111,6 +129,7 @@ Header attributes: `:key value` or `:key "quoted value"`. Bodies are line langua
 | `roster :id :source :title :start :who` | Ordinary Org task headings and their drawers, read from `:source` by the connected review host | A live work list with filters, inline evidence, blockers, next action, task notes and explicit roster approval; see Org-native rosters below |
 | `witness :id :title :run :frames` | optional `:scope` describes what was exercised | actual Scenario Runner claims paired with their recorded browser frames, one at a time; timestamp, verdicts, full-size frame link and feedback; no fabricated movie |
 | `claims :id :title [:src "/views"] [:lang fr] [:ids true]` | `group Title`, then `claim ID \| phase \| desks \| text \| source \| screens` (desks comma-separated, screens space-separated view ids, may be empty); `label TOKEN \| Text` names a phase, desk or screen for the reader (claim IDs stay anchors unless `:ids true`) | a filterable ledger of a proposal's promises: coverage per phase (claims with ≥1 screen / all), phase and desk filters, source and desk chips; a screen chip opens `SRC?view=ID` in a dialog; a claim with no screen reads as an open promise; answerable. See *Claims and a contract's lifetime* |
+| `scenarios` `measure` `bars` `limit` `chain` `compare` `range` `funnel` `controls` | notebook blocks over named `inputs`/`formulas` tables; see [notebooks.md](references/notebooks.md) | figures that recompute in the browser when the reader switches scenario or adjusts an assumption; `{{id\|format}}` inline |
 | `lifetime :id :title :start YYYY-MM :end YYYY-MM [:lang fr]` | `lane ID \| Label \| tone`, `span LANE \| YYYY-MM \| YYYY-MM \| label`, `handoff LANE -> LANE \| YYYY-MM \| label`, `marker YYYY-MM \| label` | lanes on a month axis, spans as bars whose labels never collide, handoffs as connectors, markers as full-height lines; selecting one shows its detail under the timeline; the timeline scrolls inside its own box and the same facts follow as a list in order; answerable |
 
 A `schema` or `procedure` block is also the source a cell can compile: `bl doc run`

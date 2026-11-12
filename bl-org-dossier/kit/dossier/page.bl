@@ -7,7 +7,7 @@
 (ns dossier.page
   (:require [dossier.org :as o] [dossier.ui :as ui] [dossier.design :as design] [dossier.film :as film]
             [dossier.runview :as rv] [dossier.horizon :as hz] [dossier.witness :as witness]
-            [dossier.milestones :as milestones] [dossier.claims :as claims] [dossier.lifetime :as lifetime] [dossier.review.ui :as review]))
+            [dossier.milestones :as milestones] [dossier.claims :as claims] [dossier.lifetime :as lifetime] [dossier.notebook :as nb] [dossier.review.ui :as review]))
 
 (def answerable #{"ask" "decision" "screen" "screen_graph" "desk" "job" "schema" "procedure" "film" "run" "horizons" "witness" "milestones" "claims" "lifetime"
                   "ontology_graph" "settings_graph" "code_graph" "settings_pages" "roster"})
@@ -59,11 +59,12 @@
                [tag {:id (ui/slug (:title nd))}
                 (todo-chip (:todo nd)) (ui/md (:title nd))
                 (for [t (:tags nd)] [:span.tag t])])
-    :para [:p (ui/md (:text nd))]
+    :para [:p (if (and (erlang/get :dossier/notebook) (includes? (:text nd) "{{")) (nb/inline (:text nd)) (ui/md (:text nd)))]
     :list [(if (:ordered? nd) :ol :ul)
            (for [it (:items nd)]
              (cond (starts-with? it "[X] ") [:li.check.done (ui/md (subs it 4))]
                    (starts-with? it "[ ] ") [:li.check (ui/md (subs it 4))]
+                   (and (erlang/get :dossier/notebook) (includes? it "{{")) [:li (nb/inline it)]
                    :else [:li (ui/md it)]))]
     :table [:div.scrollx
             [:table
@@ -78,7 +79,7 @@
              "lifetime" (lifetime/lifetime-h nd)
              "run" (phone-h nd)
              "horizons" (hz/horizons-h nd)
-             (or (design/block-h nd) (ui/block->h nd))))
+             (or (nb/block-h nd) (design/block-h nd) (ui/block->h nd))))
     :screens [:div.screens (map phone-h (:blocks nd))]
     :cell [:section {:class (str "cell" (if (:error? nd) " failed" "")) :id (str "cell-" (:id nd))}
            [:div.cell-head
@@ -169,6 +170,9 @@
   [doc]
   (let [meta (:meta doc)
         _ (erlang/put :dossier/language (:language meta))
+        nbc (nb/context doc)
+        _ (erlang/put :dossier/notebook nbc)
+        dock (first (filter (fn [nd] (and (= :block (:t nd)) (= "scenarios" (:lang nd)))) (:nodes doc)))
         secs (vec (sections (group-screens (with-procedures (with-design (:design meta) (:nodes doc))))))
         n (count secs)]
     (list
@@ -196,7 +200,10 @@
              [:nav.pager
               (when (> i 0) (let [p (get secs (dec i))] [:a.prev {:href (str "#" (sec-id p))} "← " (if (:head p) (:title (:head p)) "Overview")]))
               (when (< (inc i) n) (let [x (get secs (inc i))] [:a.next {:href (str "#" (sec-id x))} (if (:head x) (:title (:head x)) "Overview") " →"]))]])
-          secs)]])))
+          secs)
+        (when-let [p (nb/payload nbc)]
+          (list [:div#nb-model {:hidden true :data-model p}]
+                (when dock [:div.nb-dock (nb/bar-h dock)])))]])))
 
 (defn page-h
   "The full HTML document."

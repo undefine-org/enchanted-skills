@@ -8,7 +8,7 @@
 (ns dossier.kit.test
   (:require [live.hiccup :as h] [dossier.attrs :as at] [dossier.org :as o]
             [dossier.page :as pg] [dossier.answer :as ans] [dossier.design.forest :as forest] [dossier.film :as film]
-            [dossier.ui :as ui] [dossier.tone] [dossier.claims :as claims] [dossier.lifetime :as lifetime]))
+            [dossier.ui :as ui] [dossier.tone] [dossier.claims :as claims] [dossier.lifetime :as lifetime] [dossier.notebook :as nb]))
 
 (deftest a-screen-graph-can-branch-and-take-feedback
   (let [lines ["#+design: forest" "* Walk"
@@ -324,3 +324,44 @@
                  ["lane a | A" "span a | 2026-13 | 2026-14 | Bad month"]
                  ["lane a | A" "handoff a to b | 2026-01 | Bad arrow"]]]
     (is (seq (:errors (lifetime/parse {:start "2026-01" :end "2026-12"} lines))) (pr-str lines))))
+
+(def ^:private notebook-lines
+  ["#+language: fr" "* Valeur"
+   "#+begin_scenarios :start mid" "measure gain | Gagné | hours | blue" "#+end_scenarios"
+   "Un gain de {{gain|hours}} par an."
+   "#+begin_bars :format hours" "bar gain | Gagné | équipe | blue" "minus upkeep | Entretien | | signal" "#+end_bars"
+   "#+begin_limit :format mad" "value work | Gagné" "limit room | Chantiers" "kept kept | Compté" "#+end_limit"
+   "#+begin_compare" "row gain | Gagné | hours" "#+end_compare"
+   "#+begin_controls :inputs \"minutes\"" "#+end_controls"
+   "* Modèle"
+   "#+name: scenarios" "| id | label |" "|---+---|" "| low | Prudent |" "| mid | Central |"
+   "#+name: inputs" "| id | title | unit | low | mid | min | max | step | source | display_unit | scale |" "|---+---+---+---+---+---+---+---+---+---+---|"
+   "| minutes | Minutes gagnées | min/an | 6000 | 12000 | 0 | 60000 | 600 | HYP | h | 60 |"
+   "| upkeep | Entretien | h/an | 50 | 50 | 0 | 500 | 10 | HYP | h/an | 1 |"
+   "| work | Travaux | MAD/an | 30000000 | 30000000 | 0 | 90000000 | 1000000 | HYP | MMAD | 1000000 |"
+   "| room | Chantiers | MAD/an | 20000000 | 20000000 | 0 | 90000000 | 1000000 | HYP | MMAD | 1000000 |"
+   "#+name: formulas" "| id | title | op | reads | unit |" "|---+---+---+---+---|"
+   "| raw | Heures | div | minutes,#60 | h/an |" "| gain | Heures nettes | sub | raw,upkeep | h/an |" "| kept | Compté | min | work,room | MAD/an |"])
+
+(deftest a-notebook-draws-its-model-and-carries-it-to-the-browser
+  (let [doc (o/read-doc (join "\n" notebook-lines))
+        m (nb/model doc)
+        html (h/hiccup->html (pg/page-h doc "" ""))]
+    (is (empty? (nb/problems m)))
+    (is (= "mid" (:default m)))
+    (is (= 150 (get (nb/calculate m {} "mid") "gain")))
+    (is (= 50 (get (nb/calculate m {} "low") "gain")))
+    (is (= 20000000 (get (nb/calculate m {} "mid") "kept")))
+    (doseq [needle ["data-nb-scenario=\"low\"" "aria-pressed=\"true\"" "data-nb=\"gain\"" "150 h" "data-nb-w=\"upkeep\""
+                    "data-nb-limit" "data-limit=\"room\"" "20 MMAD" "data-nb-col=\"low\"" "data-nb-input=\"minutes\""
+                    "nb-dock" "id=\"nb-model\"" "Ajuster les hypothèses"]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (not (includes? html "{{gain|hours}} par an.</p>")) "an inline value is drawn, not printed")))
+
+(deftest a-notebook-names-its-authoring-errors
+  (let [m {:scenarios [{:id "value"}]
+           :inputs [{"id" "a" "unit" "h" "value" "5" "min" "0" "max" "3"} {"id" "b" "unit" "MAD" "value" "1" "min" "0" "max" "9"}]
+           :formulas [{"id" "c" "op" "add" "reads" "a,b" "unit" "h"} {"id" "d" "op" "pow" "reads" "a,zz" "unit" "h"}]}
+        errs (nb/problems m)]
+    (doseq [needle ["outside its bounds" "combines" "unknown operation" "reads zz before it exists"]]
+      (is (some #(includes? % needle) errs) (str "missing " needle)))))
