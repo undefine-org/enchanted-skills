@@ -58,7 +58,7 @@
         doc (audience/view (read-doc text) mode (audience/locked?))
         doc (if (contains? designs asked) (assoc-in doc [:meta :design] asked) doc)]
     (erlang/put :dossier/params
-                (join "&" (remove (fn [s] (= "" s))
+                (join "&" (keep (fn [x] x)
                              [(when (= "client" mode) "mode=client")
                               (when (contains? designs asked) (str "design=" asked))])))
     doc))
