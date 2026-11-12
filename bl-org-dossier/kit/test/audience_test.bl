@@ -48,3 +48,10 @@
 
 (deftest the-default-hides-the-explorer-and-internal-tags
   (is (= {:blocks #{"explorer"} :tags #{"internal" "interne"}} (audience/hides {}))))
+
+(deftest a-warm-dossier-keeps-its-bar-exactly-as-it-was
+  (let [warm (o/read-doc (join "\n" ["#+title: Proposal" "#+design: warm-signal" "* Desk" "Word."]))
+        html (h/hiccup->html (pg/page-h warm "" ""))]
+    (is (not (includes? html "id=\"audience\"")) "warm dossiers gain no client switch")
+    (is (includes? html "source .bl.org"))
+    (is (includes? html "id=\"theme\""))))

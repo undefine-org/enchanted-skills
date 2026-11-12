@@ -289,14 +289,21 @@ level-2 as their parts.
 
 ## Client mode
 
-A proposal is one file read two ways. `#+client_hide: explorer ask decision :interne:`
-names what the client never sees: block kinds, and (between colons) heading
-tags whose whole subtree goes. The default is `explorer :internal: :interne:`.
-A heading left empty goes too; screens keep their views but lose the component
-inspector. The live bar's « Vue client » (`?mode=client`) previews that reading
-for the author. A service started with `DOSSIER_MODE=client` serves only it:
-no source, answers, review thread or explorer routes. Give the client that
-service's link, never the author's. Code: `kit/dossier/audience.bl`.
+A proposal is one file read two ways, and both switches are header lines, so a
+dossier decides its own audience and its own look:
+
+    #+design: sober                  # warm-signal when absent; sober is opt-in
+    #+client_hide: explorer ask decision :interne:
+
+`#+client_hide:` names what the client never sees: block kinds, and (between
+colons) heading tags whose whole subtree goes. The default is `explorer
+:internal: :interne:`. A heading left empty goes too; screens keep their views
+but lose the component inspector. Writing the line at all — even empty — opts
+the dossier into the « Vue client » preview (`?mode=client`); dossiers without
+it keep their bar exactly as it was. A service started with
+`DOSSIER_MODE=client` serves only the client's reading: no source, answers,
+review thread or explorer routes. Give the client that service's link, never
+the author's. Code: `kit/dossier/audience.bl`.
 
 ## Design languages
 
@@ -305,6 +312,10 @@ mockups: headings, prose, navigation, feedback controls and diagrams share its
 font roles and palette. A block can override with `:design NAME` or opt out with
 `:design none`; the mockup lines don't change. Prefer the product's own language
 over the kit's default palette whenever one exists.
+
+`#+design:` is the only switch, and it is per dossier: without the keyword a
+dossier renders exactly as before, so a new language can be merged without
+touching the documents that don't ask for it.
 
 The kit's base CSS is in `@layer dossier`; product CSS sits outside that layer,
 so an intended product heading is not silently overridden by a more specific

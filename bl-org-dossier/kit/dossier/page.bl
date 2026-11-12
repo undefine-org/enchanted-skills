@@ -260,7 +260,10 @@
     (if locked
       [:div.live [:i] [:span#stamp (ui/tr "live")] [:button#theme {:type "button"} (ui/tr "theme")]]
       [:div.live [:i] [:span#stamp (ui/tr "live")] [:a {:href "src"} "source .bl.org"]
-       [:button#audience {:type "button" :aria-pressed (if (audience/client? doc) "true" "false")} (if fr "Vue client" "Client view")]
+       ;; Opt-in only: a dossier with `#+client_hide:` declares a client reading;
+       ;; every other dossier keeps its bar exactly as it was.
+       (when (or (:client_hide (get-in doc [:meta])) (:mode (get-in doc [:meta])))
+         [:button#audience {:type "button" :aria-pressed (if (audience/client? doc) "true" "false")} (if fr "Vue client" "Client view")])
        [:button#theme {:type "button"} (ui/tr "theme")]
        [:button#review-toggle {:type "button" :aria-controls "dossier-review" :aria-expanded "false"}
         (if fr "Commentaires" "Comments")]])
