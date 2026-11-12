@@ -24,6 +24,8 @@ strong{font-weight:650}
 .live i{width:7px;height:7px;border-radius:50%;background:var(--sage);box-shadow:0 0 0 3px color-mix(in srgb,var(--sage) 25%,transparent)}
 .live a{margin-left:auto;color:var(--muted)}
 .live button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;font:inherit;font-family:var(--font-ui);padding:2px 8px}
+.live #audience[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.app2[data-mode="client"] .side-sec .wait,.app2[data-mode="client"] .side-sec .ok,.app2[data-mode="client"] form.fb,.app2[data-mode="client"] [data-sg-inspect],.app2[data-mode="client"] [data-source-inspect]{display:none}
 
 header.doc{padding:36px 0 8px}
 .kicker{font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--clay);margin-bottom:10px}

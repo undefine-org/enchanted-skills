@@ -224,7 +224,7 @@
       if (rev === null) { rev = r.rev; if (!force) return; }
       if (r.rev === rev && !force) return;
       if (busy || editing()) return;
-      const d = await (await fetch('doc', { cache: 'no-store' })).json();
+      const d = await (await fetch('doc' + location.search, { cache: 'no-store' })).json();
       const y = scrollY; $('#doc').innerHTML = d.html; rev = d.rev;
       const design = $('#doc .app2')?.dataset.design;
       if (design) document.documentElement.dataset.design = design;
@@ -258,6 +258,13 @@
     finally { busy = false; f.classList.remove('sending'); }
   });
 
+  // ── the client's reading: the same file without its internal parts (dossier/audience.bl) ──
+  const audience = $('#audience');
+  if (audience) audience.onclick = () => {
+    const url = new URL(location.href), on = url.searchParams.get('mode') !== 'client';
+    if (on) url.searchParams.set('mode', 'client'); else url.searchParams.delete('mode');
+    history.replaceState(null, '', url); audience.setAttribute('aria-pressed', String(on)); refresh(true);
+  };
   $('#theme').onclick = () => {
     const r = document.documentElement, dark = matchMedia('(prefers-color-scheme: dark)').matches;
     const cur = r.dataset.theme || (dark ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark';

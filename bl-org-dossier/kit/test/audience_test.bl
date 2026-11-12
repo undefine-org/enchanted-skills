@@ -1,0 +1,50 @@
+; test/audience_test.bl — the client reads the same file, without its internals.
+;
+;   bl test -p ~/.claude/skills/bl-org-dossier/kit test/audience_test.bl
+
+(ns dossier.audience.test
+  (:require [live.hiccup :as h] [dossier.org :as o] [dossier.page :as pg] [dossier.audience :as audience]))
+
+(def lines
+  ["#+title: Proposal" "#+language: fr" "#+client_hide: explorer ask :interne:"
+   "* Desk"
+   "The desk in one sentence."
+   "#+begin_screen_graph :id desk :title Desk :src \"/views\" :catalog \"/explorer.json\" :explorer \"/explorer\" :start a"
+   "view a | A"
+   "#+end_screen_graph"
+   "** Components"
+   "#+begin_explorer :id parts :title Parts :src \"/explorer\""
+   "view all | All | id:x"
+   "#+end_explorer"
+   "** Questions"
+   "#+begin_ask :id q1 :title Which? :options \"A|B\""
+   "Pick one."
+   "#+end_ask"
+   "** Our margin :interne:"
+   "We bill 40 % over cost."
+   "*** Detail"
+   "Deeper still."
+   "** What we promise"
+   "Kept."])
+
+(deftest the-client-reading-drops-internal-parts-and-empty-headings
+  (let [doc (o/read-doc (join "\n" lines))
+        client (audience/for-client doc)
+        html (h/hiccup->html (pg/page-h client "" ""))
+        author (h/hiccup->html (pg/page-h doc "" ""))]
+    (doseq [gone ["Components" "component-explorer" "Questions" "Pick one." "Our margin" "40 %" "Deeper still."
+                  "data-component-explorer" "data-component-catalog"]]
+      (is (includes? author gone) (str "the author's reading lost " gone))
+      (is (not (includes? html gone)) (str "the client still sees " gone)))
+    (doseq [kept ["The desk in one sentence." "What we promise" "Kept." "screen-graph" "data-mode=\"client\"" "Vue client"]]
+      (is (includes? html kept) (str "the client lost " kept)))
+    (is (= "client" (audience/mode-of "x=1&mode=client")))
+    (is (nil? (audience/mode-of "mode=author")))))
+
+(deftest a-locked-client-service-offers-no-source-no-toggle-no-review
+  (let [html (h/hiccup->html (pg/page-h (audience/view (o/read-doc (join "\n" lines)) nil true) "" ""))]
+    (doseq [gone ["source .bl.org" "id=\"audience\"" "review.js" "dossier-review" "Commentaires"]]
+      (is (not (includes? html gone)) (str "a locked page still has " gone)))))
+
+(deftest the-default-hides-the-explorer-and-internal-tags
+  (is (= {:blocks #{"explorer"} :tags #{"internal" "interne"}} (audience/hides {}))))

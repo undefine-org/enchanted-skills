@@ -5,6 +5,9 @@
 ;   DOSSIER_OWNER=login@domain  → only that Tailscale identity may answer.
 ;   DOSSIER_HANDLE=handle       → the name answers carry in :by (else the
 ;                                 login's part before @; never the email).
+;   DOSSIER_MODE=client         → only the client's reading (dossier/audience.bl):
+;                                 no /src, no answers, no review thread.
+;   ?mode=client on / and /doc  → the author previews that reading.
 ;
 ; Routes: GET /        the page        GET /doc   {rev html} for live refresh
 ;         GET /rev     {rev}           GET /src   the .bl.org itself
@@ -13,7 +16,7 @@
 (ns serve
   (:require [web] [live.hiccup :as h] [bl.json :as json]
             [dossier.org :as o] [dossier.page :as pg] [dossier.answer :as ans] [dossier.film :as film]
-            [dossier.feedback :as feedback] [dossier.witness :as witness] [dossier.review.http :as review] [dossier.notebook :as nb]))
+            [dossier.feedback :as feedback] [dossier.witness :as witness] [dossier.review.http :as review] [dossier.notebook :as nb] [dossier.audience :as audience]))
 
 (defn- arg-path []
   (let [a (first (BeamLisp/argv))]
@@ -36,11 +39,17 @@
   (let [owner (System/get_env "DOSSIER_OWNER")]
     (or (blank? owner) (= owner (web/req-header conn "tailscale-user-login")))))
 
-(defn- full-page [text]
-  (str "<!doctype html>" (h/hiccup->html (pg/page-h (read-doc text) (asset "style.css") (asset "live.js")))))
+(defn- reading [conn text] (audience/view (read-doc text) (audience/mode-of (web/query conn)) (audience/locked?)))
 
-(defn- doc-json [text]
-  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (read-doc text))))})
+(defn- full-page [conn text]
+  (str "<!doctype html>" (h/hiccup->html (pg/page-h (reading conn text) (asset "style.css") (asset "live.js")))))
+
+(defn- doc-json [conn text]
+  {:rev (rev text) :html (join "" (map h/hiccup->html (pg/doc-h (reading conn text))))})
+
+(defn- client-only [conn]
+  (when (and (audience/locked?) (contains? #{"/src" "/answers" "/answer"} (web/path conn)))
+    (web/text conn 404 "not found")))
 
 (defn- post-answer [conn]
   (if (not (owner-ok? conn))
@@ -52,15 +61,16 @@
       (web/json conn (:status result) (:body result)))))
 
 (defn router [conn]
- (or (review/route conn doc-path)
+ (or (client-only conn)
+     (when-not (audience/locked?) (review/route conn doc-path))
  (let [match (Regex/run (Regex/compile! "^/witness-media/([A-Za-z0-9_-]+)/(frame-[1-9][0-9]*\\.png)$") (web/path conn))]
   (if match
    (if-let [path (witness/media-path (o/read-doc (File/read! doc-path)) (Path/dirname doc-path) (nth match 1) (nth match 2))]
     (web/bytes (web/resp-header conn "cache-control" "private, no-store") "image/png" (File/read! path))
     (web/text conn 404 "Recorded frame unavailable"))
    (web/route conn
-    [:get "/"] (web/html conn (full-page (File/read! doc-path)))
-    [:get "/doc"] (web/json conn (doc-json (File/read! doc-path)))
+    [:get "/"] (web/html conn (full-page conn (File/read! doc-path)))
+    [:get "/doc"] (web/json conn (doc-json conn (File/read! doc-path)))
     [:get "/rev"] (web/json conn {:rev (rev (File/read! doc-path))})
     [:get "/src"] (web/text conn (File/read! doc-path))
     [:get "/answers"] (web/json conn (vec (map (fn [i] (into {} (for [[k v] i :when v] [(name k) v])))
@@ -69,6 +79,10 @@
     :else (web/text conn 404 "not found"))))))
 
 (def port (let [p (System/get_env "PORT")] (if p (erlang/binary_to_integer p) 4071)))
+
+;; Pay one full render before the first reader: loading a namespace after
+;; web/serve has pinned this file is what beam-lisp refuses (code_leased).
+(pg/page-h (read-doc (File/read! doc-path)) "" "")
 
 (web/serve {:port port :ip (tuple 127 0 0 1) :plug router :log :off})
 (println (str "dossier: " doc-path " on http://127.0.0.1:" port "/"))

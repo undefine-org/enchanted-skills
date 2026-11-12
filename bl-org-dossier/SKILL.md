@@ -287,6 +287,17 @@ everything; any `#anchor` opens the section that holds it. On a phone the chips
 switch sections the same way. Write level-1 headings as the report's pages and
 level-2 as their parts.
 
+## Client mode
+
+A proposal is one file read two ways. `#+client_hide: explorer ask decision :interne:`
+names what the client never sees: block kinds, and (between colons) heading
+tags whose whole subtree goes. The default is `explorer :internal: :interne:`.
+A heading left empty goes too; screens keep their views but lose the component
+inspector. The live bar's « Vue client » (`?mode=client`) previews that reading
+for the author. A service started with `DOSSIER_MODE=client` serves only it:
+no source, answers, review thread or explorer routes. Give the client that
+service's link, never the author's. Code: `kit/dossier/audience.bl`.
+
 ## Design languages
 
 `#+design: forest` applies the product's language to the report as well as its

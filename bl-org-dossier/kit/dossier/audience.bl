@@ -1,0 +1,75 @@
+; dossier/audience.bl — the same file, read by the client.
+;
+; `#+client_hide: explorer ask decision :interne:` names what a client never
+; sees: block kinds, and (between colons) heading tags whose whole subtree goes.
+; A heading left with nothing under it goes too, and screens keep their views
+; but lose the component catalog behind them. Pure.
+
+(ns dossier.audience)
+
+(def default-hide "explorer :internal: :interne:")
+
+(defn hides
+  "{:blocks #{lang …} :tags #{tag …}} from `#+client_hide:` (or the default)."
+  [meta]
+  (let [words (filter (fn [w] (not (blank? w))) (String/split (or (:client_hide meta) default-hide) " "))
+        tag? (fn [w] (and (> (count w) 2) (starts-with? w ":") (ends-with? w ":")))]
+    {:blocks (set (remove tag? words))
+     :tags (set (map (fn [w] (subs w 1 (dec (count w)))) (filter tag? words)))}))
+
+(defn client? [doc] (= "client" (get-in doc [:meta :mode])))
+
+(defn- bare-screen
+  "A screen still shows and navigates; its inspector has no catalog to open."
+  [nd]
+  (if (and (= :block (:t nd)) (contains? #{"screen" "screen_graph"} (:lang nd)))
+    (update nd :attrs dissoc :catalog :explorer)
+    nd))
+
+(defn- marked
+  "[[node keep?] …]: a hidden tag drops its heading's subtree, a hidden kind its block."
+  [{:keys [blocks tags]} nodes]
+  (loop [ns nodes cut nil out []]
+    (if (empty? ns) out
+      (let [nd (first ns)]
+        (if (= :heading (:t nd))
+          (let [cut (when (and cut (> (:level nd) cut)) cut)
+                hide (or cut (when (some (fn [t] (contains? tags t)) (:tags nd)) (:level nd)))]
+            (recur (rest ns) hide (conj out [nd (nil? hide)])))
+          (recur (rest ns) cut
+                 (conj out [nd (and (nil? cut) (not (and (= :block (:t nd)) (contains? blocks (:lang nd)))))])))))))
+
+(defn- hollow?
+  "A kept heading whose own body was all dropped, with no kept subsection under it."
+  [ms i]
+  (let [[h] (nth ms i)
+        body (take-while (fn [[nd]] (not= :heading (:t nd))) (drop (inc i) ms))
+        [nxt nxt-keep] (first (drop (+ i 1 (count body)) ms))]
+    (and (seq body) (every? (fn [[_ k]] (not k)) body)
+         (not (and nxt nxt-keep (> (:level nxt) (:level h)))))))
+
+(defn for-client
+  "The document as its client reads it: internal parts removed, `:mode` client."
+  [doc]
+  (let [ms (marked (hides (:meta doc)) (:nodes doc))
+        kept (keep-indexed (fn [i [nd k]] (when (and k (not (and (= :heading (:t nd)) (hollow? ms i)))) (bare-screen nd))) ms)]
+    (-> doc (assoc :nodes (vec kept)) (assoc-in [:meta :mode] "client"))))
+
+(defn view
+  "`mode` \"client\" (from the URL) or a locked client service shows the client's
+   reading; anything else the author's."
+  [doc mode locked?]
+  (cond locked? (assoc-in (for-client doc) [:meta :locked] "t")
+        (= "client" mode) (for-client doc)
+        :else doc))
+
+(defn mode-of
+  "\"client\" when a query string (`a=1&mode=client`) asks for the client's reading."
+  [query]
+  (when (contains? (set (String/split (or query "") "&")) "mode=client") "client"))
+
+(defn locked?
+  "`DOSSIER_MODE=client`: this server only ever shows the client's reading — no
+   source, no answers, no review thread, no component explorer."
+  []
+  (= "client" (System/get_env "DOSSIER_MODE")))
