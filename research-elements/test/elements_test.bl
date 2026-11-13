@@ -1,0 +1,25 @@
+(ns research.elements-test (:require [research.elements :as e]))
+(def edges
+ [{:id "good" :from "a" :to "b" :from-year 2020 :to-year 2022 :state :supported :evidence [{:source "s" :locator "p1"}]}
+  {:id "second" :from "b" :to "c" :from-year 2020 :state :supported :evidence [{:source "s" :locator "p2"}]}
+  {:id "candidate" :from "a" :to "d" :from-year 2020 :state :candidate :evidence [{:source "s" :locator "p3"}]}
+  {:id "no-locator" :from "a" :to "e" :from-year 2020 :state :supported :evidence [{:source "s"}]}])
+(deftest local-retrieval-respects-evidence-time-and-hop-budget
+ (is (= #{"a"} (:entities (e/neighbours edges ["a"] 2021 0))))
+ (is (= #{"a" "b"} (:entities (e/neighbours edges ["a"] 2021 1))))
+ (is (= #{"a" "b" "c"} (:entities (e/neighbours edges ["a"] 2021 2))))
+ (is (= [] (:edges (e/neighbours edges ["a"] 2023 2))))
+ (is (= [] (:edges (e/neighbours edges ["a"] 2019 2)))))
+(deftest snapshot-roundtrip-never-evaluates-its-text
+ (let [v (e/element {:question "What?\n#+end_research_element" :basis "v1" :scope "a" :year 2021}
+                    {:kind :network :rows [{:text "(throw :not-code)"}]})
+       saved (first (e/read-records (e/org-record "e-1" "Title\nInjected" v)))]
+  (is (= v (dissoc saved :id)))
+  (is (= :stale (e/freshness saved "v2")))
+  (is (= :current (e/freshness saved "v1")))))
+(deftest unknown-renderer-and-missing-basis-are-rejected
+ (is (try (e/element {:question "x" :basis "v"} {:kind :eval}) false (catch _ true)))
+ (is (try (e/element {:question "x" :basis ""} {:kind :network}) false (catch _ true))))
+(deftest editor-registration-remains-data
+ (is (= "block" (:scope (e/editor-descriptor :network))))
+ (is (= "research/network" (:id (e/editor-descriptor :network)))))

@@ -1,0 +1,54 @@
+(ns research.elements
+  (:require [clojure.edn :as edn]))
+
+(def kinds #{:network :comparison :timeline :shortlist :gaps})
+(def VERSION 1)
+
+(defn supported?
+  "An assertion needs a source AND a locator. Scores never substitute for evidence."
+  [claim]
+  (and (= :supported (:state claim)) (seq (:evidence claim))
+       (every? (fn [e] (and (not (blank? (:source e))) (not (blank? (:locator e))))) (:evidence claim))))
+
+(defn neighbours
+  "Bounded local retrieval. Only supported, dated edges in the selected corpus enter the graph."
+  [edges seeds year hops]
+  (let [eligible (filter (fn [e] (and (supported? e) (<= (:from-year e) year)
+                                    (or (nil? (:to-year e)) (<= year (:to-year e))))) edges)]
+    (loop [seen (set seeds) remaining (max 0 (min 3 hops))]
+      (if (= remaining 0)
+        {:entities seen :edges (vec (filter (fn [e] (and (contains? seen (:from e)) (contains? seen (:to e)))) eligible))}
+        (let [touch (filter (fn [e] (or (contains? seen (:from e)) (contains? seen (:to e)))) eligible)
+              next (into seen (mapcat (fn [e] [(:from e) (:to e)]) touch))]
+          (recur next (- remaining 1)))))))
+
+(defn element
+  "The harness emits finite data, never executable model text. Renderer IDs are allowlisted."
+  [request result]
+  (when-not (contains? kinds (:kind result)) (throw (ex-info "Unknown element renderer" {:kind (:kind result)})))
+  (when (or (blank? (:question request)) (blank? (:basis request)))
+    (throw (ex-info "Question and source revision are required" {})))
+  (merge {:version VERSION :question (:question request) :basis (:basis request)
+          :scope (:scope request) :year (:year request) :recipe (:recipe request) :origin :fixture-query
+          :function (str "research/" (name (:kind result))) :function-version 1}
+         (select-keys result [:kind :title :entity-ids :edge-ids :source-ids :nodes :edges :sources :rows :gaps :summary])))
+
+(defn org-record [id title value]
+  (when-not (Regex/match? #"^[a-z0-9-]+$" id) (throw (ex-info "Invalid element identity" {})))
+  (let [safe-title (String/replace (String/replace title "\n" " ") "\r" " ")]
+    (str "* " safe-title "\n:PROPERTIES:\n:ELEMENT_ID: " id
+         "\n:FUNCTION: " (:function value) "\n:FUNCTION_VERSION: 1\n:END:\n"
+         "#+begin_research_element :id " id "\n" (pr-str (assoc value :id id)) "\n#+end_research_element\n")))
+
+(defn read-records
+  "Parse saved data without evaluating it. Unknown renderers survive as source."
+  [source]
+  (mapv (fn [hit] (edn/read-string (nth hit 1)))
+        (Regex/scan #"(?s)#\+begin_research_element[^\n]*\n(.*?)\n#\+end_research_element" source)))
+
+(defn freshness [element basis]
+  (if (= (:basis element) basis) :current :stale))
+
+(defn editor-descriptor [kind]
+  {:id (str "research/" (name kind)) :label (name kind) :kind "wrap" :scope "block"
+   :version 1 :params {:element-id {:type "text"}}})
