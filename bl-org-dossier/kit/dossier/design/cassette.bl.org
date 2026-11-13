@@ -399,7 +399,9 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
   (str ".design-cassette .d-app{background:var(--f-paper);background-image:var(--f-tx-brushed)}"
        ".design-cassette .d-nav{background:var(--f-side);background-image:var(--f-tx-brushed);color:var(--f-side-ink);"
        "border-right:2px solid var(--f-side-line)}"
-       ".design-cassette .d-nav .d-item{font:500 12px " font-body ";color:var(--f-side-muted)}"
+       ".design-cassette .d-nav>span{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--r-control);font:500 12px " font-body ";color:var(--f-side-muted)}"
+       ".design-cassette .d-nav>span.on{background:var(--f-amber);color:var(--f-on-amber);font-weight:600;box-shadow:inset 0 1px 0 #ffffff66}"
+       ".design-cassette .d-nav .ic{width:16px;height:16px}"
        ".design-cassette .d-nav .on{background:var(--f-amber);color:var(--f-deep);border-radius:var(--r-control);"
        "box-shadow:inset 0 1px 0 #ffffff66}"
        ".design-cassette .d-firm{font:700 19px " font-display ";text-transform:uppercase;letter-spacing:.04em;color:var(--f-side-ink)}"
@@ -544,4 +546,4 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
 {:css-bytes (count stylesheet) :functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "diagram-css" "keyframes" "reduced-css"]}
 #+end_src
 #+RESULTS: css
-: {:functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "diagram-css" "keyframes" "reduced-css"], :css-bytes 30240}
+: {:functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "diagram-css" "keyframes" "reduced-css"], :css-bytes 30508}
