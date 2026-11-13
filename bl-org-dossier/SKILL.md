@@ -10,6 +10,8 @@ For interactive scenario, pricing or impact notebooks, read
 declared calculation dependencies, units, evidence and revisioned scenarios.
 Compose the existing source-backed views before introducing a new kit block.
 
+When the brief is about an app that feels unusable, map its objects, states and path budget first with the [`ux-lifecycle-map`](../ux-lifecycle-map/SKILL.md) skill. A dossier can then render the lifecycle graph, the live screen graph and the measured paths instead of a catalog of pages.
+
 A dossier is **one `.bl.org` file**. It is the source, the page, the
 executable spec and the answer sheet. A small Beam Lisp server (the kit, next
 to this file) renders it with the real `bl.doc.spans` partition, publishes it on
@@ -340,6 +342,17 @@ the tokens against the product's shipped CSS; the kit test asserts no drift.
 
 Shipped: `forest` — Nurturing Forest, Ora's team machine (`design/forest.bl.org`,
 published as the `forest-language` service).
+
+Proportions live at the end of `kit/style.css` as a `proportions` block. One
+measured column (`--measure: 70ch`, `--measure-display: 52ch` for the opening
+paragraph), one spacing scale (`--s1`–`--s6`, 6/12/24/40/64/96px), and a size
+scale that steps by roughly 1.3 from 12px, so a heading is a step up and not a
+jump. Measure is in `ch` and therefore scales with the face: a 24px lede and a
+16px paragraph hold the same line of text and share a left edge. Numbers are set
+in lining tabular figures. Space separates sections; a rule, a panel or a shadow
+stays only where it carries information (a table row, a figure, a question
+awaiting an answer). A language changes tokens, not measure: a face that needs
+different proportions sets them in its own CSS rather than widening the column.
 
 A product's own language can stay in its own (private) repository: generate a
 CSS file that styles `html[data-design="NAME"]` for the report's tokens and
