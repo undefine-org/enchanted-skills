@@ -844,6 +844,7 @@
     const a = Math.abs(v), sign = v < 0 ? '−' : '', d = a < 10 ? 1 : 0;
     switch (kind) {
       case 'mad': return a >= 1e6 ? sign + nf(Math.abs(sig2(v)) / 1e6, 1) + ' MMAD' : a >= 1e3 ? sign + nf(Math.abs(sig2(v)) / 1e3, 0) + ' kMAD' : sign + nf(a, 0) + ' MAD';
+      case 'mad1': return a >= 1e6 ? sign + nf(a / 1e6, 1) + ' MMAD' : a >= 1e3 ? sign + nf(a / 1e3, 0) + ' kMAD' : sign + nf(a, 0) + ' MAD';
       case 'hours': return sign + nf(a >= 100 ? Math.round(a / 10) * 10 : a, d) + ' h';
       case 'days': return sign + nf(a, d) + t(' d', ' j');
       case 'months': return sign + nf(a, d) + t(' mo', ' mois');
@@ -929,6 +930,40 @@
       box.querySelectorAll('[data-nb-dot]').forEach((d, i) => { d.style.left = pos(vals[i]) + '%'; d.classList.toggle('nb-on', d.dataset.nbDot === st.scenario); });
       const tr = box.querySelector('.nb-range-track > i'); tr.style.left = pos(Math.min(...vals)) + '%'; tr.style.width = (pos(Math.max(...vals)) - pos(Math.min(...vals))) + '%';
       const here = box.querySelector('[data-nb-here]'); here.hidden = !adjusted; here.style.left = pos(V[id] || 0) + '%';
+    });
+    doc.querySelectorAll('[data-nb-trajectory]').forEach(box => {
+      const rows = [...box.querySelectorAll('[data-nb-traj-row]')];
+      const max = Math.max(1e-9, ...rows.flatMap(r => M.scenarios.map(s => ALL[s.id][r.dataset.nbTrajRow] || 0)));
+      const pos = v => 2 + (v / max) * 94;
+      rows.forEach(r => {
+        const vals = M.scenarios.map(s => ALL[s.id][r.dataset.nbTrajRow] || 0);
+        const band = r.querySelector('.nb-traj-band');
+        band.style.left = pos(Math.min(...vals)) + '%';
+        band.style.width = Math.max(0.6, pos(Math.max(...vals)) - pos(Math.min(...vals))) + '%';
+        r.querySelectorAll('[data-nb-dot]').forEach((d, i) => { d.style.left = pos(vals[i]) + '%'; });
+        const here = r.querySelector('[data-nb-here]'); here.hidden = !adjusted; here.style.left = pos(V[r.dataset.nbTrajRow] || 0) + '%';
+      });
+    });
+    doc.querySelectorAll('[data-nb-waterfall]').forEach(box => {
+      const rows = [...box.querySelectorAll('[data-nb-wf]')];
+      const vals = rows.map(r => V[r.dataset.nbWf] || 0);
+      let run = 0, peak = 0;
+      rows.forEach((r, i) => {
+        const kind = r.dataset.nbWfKind, v = vals[i];
+        if (kind === 'start') { run = v; peak = Math.max(peak, run); }
+        else if (kind === 'up') { run += v; peak = Math.max(peak, run); }
+        else if (kind === 'down') { run = Math.max(0, run - v); peak = Math.max(peak, run); }
+        else { peak = Math.max(peak, v); }
+      });
+      const max = Math.max(1e-9, peak);
+      let cum = 0;
+      rows.forEach((r, i) => {
+        const kind = r.dataset.nbWfKind, v = vals[i], bar = r.querySelector('.nb-wf-bar');
+        if (kind === 'start') { cum = v; bar.style.left = '0%'; bar.style.width = (v / max * 100) + '%'; }
+        else if (kind === 'up') { bar.style.left = (cum / max * 100) + '%'; bar.style.width = (v / max * 100) + '%'; cum += v; }
+        else if (kind === 'down') { cum = Math.max(0, cum - v); bar.style.left = (cum / max * 100) + '%'; bar.style.width = (v / max * 100) + '%'; }
+        else { bar.style.left = '0%'; bar.style.width = (v / max * 100) + '%'; }
+      });
     });
     doc.querySelectorAll('[data-nb-input]').forEach(inp => {
       const id = inp.dataset.nbInput, r = byId[id]; if (!r) return;

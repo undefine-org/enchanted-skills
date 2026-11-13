@@ -17,7 +17,7 @@
 (ns dossier.notebook
   (:require [dossier.ui :as ui] [dossier.org :as o] [bl.json :as json]))
 
-(def blocks #{"scenarios" "measure" "bars" "limit" "chain" "compare" "range" "funnel" "controls" "ledger" "assumptions"})
+(def blocks #{"scenarios" "measure" "bars" "limit" "chain" "compare" "range" "trajectory" "waterfall" "funnel" "controls" "ledger" "assumptions"})
 
 (defn num [v]
   (cond (number? v) v
@@ -217,6 +217,10 @@
               (cond (>= a 1000000) (str (fixed (/ (sig2 v) 1000000) 1) " MMAD")
                     (>= a 1000) (str (fixed (/ (sig2 v) 1000) 0) " kMAD")
                     :else (str (fixed v 0) " MAD")))
+      "mad1" (let [a (abs v)]
+               (cond (>= a 1000000) (str (fixed (/ v 1000000) 1) " MMAD")
+                     (>= a 1000) (str (fixed (/ v 1000) 0) " kMAD")
+                     :else (str (fixed v 0) " MAD")))
       "hours" (str (fixed (if (>= (abs v) 100) (* 10 (erlang/round (/ v 10))) v) (if (< (abs v) 10) 1 0)) " h")
       "days" (str (fixed v (if (< (abs v) 10) 1 0)) (if (fr?) " j" " d"))
       "months" (str (fixed v (if (< (abs v) 10) 1 0)) (if (fr?) " mois" " mo"))
@@ -343,6 +347,38 @@
      [:div.nb-range-track [:i] (for [s (:scenarios m)] [:b {:data-nb-dot (:id s)}]) [:em {:data-nb-here ""}]]
      [:div.nb-range-labels (for [s (:scenarios m)] [:span {:data-nb-col (:id s)} (:label s) " · " (out id kind (:id s))])]]))
 
+(defn- trajectory-h
+  "A path over years: one row per point, the scenarios as a band, the current one as a dot.
+   `point id | label | actual` marks what is known rather than projected."
+  [b]
+  (let [m (:model (ctx)) kind (or (:format (:attrs b)) "mad")]
+    [:div.nb-trajectory {:data-nb-trajectory "" :data-fmt kind}
+     [:div.nb-traj-axis
+      [:span (ui/tr "today")] [:span (ui/tr "horizon")]]
+     (for [[id label mark] (lines-of b "point")]
+       [:div {:class (str "nb-traj-row" (when (= "actual" mark) " is-actual")) :data-nb-traj-row id}
+        [:span.nb-traj-label (ui/mdi label)]
+        [:span.nb-traj-track
+         [:i.nb-traj-band]
+         (for [s (:scenarios m)]
+           [:b.nb-traj-dot {:data-nb-dot (:id s) :data-nb-col (:id s)}])
+         [:em.nb-traj-here {:data-nb-here "" :hidden true}]]
+        [:span.nb-traj-num (out id kind)]])]))
+
+(defn- waterfall-h
+  "A bridge: start, what adds, what subtracts, where it lands."
+  [b]
+  (let [kind (or (:format (:attrs b)) "mad")
+        rows (keep (fn [l] (let [l (trim l) verb (first (String/split l " "))]
+                             (when (contains? #{"start" "up" "down" "total"} verb)
+                               (into [verb] (cols (subs l (inc (count verb)))))))) (:body b))]
+    [:div.nb-waterfall {:data-nb-waterfall "" :data-fmt kind}
+     (for [[verb id label t] rows]
+       [:div {:class (str "nb-wf-row nb-wf-" verb) :data-nb-wf id :data-nb-wf-kind verb :style (tone t)}
+        [:span.nb-label (ui/mdi label)]
+        [:span.nb-wf-track [:i.nb-wf-bar]]
+        [:span.nb-num (when (= verb "down") "− ") (out id kind)]])]))
+
 (defn- funnel-h [b]
   (let [kinds (into {} (map (fn [[k label t]] [k {:label label :tone t}]) (lines-of b "kind")))
         steps (lines-of b "step") levers (lines-of b "lever")
@@ -440,6 +476,8 @@
                     "chain" (chain-h b)
                     "compare" (list (head-h b) (compare-h b))
                     "range" (list (head-h b) (range-h b))
+                    "trajectory" (list (head-h b) (trajectory-h b))
+                    "waterfall" (list (head-h b) (waterfall-h b))
                     "funnel" (list (head-h b) (funnel-h b))
                     "controls" (controls-h b)
                     "ledger" (list (head-h b) (ledger-h b))

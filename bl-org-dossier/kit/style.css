@@ -1005,6 +1005,27 @@ a.nb-claim:hover{color:var(--ink);text-decoration:underline;text-underline-offse
 .nb-range-track b{position:absolute;top:3px;width:12px;height:12px;margin-left:-6px;border-radius:50%;border:2px solid var(--ink);background:var(--paper);transition:left .2s}.nb-range-track b.nb-on{background:var(--ink)}
 .nb-range-track em{position:absolute;top:-6px;margin-left:-5px;border:5px solid transparent;border-top-color:var(--clay)}
 .nb-range-labels{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-top:4px}.nb-range-labels .nb-on{color:var(--ink);font-weight:600}
+.nb-trajectory{display:grid;gap:10px;margin:14px 0 20px}
+.nb-traj-axis{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-bottom:2px;border-bottom:1px solid var(--line)}
+.nb-traj-row{display:grid;grid-template-columns:minmax(70px,110px) minmax(0,1fr) auto;gap:12px;align-items:center}
+.nb-traj-label{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nb-traj-row.is-actual .nb-traj-label{color:var(--ink);font-weight:600}
+.nb-traj-track{position:relative;height:20px}
+.nb-traj-band{position:absolute;top:8px;height:4px;background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:2px;transition:left .2s,width .2s}
+.nb-traj-dot{position:absolute;top:4px;width:12px;height:12px;margin-left:-6px;border-radius:50%;border:2px solid var(--muted);background:var(--paper);transition:left .2s}
+.nb-traj-dot.nb-on{border-color:var(--ink);background:var(--ink)}
+.nb-traj-row.is-actual .nb-traj-dot{border-color:var(--sage);background:var(--sage)}
+.nb-traj-here{position:absolute;top:0;margin-left:-5px;border:5px solid transparent;border-top-color:var(--clay)}
+.nb-traj-num{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.nb-waterfall{display:grid;gap:8px;margin:14px 0 20px}
+.nb-wf-row{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr) auto;gap:12px;align-items:center}
+.nb-wf-track{position:relative;height:18px;background:color-mix(in srgb,var(--line) 30%,transparent);border-radius:4px;overflow:hidden}
+.nb-wf-bar{position:absolute;top:0;bottom:0;background:var(--c);border-radius:3px;transition:left .2s,width .2s}
+.nb-wf-start .nb-wf-bar{background:var(--muted)}
+.nb-wf-up .nb-wf-bar{background:var(--sage)}
+.nb-wf-down .nb-wf-bar{background:repeating-linear-gradient(135deg,var(--clay) 0 4px,transparent 4px 7px)}
+.nb-wf-total{border-top:1px solid var(--line);padding-top:8px}.nb-wf-total .nb-wf-bar{background:var(--ink)}.nb-wf-total .nb-label,.nb-wf-total .nb-num{font-weight:600}
+@media(max-width:620px){.nb-wf-row{grid-template-columns:1fr auto;row-gap:4px}.nb-wf-row .nb-wf-track{grid-column:1/-1;grid-row:2}.nb-traj-row{grid-template-columns:64px minmax(0,1fr) auto;gap:8px}}
 .nb-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:10px 0}.nb-legend span{display:flex;gap:6px;align-items:center}.nb-legend i{width:9px;height:9px;border-radius:50%;background:var(--c)}
 .nb-funnel{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin:12px 0 20px}
 .nb-step>b{display:block;font-weight:400;font-size:28px;letter-spacing:-.04em}.nb-step>span{display:block;font-size:14px;min-height:40px}.nb-step>span small{color:var(--muted)}
@@ -1142,12 +1163,16 @@ article.job,article.decision,article.ask,article.schema,article.procedure,.film,
    rest of the page holds; screens sit in one column on the right */
 .cl-cover{border:0;border-top:1px solid var(--line);border-radius:0;background:none;padding:var(--s2) 0;margin-top:var(--s1)}
 .cl-rows{border-radius:0;background:none}
-.cl-row{grid-template-columns:max-content minmax(0,1fr) minmax(140px,220px);gap:var(--s1) var(--s3);padding:var(--s2) 14px;border-left-width:2px}
-.cl-key{min-width:96px;gap:4px}
 .cl-ph{font-size:10.5px;padding:1px 6px}
 .cl-text{max-width:62ch;font-size:15px;line-height:1.5}
-.cl-screens{max-width:none}
 .cl-screen{font-size:11.5px;padding:4px 9px;min-height:30px;border-radius:6px}
+/* three columns need a column to hold them; below 700px the kit's own
+   stacked grid keeps the phase above the sentence it labels */
+@media (min-width:701px){
+  .cl-row{grid-template-columns:max-content minmax(0,1fr) minmax(140px,220px);gap:var(--s1) var(--s3);padding:var(--s2) 14px;border-left-width:2px}
+  .cl-key{min-width:96px;gap:4px}
+  .cl-screens{max-width:none}
+}
 
 /* the reading rail: quieter labels, a little more air between page and text */
 @media (min-width:1000px){
