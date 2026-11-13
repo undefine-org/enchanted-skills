@@ -505,9 +505,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
 
 (def ^:private at ":root .design-cassette.design-cassette")
 (def ^:private dark-at
-  (str "@media(prefers-color-scheme:dark){:root:not([data-theme=\"light\"]) .design-cassette.design-cassette{"
-       (vars dark) ";" (shadow-vars shadows) ";" textures "}}"
-       ":root[data-theme=\"dark\"] .design-cassette.design-cassette{" (vars dark) ";" (shadow-vars shadows) ";" textures "}"))
+  (str ":root[data-theme=\"dark\"] .design-cassette.design-cassette{" (vars dark) ";" (shadow-vars shadows) ";" textures "}"))
 
 (defn- keyframes
   "Each token plays at its real duration and curve; :loop tokens never rest."

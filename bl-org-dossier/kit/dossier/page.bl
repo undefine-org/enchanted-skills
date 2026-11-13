@@ -252,6 +252,8 @@
    [:head
     [:meta {:charset "utf-8"}]
     [:meta {:name "viewport" :content "width=device-width,initial-scale=1,viewport-fit=cover"}]
+    ;; Light is the default; a reader who chose dark gets it before the first paint.
+    [:script "try{var t=localStorage.getItem('dossier-theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}"]
     (for [href (design/font-links doc)] [:link {:rel "stylesheet" :href href}])
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
     (when-not locked [:link {:rel "stylesheet" :href "review.css"}])

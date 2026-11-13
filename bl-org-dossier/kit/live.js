@@ -271,9 +271,20 @@
     if (on) url.searchParams.set('mode', 'client'); else url.searchParams.delete('mode');
     history.replaceState(null, '', url); audience.setAttribute('aria-pressed', String(on)); refresh(true);
   };
-  $('#theme').onclick = () => {
-    const r = document.documentElement, dark = matchMedia('(prefers-color-scheme: dark)').matches;
-    const cur = r.dataset.theme || (dark ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark';
+  const themeBtn = $('#theme');
+  const paintTheme = () => {
+    if (!themeBtn) return;
+    const dark = document.documentElement.dataset.theme === 'dark';
+    themeBtn.setAttribute('aria-pressed', String(dark));
+    const fr = document.documentElement.lang === 'fr';
+    themeBtn.title = dark ? (fr ? 'Thème clair' : 'Light theme') : (fr ? 'Thème sombre' : 'Dark theme');
+  };
+  paintTheme();
+  if (themeBtn) themeBtn.onclick = () => {
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('dossier-theme', r.dataset.theme); } catch {}
+    paintTheme();
   };
   // ── sections as pages: the sidebar picks one, #all shows the whole file ──
   let current = null;

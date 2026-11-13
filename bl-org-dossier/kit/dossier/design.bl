@@ -56,8 +56,6 @@
 (defn- report-css [language]
   (let [selector (str "html[data-design=\"" (:name language) "\"]")]
     (str selector "{" (language-vars language (:light language)) ";" (report-vars language (:light language)) "}"
-         "@media(prefers-color-scheme:dark){" selector ":not([data-theme=\"light\"]){"
-         (language-vars language (:dark language)) ";" (report-vars language (:dark language)) "}}"
          selector "[data-theme=\"dark\"]{" (language-vars language (:dark language)) ";"
          (report-vars language (:dark language)) "}")))
 

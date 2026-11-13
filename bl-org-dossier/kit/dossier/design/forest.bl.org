@@ -266,8 +266,7 @@ is measured too, so the difference is a number.
 ;; `:root .design-forest.design-forest` outranks the kit's own `.desk` and dark-mode rules.
 (def ^:private at ":root .design-forest.design-forest")
 (def ^:private night-vars (str (vars dark) ";" (shadow-vars night-shadows)))
-(def ^:private dark-at (str "@media (prefers-color-scheme:dark){:root:not([data-theme=\"light\"]) .design-forest.design-forest{" night-vars "}}"
-                            ":root[data-theme=\"dark\"] .design-forest.design-forest{" night-vars "}"))
+(def ^:private dark-at (str ":root[data-theme=\"dark\"] .design-forest.design-forest{" night-vars "}"))
 
 (def ^:private components
   (str
