@@ -1,6 +1,10 @@
 // live.js — the page listens to its file, and talks back to it.
 // Polls /rev; when the .bl.org changed (an answer, an Emacs save, a
 // `bl doc run`), swaps the body in place unless you are mid-answer.
+// Light is the page's default; every embedded frame is told explicitly, never
+// left to the operating system.
+const themeName = () => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+const paintFrameTheme = (doc) => { try { if (doc?.documentElement) doc.documentElement.dataset.theme = themeName(); } catch {} };
 (() => {
   const $ = s => document.querySelector(s);
   let rev = null, busy = false;
@@ -373,7 +377,7 @@
     try{doc=frame.contentDocument;if(!doc?.body)return;safeURL(frame.contentWindow.location.href)}catch{return}
     if(doc._componentTools)return;doc._componentTools=true;
     const style=doc.createElement('style');style.textContent='.component-inspecting [data-ui-component]{cursor:crosshair!important}.component-inspecting .component-hit{outline:2px solid var(--b-focus,#b56b30)!important;outline-offset:-2px!important}.component-inspecting .component-hit::after{pointer-events:none}.source-highlight-links [data-source-link]{outline:2px dashed var(--b-action,#a15822)!important;outline-offset:-2px;position:relative}.source-highlight-links [data-source-link]:hover::after,.source-highlight-links [data-source-link]:focus-visible::after{content:attr(data-source-destination);position:absolute;top:100%;left:0;z-index:1000;max-width:240px;padding:4px 7px;border-radius:4px;background:var(--b-rail,#1d2153);color:var(--b-rail-ink,#fff);font:12px/1.4 sans-serif;pointer-events:none;white-space:normal}';doc.head.append(style);
-    const sync=()=>{const theme=document.documentElement.dataset.theme;if(theme)doc.documentElement.dataset.theme=theme;else delete doc.documentElement.dataset.theme};sync();const themeObserver=new MutationObserver(sync);themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});frame.contentWindow.addEventListener('pagehide',()=>themeObserver.disconnect(),{once:true});
+    const sync=()=>paintFrameTheme(doc);sync();const themeObserver=new MutationObserver(sync);themeObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});frame.contentWindow.addEventListener('pagehide',()=>themeObserver.disconnect(),{once:true});
     const url=frame.contentWindow.location.href;if(s.history.at(-1)!==url)s.history.push(url);g.querySelector('[data-source-back]').disabled=s.history.length<2;
     const current=new URL(url).searchParams.get('view');const named=declaredViews(g).find(v=>v.id===current);g.querySelector('.source-current').textContent=named?.title||current||'Screen';markLinks(g,doc);highlight(g,!!s.highlight);
     const target=e=>e.target.closest?.('[data-ui-component]');
@@ -498,7 +502,7 @@
       const preview=document.createElement('span');preview.className='sg-node-preview';preview.setAttribute('aria-hidden','true');
       const shot=data.snapshots.get(id);
       if(shot){const thumb=document.createElement('iframe');thumb.className='source-thumbnail';thumb.tabIndex=-1;thumb.inert=true;thumb.setAttribute('aria-hidden','true');thumb.setAttribute('sandbox','allow-same-origin');thumb.srcdoc=shot.html;
-        thumb.addEventListener('load',()=>{try{const theme=document.documentElement.dataset.theme;if(theme)thumb.contentDocument.documentElement.dataset.theme=theme;else delete thumb.contentDocument.documentElement.dataset.theme;markLinks(g,thumb.contentDocument)}catch{}});preview.append(thumb)}
+        thumb.addEventListener('load',()=>{paintFrameTheme(thumb.contentDocument);try{markLinks(g,thumb.contentDocument)}catch{}});preview.append(thumb)}
       else {const missing=document.createElement('span');missing.textContent='Preview unavailable';preview.append(missing)}
       const count=document.createElement('span');count.className='sg-node-count';count.textContent=data.edges.filter(e=>e.from===id).length+' connections';
       node.append(title,preview,count);node.addEventListener('pointerenter',()=>paintSourceGraph(g,id));node.addEventListener('focus',()=>paintSourceGraph(g,id));nodes.append(node);
@@ -571,7 +575,7 @@
     if(s.expanded&&s.mode!=='graph'&&e.key==='Tab'){const controls=[...g.querySelectorAll('.sg-toolbar button:not(:disabled)')];if((!e.shiftKey&&document.activeElement===controls.at(-1))||(e.shiftKey&&document.activeElement===controls[0])){e.preventDefault();const f=g.querySelector('.source-frame');const nodes=[...f.contentDocument.querySelectorAll('a[href],button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select')].filter(x=>x.getClientRects().length);(e.shiftKey?nodes.at(-1):nodes[0])?.focus()}}
   });
   document.addEventListener('dossier:prototype-updated',e=>{const g=e.target.closest?.('.screen-source');if(!g)return;g._sourceData=null;g._sourceBuilding=null;if(stateOf(g).mode==='graph')buildSourceGraph(g)});
-  new MutationObserver(()=>{document.querySelectorAll('.screen-source').forEach(g=>g.querySelectorAll('.source-thumbnail').forEach(f=>{try{const theme=document.documentElement.dataset.theme;if(theme)f.contentDocument.documentElement.dataset.theme=theme;else delete f.contentDocument.documentElement.dataset.theme}catch{}}))}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  new MutationObserver(()=>document.querySelectorAll('iframe').forEach(f=>paintFrameTheme(f.contentDocument))).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   const nativePart=e=>{const el=e.target.closest?.('[data-ui-component]'),g=el?.closest('.screen-graph:not(.screen-source)');return g&&g._componentState?.inspect&&g._componentState.mode==='screen'&&!el.closest('.sg-node-preview')?{g,el}:null};
   document.addEventListener('pointerover',e=>{const part=nativePart(e);if(!part)return;const {g,el}=part;if(g._componentState.element===el)return;g.querySelectorAll('.component-hit').forEach(x=>x.classList.remove('component-hit'));el.classList.add('component-hit');describe(g,el,e)});
   document.addEventListener('focusin',e=>{const part=nativePart(e);if(part)describe(part.g,part.el,e)});
@@ -753,7 +757,7 @@
       root._claimsReady = true; apply(root);
       const dlg = root.querySelector('dialog.cl-dialog'); if (!dlg) return;
       const f = dlg.querySelector('iframe');
-      f.addEventListener('load', () => { try { const t = document.documentElement.dataset.theme, d = f.contentDocument; if (t) d.documentElement.dataset.theme = t; else delete d.documentElement.dataset.theme; } catch {} });
+      f.addEventListener('load', () => paintFrameTheme(f.contentDocument));
       dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
       dlg.addEventListener('close', () => {
         f.src = 'about:blank';
@@ -1120,6 +1124,11 @@
     if (v === Number(r[st.scenario])) delete st.over[r.id]; else st.over[r.id] = v;
     apply();
   });
+  // Screens, explorers and thumbnails wear the page's theme, present and future.
+  const bindFrameTheme = (f) => { if (f._themeBound) return; f._themeBound = true; f.addEventListener('load', () => paintFrameTheme(f.contentDocument)); paintFrameTheme(f.contentDocument); };
+  const bindAllFrames = () => document.querySelectorAll('iframe').forEach(bindFrameTheme);
+  bindAllFrames();
+  new MutationObserver(bindAllFrames).observe(document.documentElement, { childList: true, subtree: true });
   window.dossierNotebook = { apply, calc: (sid, over) => (load(), calc(sid, over)), fmt, parse, state: st, open: id => (load(), open(id, document.querySelector(`[data-nb="${CSS.escape(id)}"]`))) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply); else apply();
 })();
