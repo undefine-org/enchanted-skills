@@ -1,0 +1,18 @@
+{
+  "name": "Tiny",
+  "start": "today",
+  "max_states_per_lifecycle": 5,
+  "max_entry_distance": 1,
+  "surfaces": [{"id": "today", "label": "Today"}, {"id": "work", "label": "Work"}, {"id": "delivery", "label": "Delivery"}],
+  "lifecycles": [{
+    "id": "delivery", "label": "A delivery", "entry": "work",
+    "rail": ["suggested", "working", "accepted"],
+    "states": [
+      {"id": "suggested", "screen": "delivery", "next": ["working", "declined"], "primary": "working", "exceptions": ["declined"]},
+      {"id": "working", "screen": "delivery", "next": ["accepted"], "primary": "accepted"},
+      {"id": "accepted", "screen": "delivery", "terminal": true},
+      {"id": "declined", "screen": "delivery", "terminal": true}
+    ]
+  }],
+  "edges": [{"from": "today", "to": "work", "kind": "nav"}]
+}
