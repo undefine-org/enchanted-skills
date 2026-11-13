@@ -44,12 +44,22 @@
                                       ["sage" :success] ["ochre" :pending] ["slate" :neutral] ["plum" :lilac]]]
                      (str "--" kit ":" (get colors token)))))))
 
+(defn- language-vars
+  "A language's own tokens on the report root as well as on its mockups, so
+   report rules may speak the language's names (--f-side, --f-amber) and not
+   only the kit's role variables."
+  [language colors]
+  (str (join ";" (for [[k v] colors] (str "--f-" (name k) ":" v)))
+       ";"
+       (join ";" (for [[k v] (:shadows language)] (str "--f-shadow-" (name k) ":" v)))))
+
 (defn- report-css [language]
   (let [selector (str "html[data-design=\"" (:name language) "\"]")]
-    (str selector "{" (report-vars language (:light language)) "}"
+    (str selector "{" (language-vars language (:light language)) ";" (report-vars language (:light language)) "}"
          "@media(prefers-color-scheme:dark){" selector ":not([data-theme=\"light\"]){"
-         (report-vars language (:dark language)) "}}"
-         selector "[data-theme=\"dark\"]{" (report-vars language (:dark language)) "}")))
+         (language-vars language (:dark language)) ";" (report-vars language (:dark language)) "}}"
+         selector "[data-theme=\"dark\"]{" (language-vars language (:dark language)) ";"
+         (report-vars language (:dark language)) "}")))
 
 (defn css
   "The CSS the page needs: only the languages this document wears (its
@@ -123,7 +133,7 @@
       (for [t (:type l)]
         [:div.f-type
          [:span.f-type-meta (str (:role t) " · " (:size t) "/" (:lh t) " · " (:weight t))]
-         [:div {:style (str "font:" (:weight t) " " (:size t) "px/" (:lh t) " " (:font l)
+         [:div {:style (str "font:" (:weight t) " " (:size t) "px/" (:lh t) " " (or (:family t) (:font l))
                             ";letter-spacing:" (or (:ls t) 0) "px;color:var(--f-" (name (or (:ink t) :ink)) ")")}
           (:sample t)]]))))
 

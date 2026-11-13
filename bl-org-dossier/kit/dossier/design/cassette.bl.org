@@ -19,7 +19,7 @@ every mockup marked =:design cassette=.
 #+end_lede
 
 #+begin_stats
-33 | colour tokens | daylight on putty and aluminium; night session in black and amber
+34 | colour tokens | daylight on putty and aluminium; night session in black and amber
 10 | type roles | three faces: Chakra Petch for hardware legends, IBM Plex Sans for prose, IBM Plex Mono for values
 6 | radii | 1–14px: a deck has corners, not pillows
 8 | motions | lamp, switch, needle, flip, tune, scan, reel, tape-out
@@ -138,7 +138,7 @@ sheet, so a new component has an obvious place to live.
   {:paper "#e6e2d6" :card "#f2eee2" :field "#dcd7c9" :inset "#d2cdbf" :soft "#c9c4b4"
    :line "#b8b2a2" :edge "#8a8473"
    :ink "#1f1e19" :secondary "#45433b" :muted "#6a6659"
-   :forest "#2b2b26" :deep "#191915" :lime "#a9cf4e" :amber "#8f5408" :signal "#b8461f"
+   :forest "#2b2b26" :deep "#191915" :lime "#a9cf4e" :amber "#8f5408" :signal "#b8461f" :on-amber "#17150e"
    :focus "#2d7484" :progress "#8aae3e" :on-forest "#f6f1e2"
    :success "#356b3d" :success-bg "#dde7c8" :pending "#8a5a12" :pending-bg "#efe0ba"
    :danger "#993a2b" :danger-bg "#f0d9d0" :neutral "#4f5a66" :neutral-bg "#dadde0"
@@ -151,7 +151,7 @@ sheet, so a new component has an obvious place to live.
   {:paper "#121310" :card "#1c1d18" :field "#171813" :inset "#0d0e0b" :soft "#26271f"
    :line "#35362c" :edge "#565749"
    :ink "#f1ebd9" :secondary "#d2ccb9" :muted "#a5a08f"
-   :forest "#f0b04a" :deep "#f7d79a" :lime "#b9df6d" :amber "#f0b04a" :signal "#f0784a"
+   :forest "#f0b04a" :deep "#f7d79a" :lime "#b9df6d" :amber "#f0b04a" :signal "#f0784a" :on-amber "#17150e"
    :focus "#6cc2cf" :progress "#c4d98a" :on-forest "#1b1710"
    :success "#a9d48a" :success-bg "#24301c" :pending "#f2c46f" :pending-bg "#392e1a"
    :danger "#f0927b" :danger-bg "#3c231d" :neutral "#c2c7cf" :neutral-bg "#282c31"
@@ -216,7 +216,7 @@ sheet, so a new component has an obvious place to live.
  :motions (vec (map :name motion))}
 #+end_src
 #+RESULTS: tokens
-: {:tokens 33, :registers 8, :type-roles 10, :motions ["lamp" "switch" "needle" "flip" "tune" "tape-out" "scan" "reel"]}
+: {:tokens 34, :registers 8, :type-roles 10, :motions ["lamp" "switch" "needle" "flip" "tune" "tape-out" "scan" "reel"]}
 
 ** Contrast, measured
 Every pair the language leans on is checked, light and dark: body and meta on
@@ -263,7 +263,8 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
 
 ;; --- report -------------------------------------------------------------
 (defn- report-css []
-  (str "html[data-design=\"cassette\"]{--font-display:" font-display ";--font-body:" font-body
+  (str "html[data-design=\"cassette\"]{" textures "}"
+       "html[data-design=\"cassette\"]{--font-display:" font-display ";--font-body:" font-body
        ";--font-ui:" font-body ";--font-data:" font-data
        ";--sans:var(--font-ui);--serif:var(--font-display);--mono:var(--font-data)"
        ";--shadow:var(--f-shadow-sheet);accent-color:var(--f-amber)}"
@@ -283,7 +284,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        "html[data-design=\"cassette\"] .side{background:var(--f-side);background-image:var(--f-tx-brushed);border-radius:0;color:var(--f-side-ink);padding:26px 12px;top:0;border-right:2px solid var(--f-side-line)}"
        "html[data-design=\"cassette\"] .side-title{font-family:var(--font-display);text-transform:uppercase;font-size:22px;letter-spacing:.02em;color:var(--f-side-ink)}"
        "html[data-design=\"cassette\"] .side-sec,html[data-design=\"cassette\"] .side-all{color:var(--f-side-muted);font-family:var(--font-data);font-size:12px}"
-       "html[data-design=\"cassette\"] .side-item.on .side-sec{background:var(--f-amber);color:var(--f-deep);box-shadow:inset 0 1px 0 #ffffff66,0 0 0 1px #00000059}"
+       "html[data-design=\"cassette\"] .side-item.on .side-sec{background:var(--f-amber);color:var(--f-on-amber);box-shadow:inset 0 1px 0 #ffffff66,0 0 0 1px #00000059}"
        "html[data-design=\"cassette\"] .side-sec .wait{background:var(--f-side-line);color:var(--f-side-ink);border-radius:1px}"
        "html[data-design=\"cassette\"] .side-item.on .side-sec .wait{background:var(--f-deep);color:var(--f-amber)}"
        "html[data-design=\"cassette\"] .side-subs{border-color:var(--f-side-line)}"
@@ -315,7 +316,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        "background:var(--f-card);background-image:var(--f-tx-brushed);box-shadow:var(--f-shadow-sheet),inset 0 1px 0 #ffffff73}"
        ".design-cassette .screen::before,.design-cassette .d-frame::before{"
        "content:'';display:block;height:4px;background:var(--f-ink);border-radius:var(--r-panel) var(--r-panel) 0 0}"
-       ".design-cassette .s-bar{background:var(--f-deep);color:var(--f-side-ink);"
+       ".design-cassette .s-bar{background:var(--f-side);color:var(--f-side-ink);"
        "border-bottom:2px solid var(--f-ink);padding:14px 16px 12px;display:flex;align-items:center;gap:10px;"
        "background-image:var(--f-tx-brushed)}"
        ".design-cassette .s-bar b{font:700 18px/1.15 " font-display ";letter-spacing:.02em;text-transform:uppercase;"
@@ -332,8 +333,8 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".design-cassette .s-card-main{min-width:0;flex:1}"
        ".design-cassette .s-card-top b{font:600 15px/1.3 " font-body ";letter-spacing:-.01em;"
        "font-variant-numeric:lining-nums tabular-nums}"
-       ".design-cassette .s-card-top span{display:block;font:500 10.5px " font-data ";letter-spacing:.05em;"
-       "text-transform:uppercase;color:var(--f-muted);margin-top:2px}"
+       ".design-cassette .s-card-top span{display:block;font:500 10.5px " font-data ";letter-spacing:.02em;"
+       "color:var(--f-muted);margin-top:2px}"
        ".design-cassette .s-card-body{font-size:13px;line-height:1.5;color:var(--f-secondary);margin-top:5px}"
        ".design-cassette .s-dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;"
        "background:var(--f-neutral);box-shadow:inset 0 -1px 1px #00000059,0 0 0 3px var(--f-inset);animation:none}"
@@ -353,7 +354,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".design-cassette .s-chips .chip{font:600 10.5px " font-data ";letter-spacing:.08em;text-transform:uppercase;"
        "padding:5px 10px;border-radius:var(--r-control);border:1px solid var(--f-edge);color:var(--f-secondary);"
        "background:linear-gradient(180deg,var(--f-card),var(--f-inset));box-shadow:inset 0 1px 0 #ffffff80,0 1px 0 #0000002e}"
-       ".design-cassette .s-chips .chip.on{background:var(--f-amber);border-color:var(--f-deep);color:var(--f-deep);"
+       ".design-cassette .s-chips .chip.on{background:var(--f-amber);border-color:var(--f-side);color:var(--f-on-amber);"
        "box-shadow:inset 0 1px 0 #ffffff66,0 0 0 1px #0000002e}"
        ".design-cassette .s-tabs{display:flex;gap:0;border-bottom:2px solid var(--f-ink);padding:0 16px}"
        ".design-cassette .s-tabs .tab{font:600 10.5px " font-data ";letter-spacing:.08em;text-transform:uppercase;"
@@ -365,14 +366,14 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".design-cassette .s-strip .s-dot{background:var(--f-amber);box-shadow:0 0 7px var(--f-amber);margin:0}"
        ".design-cassette .s-strip.ok .s-dot{background:var(--f-success);box-shadow:0 0 7px var(--f-success)}"
        ".design-cassette .s-strip .btn,.design-cassette .s-strip a{font:600 10.5px " font-data ";text-transform:uppercase;"
-       "letter-spacing:.06em;background:var(--f-ink);color:var(--f-side-ink);border-radius:var(--r-control);padding:4px 9px;border:1px solid var(--f-deep)}"
+       "letter-spacing:.06em;background:var(--f-side);color:var(--f-side-ink);border-radius:var(--r-control);padding:4px 9px;border:1px solid var(--f-side-line)}"
        ".design-cassette .s-actions{display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:center}"
        ".design-cassette .btn,.design-cassette .ib{border-radius:var(--r-control);border:1px solid var(--f-edge);"
        "background:linear-gradient(180deg,var(--f-card),var(--f-inset));color:var(--f-ink);"
        "font:600 11px " font-data ";letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;"
        "box-shadow:inset 0 1px 0 #ffffff80,0 1px 0 #00000038}"
        ".design-cassette .btn:active,.design-cassette .ib:active{transform:translateY(1px);box-shadow:var(--f-shadow-press)}"
-       ".design-cassette .btn.primary,.design-cassette .ib.primary{background:var(--f-amber);border-color:var(--f-deep);color:var(--f-deep);"
+       ".design-cassette .btn.primary,.design-cassette .ib.primary{background:var(--f-amber);border-color:var(--f-side);color:var(--f-on-amber);"
        "box-shadow:inset 0 1px 0 #ffffff73,0 1px 0 #0000004d,0 0 12px #e59a2b40}"
        ".design-cassette .s-row{display:flex;justify-content:space-between;gap:14px;padding:8px 16px;border-top:1px solid var(--f-line);font-size:12.5px}"
        ".design-cassette .s-row span{font:500 10.5px " font-data ";letter-spacing:.07em;text-transform:uppercase;color:var(--f-muted)}"
@@ -390,7 +391,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        "border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--f-shadow-sheet)}"
        ".design-cassette .s-sheet-title{font:700 16px " font-display ";text-transform:uppercase;letter-spacing:.02em;"
        "border-bottom:2px solid var(--f-ink);padding-bottom:8px}"
-       ".design-cassette .s-lock{background:var(--f-deep);color:var(--f-side-ink);"
+       ".design-cassette .s-lock{background:var(--f-side);color:var(--f-side-ink);"
        "background-image:var(--f-tx-scan),var(--f-tx-brushed)}"
        ".design-cassette .s-lock .s-clock{font-family:" font-display ";letter-spacing:.02em}"))
 
@@ -422,13 +423,13 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".design-cassette .sg-brand b{font:700 24px " font-display ";text-transform:uppercase;letter-spacing:.03em;color:var(--f-side-ink)}"
        ".design-cassette .sg-brand small,.design-cassette .sg-person{font:500 10.5px " font-data ";letter-spacing:.06em;"
        "text-transform:uppercase;color:var(--f-side-muted)}"
-       ".design-cassette .sg-mark{background:var(--f-amber);color:var(--f-deep);border-radius:50%;"
+       ".design-cassette .sg-mark{background:var(--f-amber);color:var(--f-on-amber);border-radius:50%;"
        "box-shadow:0 0 10px #e59a2b73}"
        ".design-cassette .sg-menu-item{color:var(--f-side-muted)}"
-       ".design-cassette .sg-menu-item.on .sg-link{background:var(--f-amber);color:var(--f-deep);border-radius:var(--r-control);"
+       ".design-cassette .sg-menu-item.on .sg-link{background:var(--f-amber);color:var(--f-on-amber);border-radius:var(--r-control);"
        "box-shadow:inset 0 1px 0 #ffffff66}"
        ".design-cassette .sg-menu-item .sg-link{font:500 12px " font-body ";justify-content:flex-start;min-height:36px}"
-       ".design-cassette .sg-app-top{background:var(--f-deep);color:var(--f-side-ink);padding:20px 24px 16px;"
+       ".design-cassette .sg-app-top{background:var(--f-side);color:var(--f-side-ink);padding:20px 24px 16px;"
        "border-bottom:2px solid var(--f-ink);background-image:var(--f-tx-brushed)}"
        ".design-cassette .sg-app-top .d-title{font:700 28px/1.05 " font-display ";text-transform:uppercase;letter-spacing:.02em;"
        "color:var(--f-side-ink)}"
@@ -445,6 +446,30 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".design-cassette .sg-wire-line{stroke:var(--f-amber)}"
        ".design-cassette .sg-toolbar{background:var(--f-side);color:var(--f-side-ink);border-radius:var(--r-control)}"))
 
+(defn- diagram-css []
+  (str "html[data-design=\"cassette\"] .sequence .sq-lane rect{fill:var(--f-side);stroke:var(--f-ink)}"
+       "html[data-design=\"cassette\"] .sequence .sq-lane .t{fill:var(--f-side-ink);font-family:" font-display ";text-transform:uppercase;letter-spacing:.04em}"
+       "html[data-design=\"cassette\"] .sequence .sq-lane .s{fill:var(--f-side-muted);font-family:" font-data "}"
+       "html[data-design=\"cassette\"] .sequence .life{stroke:var(--f-edge);stroke-dasharray:2 4}"
+       "html[data-design=\"cassette\"] .sequence .sq-msg text{font-family:" font-data ";fill:var(--f-ink)}"
+       "html[data-design=\"cassette\"] .sequence .sq-msg line{stroke:var(--f-ink)}"
+       "html[data-design=\"cassette\"] .sequence .sq-msg.reply text{fill:var(--f-secondary)}"
+       "html[data-design=\"cassette\"] .sequence .sq-msg.reply line{stroke:var(--f-edge);stroke-dasharray:4 3}"
+       "html[data-design=\"cassette\"] .sequence .sq-note{font-family:" font-data ";fill:var(--f-muted)}"
+       "html[data-design=\"cassette\"] .sequence .sq-div text{font-family:" font-data ";fill:var(--f-amber);letter-spacing:.12em;text-transform:uppercase}"
+       "html[data-design=\"cassette\"] .sequence .sq-div line{stroke:var(--f-line)}"
+       "html[data-design=\"cassette\"] .sequence marker path{fill:var(--f-ink)}"
+       "html[data-design=\"cassette\"] .graph .gr-node rect{fill:var(--f-card);stroke:var(--f-ink);rx:4px;ry:4px}"
+       "html[data-design=\"cassette\"] .graph .gr-node .t{fill:var(--f-ink);font-family:" font-display ";text-transform:uppercase;letter-spacing:.03em}"
+       "html[data-design=\"cassette\"] .graph .gr-node .s{fill:var(--f-muted);font-family:" font-data "}"
+       "html[data-design=\"cassette\"] .graph .gr-node.you rect{fill:var(--f-side)}"
+       "html[data-design=\"cassette\"] .graph .gr-node.you .t{fill:var(--f-amber)}"
+       "html[data-design=\"cassette\"] .graph .gr-node.you .s{fill:var(--f-side-muted)}"
+       "html[data-design=\"cassette\"] .graph .gr-node.foreign rect{stroke-dasharray:4 3}"
+       "html[data-design=\"cassette\"] .graph .gr-edge line{stroke:var(--f-edge)}"
+       "html[data-design=\"cassette\"] .graph .gr-edge text{fill:var(--f-muted);font-family:" font-data "}"
+       "html[data-design=\"cassette\"] .graph marker path{fill:var(--f-edge)}"))
+
 (defn- showcase-css []
   (str ".lang-show{margin:16px 0;padding:16px;border-radius:var(--r-panel);background:var(--f-card);"
        "background-image:var(--f-tx-brushed);color:var(--f-ink);border:1px solid var(--f-ink);"
@@ -452,7 +477,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        ".lang-show>figcaption{font:700 14px " font-display ";text-transform:uppercase;letter-spacing:.05em;"
        "padding-bottom:8px;margin-bottom:10px;border-bottom:2px solid var(--f-ink)}"
        ".f-group h5{margin:10px 0 6px;font:600 10.5px " font-data ";color:var(--f-amber);text-transform:uppercase;letter-spacing:.12em}"
-       ".f-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}"
+       ".f-sw{display:grid;gap:2px}.f-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}"
        ".f-sw b{font:600 11px " font-data ";letter-spacing:.04em;text-transform:uppercase}"
        ".f-sw code{font:400 10px " font-data ";background:none;border:0;padding:0;color:var(--f-muted)}"
        ".f-chip{display:grid;grid-template-columns:1fr 1fr;height:36px;border-radius:var(--r-control);overflow:hidden;border:1px solid var(--f-edge)}"
@@ -463,7 +488,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
        "display:grid;place-content:center;text-align:center;font:600 11px " font-data ";box-shadow:inset 0 1px 0 #ffffff80}"
        ".f-shape code{font-size:9.5px;background:none;border:0;color:var(--f-muted);max-width:110px;overflow-wrap:anywhere}"
        ".f-motions{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}"
-       ".f-motion b{font:600 12px " font-data ";letter-spacing:.05em;text-transform:uppercase}"
+       ".f-motion{display:grid;gap:3px}.f-motion b{font:600 12px " font-data ";letter-spacing:.05em;text-transform:uppercase}"
        ".f-motion code{font-size:10px;background:none;border:0;padding:0;color:var(--f-amber)}"
        ".f-motion p{margin:0;font-size:12px;color:var(--f-secondary);line-height:1.45}"
        ".f-stage{height:92px;border-radius:var(--r-panel);background:var(--f-deep);background-image:var(--f-tx-grille),var(--f-tx-scan);"
@@ -502,7 +527,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
 (def stylesheet
   (str at "{" (vars light) ";" (shadow-vars shadows) ";" textures ";" (kit-map) "}"
        dark-at
-       (report-css) (chassis-css) (controls-css) (desk-css) (graph-css) (showcase-css)
+       (report-css) (chassis-css) (controls-css) (desk-css) (graph-css) (showcase-css) (diagram-css)
        (join "" (map keyframes motion)) (reduced-css)))
 
 (def language
@@ -516,7 +541,7 @@ ring on a field. A deck that is beautiful and unreadable is a prop.
 (assert (includes? stylesheet "--f-amber:#f0b04a"))
 (assert (every? (fn [m] (includes? stylesheet (str "@keyframes fm-" (:name m)))) motion))
 (assert (includes? stylesheet "prefers-reduced-motion"))
-{:css-bytes (count stylesheet) :functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "keyframes" "reduced-css"]}
+{:css-bytes (count stylesheet) :functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "diagram-css" "keyframes" "reduced-css"]}
 #+end_src
 #+RESULTS: css
-: {:functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "keyframes" "reduced-css"], :css-bytes 27284}
+: {:functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "diagram-css" "keyframes" "reduced-css"], :css-bytes 30240}
