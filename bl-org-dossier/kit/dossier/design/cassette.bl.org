@@ -1,0 +1,522 @@
+#+title: Deck — a control console in Cassette Futurism
+#+subtitle: Silver chassis, charcoal faceplates, amber phosphor and LED lamps, built as one Beam Lisp module that is also its own specimen page.
+#+kicker: enchanted-skills / bl-org-dossier · design language · dossier.design.cassette
+#+date: 2026-11-13
+#+status: Proposal · new language, drawn from CARI's Cassette Futurism towards the Station dashboard
+#+author: Claude for Othman
+#+design: cassette
+
+* In one breath
+#+begin_lede
+Deck takes its structure from the studio hardware of the late 1970s and
+early 1980s — CARI's *Cassette Futurism*: a brushed aluminium chassis, a
+charcoal glass faceplate, amber phosphor read-outs, a column of tiny lamps,
+and controls that look like they take a thumb. The machine is not a website
+about a machine; it is a machine. This file is the language's single source:
+the cells below are =dossier.design.cassette=, holding tokens, faces, bevels,
+component rules and motion, and the kit turns them into the CSS that dresses
+every mockup marked =:design cassette=.
+#+end_lede
+
+#+begin_stats
+33 | colour tokens | daylight on putty and aluminium; night session in black and amber
+10 | type roles | three faces: Chakra Petch for hardware legends, IBM Plex Sans for prose, IBM Plex Mono for values
+6 | radii | 1–14px: a deck has corners, not pillows
+8 | motions | lamp, switch, needle, flip, tune, scan, reel, tape-out
+#+end_stats
+
+* The idea
+Cassette Futurism is not nostalgia for the future; it is the look of
+equipment that expected to be used. That is the right register for a
+workstation dashboard. Every element answers "what is this, and what happens
+if I press it?" A lamp is lit or unlit. A channel has a number. A field is
+recessed, a key is raised, a plate is a plate. The design language borrows
+CARI's material vocabulary and refuses its costume: no fake wood veneer, no
+decorative knobs that do nothing.
+
+Three rules follow.
+
+#+begin_principles
+Material says state | Raised means actionable, recessed means read-only, lit means live. Never write what a bevel can say.
+Labels are tape | Names, units and modes sit on small self-adhesive labels in mono capitals. Prose stays in Plex Sans.
+One amber lamp | Accent is a signal, not a mood: one lit amber element per panel at rest; red and green only where they are facts.
+#+end_principles
+
+* Palette
+Light is a daylight bench: putty paper, brushed aluminium cards, charcoal
+faceplates. Dark is the night session: black chassis, the same amber and
+phosphor raised to readable light. Lamps are always named beside their colour.
+
+#+begin_palette :design cassette
+#+end_palette
+
+* Type
+Chakra Petch carries hardware legends and numbers; IBM Plex Sans carries the
+reading; IBM Plex Mono carries every value a person might compare.
+
+#+begin_type :design cassette
+#+end_type
+
+* Shape
+Corners are close and radii step by surface. The deck's depth comes from two
+bevels — a one-pixel highlight on top, a one-pixel shade below — plus a
+recessed well for anything you read rather than press.
+
+#+begin_shape :design cassette
+#+end_shape
+
+* Motion
+A deck moves like hardware: lamps warm, keys give, needles settle, tape
+travels. Nothing floats. Nothing loops except the two things that really are
+continuous — the scan while data is live, and the reels while something is
+being written.
+
+#+begin_motion :design cassette
+#+end_motion
+
+* Components
+The kit's own screen and desk lines, drawn on the deck. Nothing in the
+language changed to make them.
+
+#+begin_screen :id deck-cards :title "Channels and lamps" :caption "Card tones read as lamps: turn is yours, run is live, approve waits, done rests, fail needs repair."
+bar Station | @more
+sub othman.work · 4 listening
+section Ports | 4
+card run | 24017 · knowledger-brand | othman · ~/code/knowledger | live on the tailnet |
+card turn | 4321 · ora-website | othman · ~/code/ora-website | waiting on a name |
+card done | 24031 · forest-language | othman · ~/code/forest | published |
+card fail | 8080 · dev server | othman · ~/code/site | port already bound |
+#+end_screen
+
+#+begin_screen :id deck-controls :title "Keys, rockers and read-outs" :caption "Primary is a lit amber key; chips are rockers; rows are engraved labels with mono values; the strip is a VU read-out."
+bar < Services | @bell
+sub 12 saved · 9 published
+chips Mine* | Everyone | Unnamed
+section Services | 3
+row Endpoint | https://ora.work:18443
+row Owner | othman
+strip ok | All three services are live | Open
+banner warn | One service is waiting for its port
+actions Publish! | Rename | Later?
+input Filter ports… | ↑
+#+end_screen
+
+#+begin_desk :id deck-desk :title "The console at 1440" :caption "A charcoal chassis, a brushed faceplate, engraved labels and one amber action." :firm "WORK" :url "work · station"
+nav @home Station* | @grid Ports | @folder Projects | @people Users | @graph Gateway
+head Station | live · 5 people | Open admin!
+col rail
+row Station | work
+row Signed in | othman
+row People | 5
+col main
+card run | 24017 · knowledger-brand | othman · ~/code/knowledger |
+card run | 24031 · forest-language | othman · ~/code/forest |
+card turn | 4321 · ora-website | othman · ~/code/ora-website |
+col rail
+row Live feed | events
+row Uptime | 6 d 4 h
+#+end_desk
+
+* The module
+The cells below are =dossier.design.cassette=. They compose small functions —
+faces, token variables, chassis, display, controls, motion — rather than one
+sheet, so a new component has an obvious place to live.
+
+#+begin_src beam-lisp :id tokens
+(ns dossier.design.cassette)
+
+(def font-display
+  "Chakra Petch,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif")
+(def font-body
+  "IBM Plex Sans,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif")
+(def font-data
+  "IBM Plex Mono,ui-monospace,SFMono-Regular,Menlo,monospace")
+
+(def light
+  "Daylight bench: putty paper, brushed aluminium cards, charcoal faceplates,
+   amber and phosphor lamps."
+  {:paper "#e6e2d6" :card "#f2eee2" :field "#dcd7c9" :inset "#d2cdbf" :soft "#c9c4b4"
+   :line "#b8b2a2" :edge "#8a8473"
+   :ink "#1f1e19" :secondary "#45433b" :muted "#6a6659"
+   :forest "#2b2b26" :deep "#191915" :lime "#a9cf4e" :amber "#8f5408" :signal "#b8461f"
+   :focus "#2d7484" :progress "#8aae3e" :on-forest "#f6f1e2"
+   :success "#356b3d" :success-bg "#dde7c8" :pending "#8a5a12" :pending-bg "#efe0ba"
+   :danger "#993a2b" :danger-bg "#f0d9d0" :neutral "#4f5a66" :neutral-bg "#dadde0"
+   :sage "#566a3d" :sand "#87683a" :lilac "#6b5570"
+   :side "#24241f" :side-ink "#f1ecdc" :side-muted "#aaa491" :side-line "#44433a"})
+
+(def dark
+  "Night session: black chassis, amber as the primary solid, phosphor and
+   chrome raised to readable light. Same materials, lights down."
+  {:paper "#121310" :card "#1c1d18" :field "#171813" :inset "#0d0e0b" :soft "#26271f"
+   :line "#35362c" :edge "#565749"
+   :ink "#f1ebd9" :secondary "#d2ccb9" :muted "#a5a08f"
+   :forest "#f0b04a" :deep "#f7d79a" :lime "#b9df6d" :amber "#f0b04a" :signal "#f0784a"
+   :focus "#6cc2cf" :progress "#c4d98a" :on-forest "#1b1710"
+   :success "#a9d48a" :success-bg "#24301c" :pending "#f2c46f" :pending-bg "#392e1a"
+   :danger "#f0927b" :danger-bg "#3c231d" :neutral "#c2c7cf" :neutral-bg "#282c31"
+   :sage "#b2c58b" :sand "#dcb98a" :lilac "#c9b1d6"
+   :side "#0a0b08" :side-ink "#f1ebd9" :side-muted "#a5a08f" :side-line "#32332a"})
+
+(def palette
+  [["Ground" [:paper :card :field :inset :soft]]
+   ["Chassis" [:side :side-ink :side-muted :side-line]]
+   ["Lines" [:line :edge]]
+   ["Ink" [:ink :secondary :muted]]
+   ["Lamps" [:forest :deep :lime :amber :signal]]
+   ["States" [:success :pending :danger :neutral]]
+   ["State tints" [:success-bg :pending-bg :danger-bg :neutral-bg]]
+   ["Marks" [:sage :sand :lilac :focus]]])
+
+(def type-scale
+  [{:role "Display" :family font-display :size 56 :lh 0.96 :weight 700 :ls -1.4 :sample "Station work"}
+   {:role "Title" :family font-display :size 34 :lh 1.04 :weight 650 :ls -0.7 :sample "Every user, one deck"}
+   {:role "Section" :family font-display :size 20 :lh 1.16 :weight 600 :ls 0.2 :sample "Ports"}
+   {:role "Lede" :family font-body :size 21 :lh 1.45 :weight 400 :ls -0.1 :sample "The machine, honest about itself."}
+   {:role "Action" :family font-body :size 14 :lh 1.3 :weight 600 :sample "Publish"}
+   {:role "Body" :size 15 :lh 1.62 :weight 400 :sample "A port is open and named."}
+   {:role "Small" :size 13 :lh 1.5 :weight 400 :sample "Declared in Nix, observed on Work."}
+   {:role "Context" :family font-data :size 12 :lh 1.5 :weight 500 :sample "24017.othman · tcp · 2 s"}
+   {:role "Stamp" :family font-data :size 10.5 :lh 1 :weight 600 :ls 1.2 :sample "LIVE"}
+   {:role "Number" :family font-display :size 36 :lh 1 :weight 700 :ls -0.6 :sample "17"}])
+
+(def radii [[:stamp 1] [:control 3] [:card 6] [:panel 10] [:sheet 14] [:pill 999]])
+
+(def shadows
+  [[:rest "0 1px 0 #0000001a"]
+   [:lift "0 2px 0 #00000024, 0 8px 18px #0000001f"]
+   [:press "inset 1px 1px 0 #00000038"]
+   [:well "inset 0 1px 2px #0000002e, 0 1px 0 #ffffff59"]
+   [:sheet "0 26px 70px #0000004d"]
+   [:glow "0 0 0 3px #e59a2b4d"]])
+
+(def motion
+  "Structural motion for a deck. :from/:to are the demo's two states; :mid
+   makes it go and return; :loop plays continuously."
+  [{:name "lamp" :ms 160 :ease "ease-out" :use "A lamp warms when its state changes. It does not pulse."
+    :from "opacity:.25;filter:brightness(.6)" :to "opacity:1;filter:brightness(1.15)"}
+   {:name "switch" :ms 90 :ease "cubic-bezier(.3,0,.5,1)" :use "A key gives way under the thumb and returns."
+    :from "transform:none" :mid "transform:translateY(1px);filter:brightness(.92)" :to "transform:none"}
+   {:name "needle" :ms 520 :ease "cubic-bezier(.34,1.4,.64,1)" :use "A meter needle settles with one overshoot."
+    :from "transform:rotate(-28deg)" :mid "transform:rotate(4deg)" :to "transform:rotate(-6deg)"}
+   {:name "flip" :ms 180 :ease "cubic-bezier(.2,.8,.2,1)" :use "A counter digit rolls to its next value."
+    :from "transform:translateY(100%);opacity:0" :to "transform:none;opacity:1"}
+   {:name "tune" :ms 220 :ease "cubic-bezier(.2,.8,.2,1)" :use "A panel slides in from the right, like a tray latching."
+    :from "transform:translateX(14px);opacity:0" :to "transform:none;opacity:1"}
+   {:name "tape-out" :ms 260 :ease "cubic-bezier(.32,.72,0,1)" :use "A panel leaves sideways when it is ejected."
+    :from "transform:none" :to "transform:translateX(18px);opacity:0"}
+   {:name "scan" :ms 2600 :ease "linear" :use "The live read-out sweeps while data is arriving." :loop true
+    :from "background-position:0 0" :to "background-position:0 6px"}
+   {:name "reel" :ms 3200 :ease "linear" :use "Something is being written; the reels turn." :loop true
+    :from "transform:rotate(0)" :to "transform:rotate(360deg)"}])
+
+(assert (= (set (keys light)) (set (keys dark))))
+(assert (every? (fn [[_ ks]] (every? (fn [k] (and (get light k) (get dark k))) ks)) palette))
+{:tokens (count light) :registers (count palette) :type-roles (count type-scale)
+ :motions (vec (map :name motion))}
+#+end_src
+#+RESULTS: tokens
+: {:tokens 33, :registers 8, :type-roles 10, :motions ["lamp" "switch" "needle" "flip" "tune" "tape-out" "scan" "reel"]}
+
+** Contrast, measured
+Every pair the language leans on is checked, light and dark: body and meta on
+each ground, the amber as text, a filled key, each state tint, and the focus
+ring on a field. A deck that is beautiful and unreadable is a prop.
+
+#+begin_src beam-lisp :id contrast
+(defn- lum [hex]
+  (let [c (fn [i] (let [x (/ (erlang/binary_to_integer (subs hex i (+ i 2)) 16) 255.0)]
+                    (if (<= x 0.03928) (/ x 12.92) (math/pow (/ (+ x 0.055) 1.055) 2.4))))
+        r (c 1) g (c 3) b (c 5)]
+    (+ (* 0.2126 r) (* 0.7152 g) (* 0.0722 b))))
+(defn- ratio [a b]
+  (let [x (lum a) y (lum b) hi (max x y) lo (min x y)]
+    (/ (+ hi 0.05) (+ lo 0.05))))
+(def pairs
+  [[:ink :paper 4.5 "body on the bench"] [:secondary :card 4.5 "secondary on a card"]
+   [:muted :card 4.5 "meta on a card"] [:ink :field 4.5 "values in a well"]
+   [:amber :paper 4.5 "an amber stamp"] [:on-forest :forest 4.5 "a filled key"]
+   [:success :success-bg 4.5 "done"] [:pending :pending-bg 4.5 "waiting"]
+   [:danger :danger-bg 4.5 "failure"] [:neutral :neutral-bg 4.5 "neutral"]
+   [:focus :field 3.0 "focus on a field"]])
+(defn- failures [theme]
+  (vec (for [[fg bg min what] pairs :when (< (ratio (get theme fg) (get theme bg)) min)]
+         [what fg bg (erlang/round (* 100 (ratio (get theme fg) (get theme bg))))])))
+(assert (empty? (failures light)) (pr-str (failures light)))
+(assert (empty? (failures dark)) (pr-str (failures dark)))
+{:light :ok :dark :ok :pairs (count pairs)}
+#+end_src
+#+RESULTS: contrast
+: {:pairs 11, :light :ok, :dark :ok}
+
+#+begin_src beam-lisp :id css
+;; --- tokens -------------------------------------------------------------
+(defn- vars [m] (join ";" (for [[k v] m] (str "--f-" (name k) ":" v))))
+(defn- shadow-vars [ss] (join ";" (for [[k v] ss] (str "--f-shadow-" (name k) ":" v))))
+
+(def ^:private textures
+  (str "--f-tx-brushed:repeating-linear-gradient(0deg,transparent 0 1px,#0000000b 1px 2px),"
+       "repeating-linear-gradient(90deg,transparent 0 3px,#ffffff12 3px 4px);"
+       "--f-tx-grille:repeating-linear-gradient(90deg,#0000002e 0 2px,transparent 2px 4px);"
+       "--f-tx-scan:repeating-linear-gradient(0deg,transparent 0 2px,#00000012 2px 3px);"
+       "--f-tx-tape:repeating-linear-gradient(45deg,transparent 0 5px,#0000000a 5px 6px)"))
+
+;; --- report -------------------------------------------------------------
+(defn- report-css []
+  (str "html[data-design=\"cassette\"]{--font-display:" font-display ";--font-body:" font-body
+       ";--font-ui:" font-body ";--font-data:" font-data
+       ";--sans:var(--font-ui);--serif:var(--font-display);--mono:var(--font-data)"
+       ";--shadow:var(--f-shadow-sheet);accent-color:var(--f-amber)}"
+       "html[data-design=\"cassette\"] body{background:var(--bg);background-image:var(--f-tx-brushed);"
+       "color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.62}"
+       "html[data-design=\"cassette\"] ::selection{background:var(--f-lime);color:var(--f-deep)}"
+       "html[data-design=\"cassette\"] h1,html[data-design=\"cassette\"] h2,html[data-design=\"cassette\"] h3{"
+       "font-family:var(--font-display);font-weight:650;letter-spacing:-.01em}"
+       "html[data-design=\"cassette\"] h1{text-transform:uppercase;letter-spacing:.005em}"
+       "html[data-design=\"cassette\"] header.doc{padding:44px 0 18px}"
+       "html[data-design=\"cassette\"] header.doc h1{font-size:clamp(42px,6.4vw,78px);line-height:.94;max-width:15ch}"
+       "html[data-design=\"cassette\"] header.doc .sub{font:400 18px/1.55 var(--font-body);max-width:48ch;color:var(--f-secondary)}"
+       "html[data-design=\"cassette\"] .kicker{font:600 10.5px var(--font-data);letter-spacing:.16em;text-transform:uppercase;color:var(--f-amber);display:inline-flex;align-items:center;gap:8px}"
+       "html[data-design=\"cassette\"] .kicker::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--f-amber);box-shadow:0 0 6px var(--f-amber)}"
+       "html[data-design=\"cassette\"] .lede{font:400 clamp(23px,3vw,34px)/1.34 var(--font-display);max-width:34ch;letter-spacing:-.015em;color:var(--f-ink)}"
+       "html[data-design=\"cassette\"] .live{background:var(--bg);backdrop-filter:none;border-top:1px solid var(--f-line);border-bottom:1px solid var(--f-line);font-family:var(--font-data);font-size:11px;letter-spacing:.08em;text-transform:uppercase}"
+       "html[data-design=\"cassette\"] .side{background:var(--f-side);background-image:var(--f-tx-brushed);border-radius:0;color:var(--f-side-ink);padding:26px 12px;top:0;border-right:2px solid var(--f-side-line)}"
+       "html[data-design=\"cassette\"] .side-title{font-family:var(--font-display);text-transform:uppercase;font-size:22px;letter-spacing:.02em;color:var(--f-side-ink)}"
+       "html[data-design=\"cassette\"] .side-sec,html[data-design=\"cassette\"] .side-all{color:var(--f-side-muted);font-family:var(--font-data);font-size:12px}"
+       "html[data-design=\"cassette\"] .side-item.on .side-sec{background:var(--f-amber);color:var(--f-deep);box-shadow:inset 0 1px 0 #ffffff66,0 0 0 1px #00000059}"
+       "html[data-design=\"cassette\"] .side-sec .wait{background:var(--f-side-line);color:var(--f-side-ink);border-radius:1px}"
+       "html[data-design=\"cassette\"] .side-item.on .side-sec .wait{background:var(--f-deep);color:var(--f-amber)}"
+       "html[data-design=\"cassette\"] .side-subs{border-color:var(--f-side-line)}"
+       "html[data-design=\"cassette\"] .side-subs a{color:var(--f-side-muted)}"
+       "html[data-design=\"cassette\"] .stat{border:1px solid var(--f-line);border-top-color:var(--f-edge);border-radius:var(--r-card);background:var(--f-card);background-image:var(--f-tx-brushed);box-shadow:var(--f-shadow-well)}"
+       "html[data-design=\"cassette\"] .stat b{font-family:var(--font-display);font-size:40px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:lining-nums tabular-nums}"
+       "html[data-design=\"cassette\"] .callout,html[data-design=\"cassette\"] article.job{border-radius:var(--r-card);border:1px solid var(--f-line);box-shadow:var(--f-shadow-rest)}"
+       "html[data-design=\"cassette\"] .cell{border-radius:var(--r-card);border:1px solid var(--f-line);background:var(--f-card)}"
+       "html[data-design=\"cassette\"] .cell-head{font-family:var(--font-data);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--f-amber)}"
+       "html[data-design=\"cassette\"] code,html[data-design=\"cassette\"] pre{font-family:var(--font-data)}"
+       "html[data-design=\"cassette\"] :focus-visible{outline:2px solid var(--f-focus);outline-offset:3px}"))
+
+;; --- mockups: the kit's variables ----------------------------------------
+(defn- kit-map []
+  (str "--bg:var(--f-paper);--card:var(--f-card);--paper:var(--f-inset);--line:var(--f-line);--latte:var(--f-edge);"
+       "--ink:var(--f-ink);--muted:var(--f-muted);--mocha:var(--f-secondary);--clay:var(--f-forest);"
+       "--sage:var(--f-success);--ochre:var(--f-pending);--slate:var(--f-neutral);--plum:var(--f-lilac);"
+       "--sans:" font-body ";--serif:" font-display ";--mono:" font-data ";"
+       "--k-bg:var(--f-paper);--k-paper:var(--f-card);--k-paper2:var(--f-field);--k-clay:var(--f-inset);--k-clay2:var(--f-soft);"
+       "--k-hair:var(--f-line);--k-hair2:var(--f-edge);--k-ink:var(--f-ink);--k-ink2:var(--f-secondary);--k-ink3:var(--f-muted);"
+       "--k-signal:var(--f-forest);--k-signal2:var(--f-deep);--k-on:var(--f-on-forest);--k-honey:var(--f-lime);"
+       "--k-honeyink:var(--f-pending);--k-hl:var(--f-success-bg);--k-ok:var(--f-success);--k-okbg:var(--f-success-bg);"
+       "--k-danger:var(--f-danger);--k-voice:" font-body ";--k-doc:" font-body ";--k-display:" font-display ";"))
+
+;; --- mockups: chassis, display, controls --------------------------------
+(defn- chassis-css []
+  (str ".design-cassette .screen,.design-cassette .d-frame,.design-cassette .sg-workbench{"
+       "font-family:" font-body ";border:1px solid var(--f-ink);border-radius:var(--r-panel);"
+       "background:var(--f-card);background-image:var(--f-tx-brushed);box-shadow:var(--f-shadow-sheet),inset 0 1px 0 #ffffff73}"
+       ".design-cassette .screen::before,.design-cassette .d-frame::before{"
+       "content:'';display:block;height:4px;background:var(--f-ink);border-radius:var(--r-panel) var(--r-panel) 0 0}"
+       ".design-cassette .s-bar{background:var(--f-deep);color:var(--f-side-ink);"
+       "border-bottom:2px solid var(--f-ink);padding:14px 16px 12px;display:flex;align-items:center;gap:10px;"
+       "background-image:var(--f-tx-brushed)}"
+       ".design-cassette .s-bar b{font:700 18px/1.15 " font-display ";letter-spacing:.02em;text-transform:uppercase;"
+       "text-shadow:0 0 10px #e59a2b40}"
+       ".design-cassette .s-bar b::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;"
+       "background:var(--f-amber);box-shadow:0 0 7px var(--f-amber);margin-right:9px;vertical-align:2px}"
+       ".design-cassette .s-sub{font:500 11px " font-data ";letter-spacing:.06em;color:var(--f-side-muted);padding:6px 16px 0}"
+       ".design-cassette .s-sec{font:600 10px " font-data ";letter-spacing:.14em;text-transform:uppercase;"
+       "color:var(--f-amber);margin:16px 16px 6px;display:flex;gap:8px;align-items:baseline}"
+       ".design-cassette .s-sec em{color:var(--f-muted);letter-spacing:.04em}"
+       ".design-cassette .s-card{border-radius:var(--r-card);border:1px solid var(--f-line);"
+       "border-top-color:var(--f-edge);background:var(--f-card);background-image:var(--f-tx-brushed);"
+       "box-shadow:var(--f-shadow-rest);padding:13px 14px;display:flex;gap:11px;align-items:flex-start}"
+       ".design-cassette .s-card-main{min-width:0;flex:1}"
+       ".design-cassette .s-card-top b{font:600 15px/1.3 " font-body ";letter-spacing:-.01em;"
+       "font-variant-numeric:lining-nums tabular-nums}"
+       ".design-cassette .s-card-top span{display:block;font:500 10.5px " font-data ";letter-spacing:.05em;"
+       "text-transform:uppercase;color:var(--f-muted);margin-top:2px}"
+       ".design-cassette .s-card-body{font-size:13px;line-height:1.5;color:var(--f-secondary);margin-top:5px}"
+       ".design-cassette .s-dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;"
+       "background:var(--f-neutral);box-shadow:inset 0 -1px 1px #00000059,0 0 0 3px var(--f-inset);animation:none}"
+       ".design-cassette .s-card.turn{border-left:3px solid var(--f-amber)}"
+       ".design-cassette .s-card.turn .s-dot{background:var(--f-amber);box-shadow:0 0 8px var(--f-amber),inset 0 -1px 1px #00000040}"
+       ".design-cassette .s-card.approve{border-left:3px solid var(--f-signal)}"
+       ".design-cassette .s-card.approve .s-dot{background:var(--f-signal);box-shadow:0 0 8px var(--f-signal)}"
+       ".design-cassette .s-card.run .s-dot{background:var(--f-lime);box-shadow:0 0 9px var(--f-lime);animation:fm-scan 2600ms linear infinite}"
+       ".design-cassette .s-card.done{border-left:3px solid var(--f-success)}"
+       ".design-cassette .s-card.done .s-dot{background:var(--f-success);box-shadow:0 0 7px var(--f-success)}"
+       ".design-cassette .s-card.fail{border-left:3px solid var(--f-danger)}"
+       ".design-cassette .s-card.fail .s-dot{background:var(--f-danger);box-shadow:0 0 8px var(--f-danger)}"
+       ".design-cassette .s-card.idle{opacity:1}"))
+
+(defn- controls-css []
+  (str ".design-cassette .s-chips{display:flex;gap:6px;padding:10px 16px 4px;flex-wrap:wrap}"
+       ".design-cassette .s-chips .chip{font:600 10.5px " font-data ";letter-spacing:.08em;text-transform:uppercase;"
+       "padding:5px 10px;border-radius:var(--r-control);border:1px solid var(--f-edge);color:var(--f-secondary);"
+       "background:linear-gradient(180deg,var(--f-card),var(--f-inset));box-shadow:inset 0 1px 0 #ffffff80,0 1px 0 #0000002e}"
+       ".design-cassette .s-chips .chip.on{background:var(--f-amber);border-color:var(--f-deep);color:var(--f-deep);"
+       "box-shadow:inset 0 1px 0 #ffffff66,0 0 0 1px #0000002e}"
+       ".design-cassette .s-tabs{display:flex;gap:0;border-bottom:2px solid var(--f-ink);padding:0 16px}"
+       ".design-cassette .s-tabs .tab{font:600 10.5px " font-data ";letter-spacing:.08em;text-transform:uppercase;"
+       "padding:8px 12px;color:var(--f-muted)}"
+       ".design-cassette .s-tabs .tab.on{background:var(--f-ink);color:var(--f-side-ink)}"
+       ".design-cassette .s-strip{border-radius:var(--r-control);border:1px solid var(--f-edge);"
+       "background:var(--f-inset);box-shadow:var(--f-shadow-well);padding:10px 12px;display:flex;gap:10px;"
+       "align-items:center;font:500 12px " font-data ";color:var(--f-ink)}"
+       ".design-cassette .s-strip .s-dot{background:var(--f-amber);box-shadow:0 0 7px var(--f-amber);margin:0}"
+       ".design-cassette .s-strip.ok .s-dot{background:var(--f-success);box-shadow:0 0 7px var(--f-success)}"
+       ".design-cassette .s-strip .btn,.design-cassette .s-strip a{font:600 10.5px " font-data ";text-transform:uppercase;"
+       "letter-spacing:.06em;background:var(--f-ink);color:var(--f-side-ink);border-radius:var(--r-control);padding:4px 9px;border:1px solid var(--f-deep)}"
+       ".design-cassette .s-actions{display:flex;gap:8px;padding:12px 16px;flex-wrap:wrap;align-items:center}"
+       ".design-cassette .btn,.design-cassette .ib{border-radius:var(--r-control);border:1px solid var(--f-edge);"
+       "background:linear-gradient(180deg,var(--f-card),var(--f-inset));color:var(--f-ink);"
+       "font:600 11px " font-data ";letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;"
+       "box-shadow:inset 0 1px 0 #ffffff80,0 1px 0 #00000038}"
+       ".design-cassette .btn:active,.design-cassette .ib:active{transform:translateY(1px);box-shadow:var(--f-shadow-press)}"
+       ".design-cassette .btn.primary,.design-cassette .ib.primary{background:var(--f-amber);border-color:var(--f-deep);color:var(--f-deep);"
+       "box-shadow:inset 0 1px 0 #ffffff73,0 1px 0 #0000004d,0 0 12px #e59a2b40}"
+       ".design-cassette .s-row{display:flex;justify-content:space-between;gap:14px;padding:8px 16px;border-top:1px solid var(--f-line);font-size:12.5px}"
+       ".design-cassette .s-row span{font:500 10.5px " font-data ";letter-spacing:.07em;text-transform:uppercase;color:var(--f-muted)}"
+       ".design-cassette .s-row b{font:500 12px " font-data ";color:var(--f-ink)}"
+       ".design-cassette .s-banner{border-radius:var(--r-control);padding:9px 12px;margin:8px 16px;font:500 12px " font-data ";"
+       "border:1px solid var(--f-edge);background:var(--f-inset);box-shadow:var(--f-shadow-well)}"
+       ".design-cassette .s-banner.ok{border-left:3px solid var(--f-success)}"
+       ".design-cassette .s-banner.warn{border-left:3px solid var(--f-pending);color:var(--f-pending)}"
+       ".design-cassette .s-input,.design-cassette .s-reply,.design-cassette .s-search{border-radius:var(--r-control);"
+       "border:1px solid var(--f-edge);background:var(--f-field);box-shadow:var(--f-shadow-well);"
+       "font:500 12px " font-data ";color:var(--f-ink);padding:8px 11px;margin:8px 16px}"
+       ".design-cassette .s-input span,.design-cassette .s-search span{color:var(--f-muted)}"
+       ".design-cassette .s-note{font-size:12px;color:var(--f-muted);padding:8px 16px;font-style:normal}"
+       ".design-cassette .s-sheet{background:var(--f-card);border:1px solid var(--f-ink);border-bottom:0;"
+       "border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--f-shadow-sheet)}"
+       ".design-cassette .s-sheet-title{font:700 16px " font-display ";text-transform:uppercase;letter-spacing:.02em;"
+       "border-bottom:2px solid var(--f-ink);padding-bottom:8px}"
+       ".design-cassette .s-lock{background:var(--f-deep);color:var(--f-side-ink);"
+       "background-image:var(--f-tx-scan),var(--f-tx-brushed)}"
+       ".design-cassette .s-lock .s-clock{font-family:" font-display ";letter-spacing:.02em}"))
+
+(defn- desk-css []
+  (str ".design-cassette .d-app{background:var(--f-paper);background-image:var(--f-tx-brushed)}"
+       ".design-cassette .d-nav{background:var(--f-side);background-image:var(--f-tx-brushed);color:var(--f-side-ink);"
+       "border-right:2px solid var(--f-side-line)}"
+       ".design-cassette .d-nav .d-item{font:500 12px " font-body ";color:var(--f-side-muted)}"
+       ".design-cassette .d-nav .on{background:var(--f-amber);color:var(--f-deep);border-radius:var(--r-control);"
+       "box-shadow:inset 0 1px 0 #ffffff66}"
+       ".design-cassette .d-firm{font:700 19px " font-display ";text-transform:uppercase;letter-spacing:.04em;color:var(--f-side-ink)}"
+       ".design-cassette .d-title{font:650 30px/1.05 " font-display ";letter-spacing:-.01em}"
+       ".design-cassette .d-head{border-bottom:2px solid var(--f-ink);padding-bottom:12px}"
+       ".design-cassette .d-st{font:600 10px " font-data ";letter-spacing:.1em;text-transform:uppercase;"
+       "border:1px solid currentColor;border-radius:var(--r-stamp);padding:3px 6px}"
+       ".design-cassette .d-meta{font:500 10.5px " font-data ";letter-spacing:.06em;text-transform:uppercase;color:var(--f-muted)}"
+       ".design-cassette .d-paper{background:var(--f-card);background-image:var(--f-tx-tape);border:1px solid var(--f-line);"
+       "box-shadow:var(--f-shadow-rest)}"
+       ".design-cassette .d-cols{border-top:1px solid var(--f-line)}"
+       ".design-cassette .d-point{border:1px solid var(--f-line);border-radius:var(--r-card);background:var(--f-card);"
+       "background-image:var(--f-tx-brushed);box-shadow:var(--f-shadow-rest)}"
+       ".design-cassette .d-comment{background:var(--f-inset);border-left:3px solid var(--f-amber)}"
+       ".design-cassette .d-crumb{font:500 10.5px " font-data ";letter-spacing:.07em;text-transform:uppercase;color:var(--f-muted)}"))
+
+(defn- graph-css []
+  (str ".design-cassette .sg-workbench{background:var(--f-card);background-image:var(--f-tx-brushed);border-width:1px}"
+       ".design-cassette .sg-app-nav{background:var(--f-side);background-image:var(--f-tx-brushed);color:var(--f-side-ink);"
+       "border:0;border-right:2px solid var(--f-side-line);padding:24px 12px;gap:24px}"
+       ".design-cassette .sg-brand b{font:700 24px " font-display ";text-transform:uppercase;letter-spacing:.03em;color:var(--f-side-ink)}"
+       ".design-cassette .sg-brand small,.design-cassette .sg-person{font:500 10.5px " font-data ";letter-spacing:.06em;"
+       "text-transform:uppercase;color:var(--f-side-muted)}"
+       ".design-cassette .sg-mark{background:var(--f-amber);color:var(--f-deep);border-radius:50%;"
+       "box-shadow:0 0 10px #e59a2b73}"
+       ".design-cassette .sg-menu-item{color:var(--f-side-muted)}"
+       ".design-cassette .sg-menu-item.on .sg-link{background:var(--f-amber);color:var(--f-deep);border-radius:var(--r-control);"
+       "box-shadow:inset 0 1px 0 #ffffff66}"
+       ".design-cassette .sg-menu-item .sg-link{font:500 12px " font-body ";justify-content:flex-start;min-height:36px}"
+       ".design-cassette .sg-app-top{background:var(--f-deep);color:var(--f-side-ink);padding:20px 24px 16px;"
+       "border-bottom:2px solid var(--f-ink);background-image:var(--f-tx-brushed)}"
+       ".design-cassette .sg-app-top .d-title{font:700 28px/1.05 " font-display ";text-transform:uppercase;letter-spacing:.02em;"
+       "color:var(--f-side-ink)}"
+       ".design-cassette .sg-app-top .d-st{color:var(--f-amber);border:1px solid currentColor}"
+       ".design-cassette .sg-app-content{background:var(--f-paper);padding:18px 24px 64px}"
+       ".design-cassette .sg-app .s-card{background:var(--f-card)}"
+       ".design-cassette .sg-app .s-msg{background:var(--f-inset);border:1px solid var(--f-line);border-left:3px solid var(--f-amber);"
+       "border-radius:var(--r-control);font-size:14px;box-shadow:var(--f-shadow-well)}"
+       ".design-cassette .sg-columns{gap:20px}"
+       ".design-cassette .s-sec{margin:14px 0 8px}"
+       ".design-cassette .sg-node{border:1px solid var(--f-ink);border-radius:var(--r-card);background:var(--f-card);"
+       "background-image:var(--f-tx-brushed)}"
+       ".design-cassette .sg-node-title{font-family:" font-display ";text-transform:uppercase;letter-spacing:.02em}"
+       ".design-cassette .sg-wire-line{stroke:var(--f-amber)}"
+       ".design-cassette .sg-toolbar{background:var(--f-side);color:var(--f-side-ink);border-radius:var(--r-control)}"))
+
+(defn- showcase-css []
+  (str ".lang-show{margin:16px 0;padding:16px;border-radius:var(--r-panel);background:var(--f-card);"
+       "background-image:var(--f-tx-brushed);color:var(--f-ink);border:1px solid var(--f-ink);"
+       "box-shadow:var(--f-shadow-sheet),inset 0 1px 0 #ffffff73;font-family:" font-body "}"
+       ".lang-show>figcaption{font:700 14px " font-display ";text-transform:uppercase;letter-spacing:.05em;"
+       "padding-bottom:8px;margin-bottom:10px;border-bottom:2px solid var(--f-ink)}"
+       ".f-group h5{margin:10px 0 6px;font:600 10.5px " font-data ";color:var(--f-amber);text-transform:uppercase;letter-spacing:.12em}"
+       ".f-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}"
+       ".f-sw b{font:600 11px " font-data ";letter-spacing:.04em;text-transform:uppercase}"
+       ".f-sw code{font:400 10px " font-data ";background:none;border:0;padding:0;color:var(--f-muted)}"
+       ".f-chip{display:grid;grid-template-columns:1fr 1fr;height:36px;border-radius:var(--r-control);overflow:hidden;border:1px solid var(--f-edge)}"
+       ".f-type{padding:10px 0;border-bottom:1px solid var(--f-line)}"
+       ".f-type-meta{font:500 10px " font-data ";letter-spacing:.06em;text-transform:uppercase;color:var(--f-muted)}"
+       ".f-shapes{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}"
+       ".f-shape{width:120px;height:72px;background:var(--f-card);background-image:var(--f-tx-brushed);border:1px solid var(--f-edge);"
+       "display:grid;place-content:center;text-align:center;font:600 11px " font-data ";box-shadow:inset 0 1px 0 #ffffff80}"
+       ".f-shape code{font-size:9.5px;background:none;border:0;color:var(--f-muted);max-width:110px;overflow-wrap:anywhere}"
+       ".f-motions{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}"
+       ".f-motion b{font:600 12px " font-data ";letter-spacing:.05em;text-transform:uppercase}"
+       ".f-motion code{font-size:10px;background:none;border:0;padding:0;color:var(--f-amber)}"
+       ".f-motion p{margin:0;font-size:12px;color:var(--f-secondary);line-height:1.45}"
+       ".f-stage{height:92px;border-radius:var(--r-panel);background:var(--f-deep);background-image:var(--f-tx-grille),var(--f-tx-scan);"
+       "display:grid;place-items:center;overflow:hidden;position:relative;border:1px solid var(--f-ink)}"
+       ".f-demo{width:116px;height:48px;border-radius:var(--r-control);background:var(--f-card);"
+       "background-image:var(--f-tx-brushed);border:1px solid var(--f-edge);display:grid;place-items:center;"
+       "box-shadow:inset 0 1px 0 #ffffff73}"
+       ".f-demo span{width:56%;height:5px;border-radius:1px;background:var(--f-amber);box-shadow:0 0 8px var(--f-amber)}"
+       ".f-demo.fm-needle span{width:2px;height:30px;transform-origin:50% 100%;background:var(--f-signal);box-shadow:0 0 6px var(--f-signal)}"
+       ".f-demo.fm-reel span{width:26px;height:26px;border-radius:50%;background:transparent;border:3px dotted var(--f-lime);box-shadow:none}"
+       ".f-demo.fm-scan span{width:70%;height:100%;background:repeating-linear-gradient(0deg,transparent 0 4px,#e59a2b2e 4px 5px);box-shadow:none}"))
+
+(def ^:private at ":root .design-cassette.design-cassette")
+(def ^:private dark-at
+  (str "@media(prefers-color-scheme:dark){:root:not([data-theme=\"light\"]) .design-cassette.design-cassette{"
+       (vars dark) ";" (shadow-vars shadows) ";" textures "}}"
+       ":root[data-theme=\"dark\"] .design-cassette.design-cassette{" (vars dark) ";" (shadow-vars shadows) ";" textures "}"))
+
+(defn- keyframes
+  "Each token plays at its real duration and curve; :loop tokens never rest."
+  [m]
+  (let [rest-ms (if (:loop m) 0 1200) total (+ (:ms m) rest-ms)
+        p (fn [x] (str (/ (erlang/round (* 1000.0 (/ x total))) 10.0) "%"))
+        e (str "animation-timing-function:" (:ease m))]
+    (str "@keyframes fm-" (:name m) "{0%{" (:from m) ";" e "}"
+         (when (:mid m) (str (p (/ (:ms m) 2)) "{" (:mid m) ";" e "}"))
+         (p (:ms m)) "{" (:to m) "}"
+         "100%{" (:to m) "}}"
+         ".f-demo.fm-" (:name m) "{animation:fm-" (:name m) " " total "ms infinite}")))
+
+(defn- reduced-css []
+  (str "@media(prefers-reduced-motion:reduce){.f-demo,.design-cassette .s-dot{animation:none!important}"
+       ".f-demo.fm-scan{animation:none!important}"
+       ".design-cassette *{scroll-behavior:auto!important}}"))
+
+(def stylesheet
+  (str at "{" (vars light) ";" (shadow-vars shadows) ";" textures ";" (kit-map) "}"
+       dark-at
+       (report-css) (chassis-css) (controls-css) (desk-css) (graph-css) (showcase-css)
+       (join "" (map keyframes motion)) (reduced-css)))
+
+(def language
+  {:name "cassette" :title "Deck · Cassette Futurism" :font font-body
+   :font-body font-body :font-ui font-body :font-display font-display :font-data font-data
+   :fonts ["https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"]
+   :light light :dark dark :palette palette :type type-scale :radii radii :shadows shadows :motion motion
+   :css stylesheet})
+
+(assert (includes? stylesheet "--f-amber:#8f5408"))
+(assert (includes? stylesheet "--f-amber:#f0b04a"))
+(assert (every? (fn [m] (includes? stylesheet (str "@keyframes fm-" (:name m)))) motion))
+(assert (includes? stylesheet "prefers-reduced-motion"))
+{:css-bytes (count stylesheet) :functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "keyframes" "reduced-css"]}
+#+end_src
+#+RESULTS: css
+: {:functions ["report-css" "kit-map" "chassis-css" "controls-css" "desk-css" "graph-css" "showcase-css" "keyframes" "reduced-css"], :css-bytes 27284}

@@ -107,6 +107,19 @@
                     "fm-hand-over" "Manrope" "@keyframes fm-draft"]]
       (is (includes? html needle) (str "missing " needle)))))
 
+(deftest a-second-language-ships-its-own-faces-and-only-travels-when-used
+  (let [doc (o/read-doc (join "\n" ["#+design: cassette" "* D"
+                                    "#+begin_screen :id s1 :title S" "bar Station" "#+end_screen"
+                                    "#+begin_palette" "#+end_palette" "#+begin_type" "#+end_type"]))
+        html (h/hiccup->html (pg/page-h doc "" ""))
+        forest-doc (o/read-doc (join "\n" ["#+design: forest" "* D" "#+begin_screen :id s2 :title S" "bar Hi" "#+end_screen"]))
+        forest-html (h/hiccup->html (pg/page-h forest-doc "" ""))]
+    (doseq [needle ["phone design-cassette" "--f-amber:#8f5408" "Chakra+Petch" "IBM+Plex+Mono"
+                    "class=\"f-sw\"" "@keyframes fm-needle" "prefers-reduced-motion"]]
+      (is (includes? html needle) (str "missing " needle)))
+    (is (not (includes? forest-html "--f-amber:#8f5408"))
+        "a forest document must not carry another language's tokens")))
+
 (deftest forest-at-night-has-oomph-and-shows-it
   (is (:ok? (dossier.tone/oomph forest/dark forest/night-roles)))
   (let [doc (o/read-doc (join "\n" ["#+design: forest" "* N" "#+begin_night :design forest" "#+end_night"]))

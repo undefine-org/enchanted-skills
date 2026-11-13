@@ -255,7 +255,7 @@
     (for [href (design/font-links doc)] [:link {:rel "stylesheet" :href href}])
     [:title (String/replace (or (:title (:meta doc)) "Dossier") (Regex/compile! "\\s+—.*$") "")]
     (when-not locked [:link {:rel "stylesheet" :href "review.css"}])
-    [:style css (design/css)]]
+    [:style css (design/css doc)]]
    [:body
     (if locked
       [:div.live [:i] [:span#stamp (ui/tr "live")] [:button#theme {:type "button"} (ui/tr "theme")]]

@@ -15,12 +15,15 @@
 ;   #+begin_motion :design forest       every motion token, playing
 
 (ns dossier.design
-  (:require [dossier.design.forest :as forest] [dossier.tone :as tone]))
+  (:require [dossier.design.forest :as forest] [dossier.design.cassette :as cassette]
+            [dossier.tone :as tone]))
 
 (def languages
   "name → the module's `language` map:
-   {:name :title :fonts [href] :css :font :light :dark :palette :type :radii :shadows :motion}"
-  {"forest" forest/language})
+   {:name :title :fonts [href] :css :font :light :dark :palette :type :radii :shadows :motion}
+   A language with several faces may name :font-body, :font-ui, :font-display
+   and :font-data; each falls back to :font."
+  {"forest" forest/language "cassette" cassette/language})
 
 (defn- product-css
   "Languages that live with their product (a private repository, say): CSS
@@ -32,13 +35,14 @@
    (map (fn [p] (File/read! p)) paths)))
 
 (defn- report-vars [language colors]
-  (str "--font-body:" (:font language) ";--font-display:" (:font language)
-       ";--font-ui:" (:font language) ";"
-       (join ";" (for [[kit token] [["bg" :paper] ["paper" :inset] ["card" :card]
-                                    ["line" :line] ["latte" :edge] ["ink" :ink]
-                                    ["muted" :muted] ["mocha" :secondary] ["clay" :forest]
-                                    ["sage" :success] ["ochre" :pending] ["slate" :neutral] ["plum" :lilac]]]
-                   (str "--" kit ":" (get colors token))))))
+  (let [face (fn [k] (or (get language k) (:font language)))]
+    (str "--font-body:" (face :font-body) ";--font-display:" (face :font-display)
+         ";--font-ui:" (face :font-ui) ";--font-data:" (face :font-data) ";"
+         (join ";" (for [[kit token] [["bg" :paper] ["paper" :inset] ["card" :card]
+                                      ["line" :line] ["latte" :edge] ["ink" :ink]
+                                      ["muted" :muted] ["mocha" :secondary] ["clay" :forest]
+                                      ["sage" :success] ["ochre" :pending] ["slate" :neutral] ["plum" :lilac]]]
+                     (str "--" kit ":" (get colors token)))))))
 
 (defn- report-css [language]
   (let [selector (str "html[data-design=\"" (:name language) "\"]")]
@@ -47,8 +51,20 @@
          (report-vars language (:dark language)) "}}"
          selector "[data-theme=\"dark\"]{" (report-vars language (:dark language)) "}")))
 
-(defn css []
-  (join "\n" (concat (map :css (vals languages)) (map report-css (vals languages)) (product-css))))
+(defn css
+  "The CSS the page needs: only the languages this document wears (its
+   #+design:, and any block's :design NAME), so one language's selectors
+   never reach a document that does not use it. Without a document (a host
+   asking for everything) every registered language is included."
+  ([] (css nil))
+  ([doc]
+   (let [used (if doc
+                (let [theme (get-in doc [:meta :design])
+                      chosen (set (concat (when theme [theme])
+                                          (keep (fn [node] (get-in node [:attrs :design])) (:nodes doc))))]
+                  (if (empty? chosen) [] (filter (fn [l] (contains? chosen (:name l))) (vals languages))))
+                (vals languages))]
+     (join "\n" (concat (map :css used) (map report-css used) (product-css))))))
 
 (defn font-links
   "Load only faces used by this document. An external language supplies its own
